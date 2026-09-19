@@ -53,53 +53,101 @@
           </div>
         </section>
 
-        <!-- Orientación y Posición de la Pared Fina (5x1) -->
+        <!-- Orientación y Cuadrícula Visual de Tabiques y Esquinas (5x5) -->
         <section class="tool-section">
-          <h2>📐 Colocación y Rotación (5x1)</h2>
-          <div class="placement-controls">
-            <div class="rotation-bar">
-              <button class="btn-rotate" id="btnRotateWall" title="Presiona [R] para rotar">
-                <span class="rot-icon">🔄</span>
-                <span>Girar: <strong id="rotLabel">Horizontal ━</strong> <kbd>R</kbd></span>
+          <div class="section-title-row">
+            <h2>📐 Colocación de Paredes (5x1)</h2>
+            <button class="mini-rot-btn" id="btnRotateWall" title="Alternar orientación Horizontal / Vertical [R]">
+              <span id="rotLabel">━ H</span> <kbd>R</kbd>
+            </button>
+          </div>
+
+          <div class="wall-matrix-wrapper">
+            <div class="wall-matrix-grid" id="wallMatrixGrid">
+              <!-- Fila 1 -->
+              <button class="wall-tile-btn" data-mode="corner_NW" title="Esquina Noroeste (┌)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
               </button>
-            </div>
-            <div class="edge-selector-grid">
-              <button class="edge-btn active" data-pos="auto" id="posAuto" title="Colocar según el lado de la casilla por donde pases el ratón">🎯 Auto (Cursor)</button>
-              <button class="edge-btn" data-pos="N" id="posNorth" title="Borde Superior">⬆️ Norte</button>
-              <button class="edge-btn" data-pos="S" id="posSouth" title="Borde Inferior">⬇️ Sur</button>
-              <button class="edge-btn" data-pos="W" id="posWest" title="Borde Izquierdo">⬅️ Oeste</button>
-              <button class="edge-btn" data-pos="E" id="posEast" title="Borde Derecho">➡️ Este</button>
-              <button class="edge-btn" data-pos="center" id="posCenter" title="Centro de la casilla">✛ Centro</button>
-            </div>
-            <div class="quick-corners">
-              <span class="sub-heading">Esquinas en Bordes:</span>
-              <div class="corner-buttons">
-                <button class="corner-btn" data-corner="NW" title="Esquina Arriba-Izquierda (Norte + Oeste)">┌ NO</button>
-                <button class="corner-btn" data-corner="NE" title="Esquina Arriba-Derecha (Norte + Este)">┐ NE</button>
-                <button class="corner-btn" data-corner="SW" title="Esquina Abajo-Izquierda (Sur + Oeste)">└ SO</button>
-                <button class="corner-btn" data-corner="SE" title="Esquina Abajo-Derecha (Sur + Este)">┘ SE</button>
-              </div>
+              <button class="wall-tile-btn" data-mode="corner_CH_E" title="Centro Vertical + Lateral Este (⊢)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="N" title="Borde Norte (━)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CV_N" title="Centro Horizontal + Lateral Norte (⊤)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="14.5"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_NE" title="Esquina Noreste (┐)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
+              </button>
 
-              <span class="sub-heading" style="margin-top: 6px;">Esquinas Centradas (2 laterales enteros):</span>
-              <div class="corner-buttons">
-                <button class="corner-btn" data-corner="CH_W" title="Centro Horizontal + Lateral Oeste">⊢ Cent. Oeste</button>
-                <button class="corner-btn" data-corner="CH_E" title="Centro Horizontal + Lateral Este">⊣ Cent. Este</button>
-                <button class="corner-btn" data-corner="CV_N" title="Centro Vertical + Lateral Norte">⊤ Cent. Norte</button>
-                <button class="corner-btn" data-corner="CV_S" title="Centro Vertical + Lateral Sur">⊥ Cent. Sur</button>
-              </div>
+              <!-- Fila 2 -->
+              <button class="wall-tile-btn" data-mode="CH" title="Centro Horizontal (━)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CENTER_NW" title="Rincón Centro Noroeste (┌)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="21.5"/><rect class="tile-wall" x="0" y="14.5" width="21.5" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CV_S" title="Centro Horizontal + Lateral Sur (⊥)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CENTER_NE" title="Rincón Centro Noreste (┐)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="21.5"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="CV" title="Centro Vertical (┃)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
+              </button>
 
-              <span class="sub-heading" style="margin-top: 6px;">Rincones en el Centro (en L):</span>
-              <div class="corner-buttons">
-                <button class="corner-btn" data-corner="CENTER_NW" title="Rincón en L centrado hacia Noroeste (Arriba + Izquierda)">┌ Centro NO</button>
-                <button class="corner-btn" data-corner="CENTER_NE" title="Rincón en L centrado hacia Noreste (Arriba + Derecha)">┐ Centro NE</button>
-                <button class="corner-btn" data-corner="CENTER_SW" title="Rincón en L centrado hacia Suroeste (Abajo + Izquierda)">└ Centro SO</button>
-                <button class="corner-btn" data-corner="CENTER_SE" title="Rincón en L centrado hacia Sureste (Abajo + Derecha)">┘ Centro SE</button>
-              </div>
+              <!-- Fila 3 -->
+              <button class="wall-tile-btn" data-mode="W" title="Borde Oeste (┃)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CENTER_CROSS" title="Cruce Central Completo (✛)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
+              </button>
+              <button class="wall-tile-btn active auto-btn" data-mode="auto" title="Auto: Se orienta según la posición del cursor en la casilla">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><text class="auto-text" x="18" y="22" text-anchor="middle">Auto</text></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="center" title="Centro Dinámico (━ ó ┃ según rotación [R])">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall center-dyn" x="14.5" y="14.5" width="7" height="7"/><circle cx="18" cy="18" r="4" class="tile-dot"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="E" title="Borde Este (┃)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
+              </button>
 
-              <span class="sub-heading" style="margin-top: 6px;">Cruce Central Completo:</span>
-              <div class="corner-buttons">
-                <button class="corner-btn wide" data-corner="CENTER_CROSS" title="Centro Horizontal + Centro Vertical cruzados">✛ Cruce Central (H + V)</button>
-              </div>
+              <!-- Fila 4 -->
+              <button class="wall-tile-btn" data-mode="corner_CH_W" title="Centro Vertical + Lateral Oeste (⊣)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/><rect class="tile-wall" x="0" y="14.5" width="14.5" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CENTER_SW" title="Rincón Centro Suroeste (└)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/><rect class="tile-wall" x="0" y="14.5" width="21.5" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn rot-action-btn" data-action="toggle-rot" title="Girar Orientación [R] (Alternar Horizontal ━ / Vertical ┃)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><text class="rot-icon-text" x="18" y="23" text-anchor="middle">🔄</text></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CENTER_SE" title="Rincón Centro Sureste (┘)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn clear-tile-btn" data-action="select-floor" title="Suelo Libre / Borrar Muros en Casilla">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-dashed" x="4" y="4" width="28" height="28" stroke-dasharray="3 3"/><text class="clear-icon" x="18" y="23" text-anchor="middle">⬚</text></svg>
+              </button>
+
+              <!-- Fila 5 -->
+              <button class="wall-tile-btn" data-mode="corner_SW" title="Esquina Suroeste (└)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CH_E_full" title="Centro Horizontal + Lateral Este">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="S" title="Borde Sur (━)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_CH_W_full" title="Centro Horizontal + Lateral Oeste">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
+              </button>
+              <button class="wall-tile-btn" data-mode="corner_SE" title="Esquina Sureste (┘)">
+                <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
+              </button>
             </div>
           </div>
         </section>

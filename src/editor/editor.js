@@ -116,7 +116,7 @@ class LevelEditor {
     const toggleRotation = () => {
       this.rotation = (this.rotation === 'H') ? 'V' : 'H';
       if (this.rotLabel) {
-        this.rotLabel.textContent = (this.rotation === 'H') ? 'Horizontal ━' : 'Vertical ┃';
+        this.rotLabel.textContent = (this.rotation === 'H') ? '━ H' : '┃ V';
       }
       this.showToast(`Orientación: ${this.rotation === 'H' ? 'Horizontal ━' : 'Vertical ┃'}`);
       this.render();
@@ -133,24 +133,30 @@ class LevelEditor {
       }
     });
 
-    // Selector de borde / posición fija o auto
-    document.querySelectorAll('.edge-btn').forEach(btn => {
+    // Cuadrícula visual 5x5 de colocación de paredes y esquinas
+    document.querySelectorAll('.wall-tile-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.edge-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.placementMode = btn.dataset.pos;
-        this.showToast(`Modo colocación: ${btn.textContent.trim()}`);
-        this.render();
-      });
-    });
+        if (btn.dataset.action === 'toggle-rot') {
+          toggleRotation();
+          return;
+        }
 
-    // Esquinas Rápidas (NW, NE, SW, SE)
-    document.querySelectorAll('.corner-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const corner = btn.dataset.corner;
-        this.placementMode = 'corner_' + corner;
-        document.querySelectorAll('.edge-btn').forEach(b => b.classList.remove('active'));
-        this.showToast(`Esquina ${corner} activa: Haz clic en la casilla deseada`);
+        if (btn.dataset.action === 'select-floor') {
+          document.querySelectorAll('.wall-tile-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          this.placementMode = 'empty';
+          this.showToast('Modo: Suelo libre / Borrar muros de casilla');
+          this.render();
+          return;
+        }
+
+        const mode = btn.dataset.mode;
+        if (!mode) return;
+
+        document.querySelectorAll('.wall-tile-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.placementMode = mode;
+        this.showToast(`Modo: ${btn.title}`);
         this.render();
       });
     });
@@ -333,6 +339,8 @@ class LevelEditor {
         else this.hoverSubEdge = (this.rotation === 'H') ? 'CH' : 'CV';
       } else if (this.placementMode === 'center') {
         this.hoverSubEdge = (this.rotation === 'H') ? 'CH' : 'CV';
+      } else if (this.placementMode === 'empty') {
+        this.hoverSubEdge = 'empty';
       } else {
         this.hoverSubEdge = this.placementMode;
       }
@@ -381,7 +389,7 @@ class LevelEditor {
       this.player.y = y + 0.5;
       this.grid[y][x] = [];
       changed = true;
-    } else if (this.selectedTile === 0) {
+    } else if (this.selectedTile === 0 || this.hoverSubEdge === 'empty') {
       // Suelo libre: vaciar toda la casilla
       if (currentSegs.length > 0) {
         this.grid[y][x] = [];
@@ -407,6 +415,8 @@ class LevelEditor {
         'CH_E': ['CH', 'E'],
         'CV_N': ['CV', 'N'],
         'CV_S': ['CV', 'S'],
+        'CH_W_full': ['CH', 'W'],
+        'CH_E_full': ['CH', 'E'],
         'CENTER_CROSS': ['CH', 'CV'],
         'CENTER_NW': ['CN', 'CW'],
         'CENTER_NE': ['CN', 'CE'],
@@ -794,8 +804,8 @@ class LevelEditor {
           else if (c === 'NE') { ctx.fillRect(hpx, hpy, cs, th); ctx.fillRect(hpx + cs - th, hpy, th, cs); }
           else if (c === 'SW') { ctx.fillRect(hpx, hpy + cs - th, cs, th); ctx.fillRect(hpx, hpy, th, cs); }
           else if (c === 'SE') { ctx.fillRect(hpx, hpy + cs - th, cs, th); ctx.fillRect(hpx + cs - th, hpy, th, cs); }
-          else if (c === 'CH_W') { ctx.fillRect(hpx, hcy0, cs, th); ctx.fillRect(hpx, hpy, th, cs); }
-          else if (c === 'CH_E') { ctx.fillRect(hpx, hcy0, cs, th); ctx.fillRect(hpx + cs - th, hpy, th, cs); }
+          else if (c === 'CH_W' || c === 'CH_W_full') { ctx.fillRect(hpx, hcy0, cs, th); ctx.fillRect(hpx, hpy, th, cs); }
+          else if (c === 'CH_E' || c === 'CH_E_full') { ctx.fillRect(hpx, hcy0, cs, th); ctx.fillRect(hpx + cs - th, hpy, th, cs); }
           else if (c === 'CV_N') { ctx.fillRect(hcx0, hpy, th, cs); ctx.fillRect(hpx, hpy, cs, th); }
           else if (c === 'CV_S') { ctx.fillRect(hcx0, hpy, th, cs); ctx.fillRect(hpx, hpy + cs - th, cs, th); }
           else if (c === 'CENTER_CROSS') { ctx.fillRect(hpx, hcy0, cs, th); ctx.fillRect(hcx0, hpy, th, cs); }
@@ -815,6 +825,10 @@ class LevelEditor {
             ctx.fillRect(hcx0, hcy0, th, (hpy + cs) - hcy0);
             ctx.fillRect(hcx0, hcy0, (hpx + cs) - hcx0, th);
           }
+        } else if (this.hoverSubEdge === 'empty') {
+          ctx.strokeStyle = '#e74c3c';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(hpx + 3, hpy + 3, cs - 6, cs - 6);
         } else {
           switch (this.hoverSubEdge) {
             case 'N': ctx.fillRect(hpx, hpy, cs, th); break;

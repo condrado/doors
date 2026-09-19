@@ -204,122 +204,149 @@ body {
   font-weight: 600;
 }
 
-/* Controles de Colocación y Rotación */
-.placement-controls {
+/* Sección de Paredes: Cuadrícula Visual 5x5 */
+.section-title-row {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.mini-rot-btn {
+  background: #1e2638;
+  border: 1px solid var(--border-color);
+  color: #cfd8e6;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.mini-rot-btn:hover {
+  background: #2b354d;
+  border-color: var(--accent-blue);
+  color: #fff;
+}
+
+.mini-rot-btn strong {
+  color: var(--accent-gold);
+}
+
+.wall-matrix-wrapper {
   background: var(--bg-panel);
   border: 1px solid var(--border-color);
-  padding: 10px;
-  border-radius: 8px;
-}
-
-.rotation-bar {
-  display: flex;
-}
-
-.btn-rotate {
-  width: 100%;
-  background: linear-gradient(135deg, #2c3e50, #1a252f);
-  border: 1px solid var(--accent-blue);
-  color: #fff;
+  border-radius: 10px;
   padding: 8px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.wall-matrix-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+
+.wall-tile-btn {
+  aspect-ratio: 1;
+  background: #141824;
+  border: 1px solid #283247;
   border-radius: 6px;
+  padding: 2px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  font-family: inherit;
-  font-size: 0.85rem;
   transition: all 0.15s ease;
+  position: relative;
 }
 
-.btn-rotate:hover {
-  background: linear-gradient(135deg, #34495e, #233140);
-  box-shadow: 0 0 10px rgba(79, 163, 227, 0.3);
+.wall-tile-btn svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.btn-rotate strong {
-  color: var(--accent-gold);
+.wall-tile-btn .tile-bg {
+  fill: #141824;
+  rx: 3px;
+  transition: fill 0.15s ease;
 }
 
-.edge-selector-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+.wall-tile-btn .tile-wall {
+  fill: #72809e;
+  transition: fill 0.15s ease;
 }
 
-.edge-btn {
-  background: #202738;
-  border: 1px solid #333f57;
-  color: #d1d8e6;
-  padding: 6px 2px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  font-family: inherit;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: center;
-  transition: all 0.15s ease;
+.wall-tile-btn .tile-dot {
+  fill: #72809e;
+  transition: fill 0.15s ease;
 }
 
-.edge-btn:hover {
-  border-color: var(--accent-blue);
-  background: #2b344a;
+.wall-tile-btn .tile-dashed {
+  stroke: #52607e;
+  fill: none;
+  stroke-width: 1.5;
 }
 
-.edge-btn.active {
-  background: #1f3b61;
-  border-color: var(--accent-blue);
-  color: #fff;
-  box-shadow: 0 0 8px rgba(79, 163, 227, 0.3);
+.wall-tile-btn .auto-text {
+  fill: #4fa3e3;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
 
-.quick-corners {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 4px;
+.wall-tile-btn .rot-icon-text {
+  font-size: 14px;
 }
 
-.corner-buttons {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-}
-
-.corner-btn {
-  background: #1b202e;
-  border: 1px solid #333d52;
-  color: #c0cadc;
-  padding: 5px 0;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 0.8rem;
+.wall-tile-btn .clear-icon {
+  fill: #e74c3c;
+  font-size: 14px;
   font-weight: bold;
-  cursor: pointer;
-  transition: all 0.15s ease;
 }
 
-.corner-btn:hover {
-  background: #283046;
-  border-color: var(--accent-gold);
-  color: #fff;
-}
-
-.corner-btn.wide {
-  grid-column: span 4;
-  padding: 6px;
-  font-family: inherit;
-  font-size: 0.82rem;
-  color: var(--accent-gold);
-}
-
-.corner-btn.wide:hover {
-  background: #2b3345;
+.wall-tile-btn:hover {
+  background: #20273a;
   border-color: var(--accent-blue);
+  transform: scale(1.06);
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(79, 163, 227, 0.25);
+}
+
+.wall-tile-btn:hover .tile-wall {
+  fill: #a2b2d6;
+}
+
+.wall-tile-btn.active {
+  background: #1d2b42;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 10px rgba(229, 169, 59, 0.4), inset 0 0 4px rgba(229, 169, 59, 0.2);
+  transform: scale(1.04);
+  z-index: 3;
+}
+
+.wall-tile-btn.active .tile-bg {
+  fill: #192336;
+}
+
+.wall-tile-btn.active .tile-wall {
+  fill: var(--accent-gold);
+}
+
+.wall-tile-btn.active .tile-dot {
+  fill: var(--accent-gold);
+}
+
+.wall-tile-btn.active .auto-text {
+  fill: var(--accent-gold);
+  font-weight: 800;
 }
 
 /* Paleta de Elementos */
