@@ -2,6 +2,31 @@
  * Lógica del Editor Visual de Niveles y Generador de JSON
  */
 
+// Colores representativos de cada estilo, para distinguirlos de un vistazo en la
+// cuadrícula 2D del editor (la textura real solo se ve en la Demo 3D)
+const WALL_STYLE_COLORS = {
+  castillo: '#5a6275',
+  blanca: '#e8eaed',
+  cristal: '#5fb8e8'
+};
+const DOOR_STYLE_COLORS = {
+  castillo: '#a9723f',
+  blanca: '#e8eaed',
+  negra: '#2b2d33',
+  cristal: '#5fb8e8'
+};
+
+// Tipos de textura del motor (RaycasterEngine.textures) disponibles para override por imagen
+const TEXTURE_SLOTS = [
+  { type: 1, label: 'Pared' },
+  { type: 2, label: 'Puerta Norte' },
+  { type: 3, label: 'Puerta Este' },
+  { type: 4, label: 'Puerta Sur' },
+  { type: 5, label: 'Puerta Oeste' },
+  { type: 6, label: 'Ventana' },
+  { type: 10, label: 'Canto / Jamba' }
+];
+
 class LevelEditor {
   constructor() {
     this.canvas = document.getElementById('editorCanvas');
@@ -15,6 +40,19 @@ class LevelEditor {
     // Estado del mapa y jugador
     this.grid = [];
     this.player = { x: 3.5, y: 3.5, angle: -Math.PI / 2 };
+
+    // Texturas personalizadas: { [tipo]: 'data:image/png;base64,...' }
+    this.customTextures = {};
+
+    // Estilo de pincel activo (ver src/engine/textures.js): con QUÉ estilo se
+    // etiquetan las paredes/puertas que se coloquen A PARTIR DE AHORA. Cada
+    // segmento ya colocado conserva el estilo con el que se pintó (wallStyleMap),
+    // así que cambiar esto NO afecta a lo que ya existe en el mapa.
+    this.wallStyle = 'castillo';
+    this.doorStyle = 'castillo';
+
+    // Estilo por segmento: { "x,y": { N: 'blanca', DW: 'negra', ... } }
+    this.wallStyleMap = {};
 
     // Herramientas y selección
     this.currentTool = 'brush'; // 'brush', 'room', 'eraser'
@@ -49,6 +87,8 @@ class LevelEditor {
       this.initDefaultMap();
     }
     this.setupEventListeners();
+    this.setupTextureManager();
+    this.setupStyleModals();
     this.restoreUIState();
     this.resizeCanvas();
     this.render();
@@ -77,6 +117,11 @@ class LevelEditor {
           if (data.name && this.inputMapName) {
             this.inputMapName.value = data.name;
           }
+          this.customTextures = (data.customTextures && typeof data.customTextures === 'object') ? data.customTextures : {};
+          this.wallStyleMap = (data.wallStyleMap && typeof data.wallStyleMap === 'object') ? data.wallStyleMap : {};
+          // El pincel activo se recuerda tal cual quedó (último estilo usado), no afecta a lo ya colocado
+          this.wallStyle = (data.activeWallStyle && WALL_STYLES[data.activeWallStyle]) ? data.activeWallStyle : 'castillo';
+          this.doorStyle = (data.activeDoorStyle && DOOR_STYLES[data.activeDoorStyle]) ? data.activeDoorStyle : 'castillo';
           return true;
         }
       }
@@ -91,6 +136,7 @@ class LevelEditor {
    */
   initDefaultMap() {
     this.grid = [];
+    this.wallStyleMap = {};
     for (let y = 0; y < this.rows; y++) {
       const row = [];
       for (let x = 0; x < this.cols; x++) {
@@ -585,6 +631,38 @@ class LevelEditor {
     }
   }
 
+  /**
+   * Etiqueta un código de segmento (borde/centro) recién colocado en (x,y) con el
+   * estilo de pincel activo en ese momento (this.wallStyle o this.doorStyle según
+   * sea pared o puerta). Las ventanas no tienen variantes de estilo, se ignoran.
+   */
+  setSegmentStyle(x, y, edgeCode) {
+    // Ventanas (WN, WS, WE, WW, WCH, WCV): sin variantes de estilo, se ignoran.
+    // OJO: el código de pared Oeste es exactamente 'W' (1 carácter) y NO debe
+    // confundirse con los códigos de ventana, que siempre tienen 2+ caracteres.
+    if (edgeCode.length > 1 && edgeCode.startsWith('W')) return;
+    const key = `${x},${y}`;
+    if (!this.wallStyleMap[key]) this.wallStyleMap[key] = {};
+    this.wallStyleMap[key][edgeCode] = edgeCode.startsWith('D') ? this.doorStyle : this.wallStyle;
+  }
+
+  /**
+   * Olvida el estilo asociado a un código de segmento eliminado en (x,y)
+   */
+  clearSegmentStyle(x, y, edgeCode) {
+    const key = `${x},${y}`;
+    if (!this.wallStyleMap[key]) return;
+    delete this.wallStyleMap[key][edgeCode];
+    if (Object.keys(this.wallStyleMap[key]).length === 0) delete this.wallStyleMap[key];
+  }
+
+  /**
+   * Olvida todos los estilos de segmento guardados para la celda (x,y)
+   */
+  clearCellStyles(x, y) {
+    delete this.wallStyleMap[`${x},${y}`];
+  }
+
   applyToolAt(x, y) {
     let changed = false;
 
@@ -635,6 +713,7 @@ class LevelEditor {
         }
 
         if (idx !== -1) {
+          this.clearSegmentStyle(x, y, currentSegs[idx]);
           currentSegs.splice(idx, 1);
           changed = true;
         }
@@ -643,11 +722,13 @@ class LevelEditor {
       this.player.x = x + 0.5;
       this.player.y = y + 0.5;
       this.grid[y][x] = [];
+      this.clearCellStyles(x, y);
       changed = true;
     } else if (this.selectedTile === 0 || this.hoverSubEdge === 'empty') {
       // Suelo libre: vaciar toda la casilla
       if (currentSegs.length > 0) {
         this.grid[y][x] = [];
+        this.clearCellStyles(x, y);
         changed = true;
       }
     } else if (this.hoverSubEdge.startsWith('corner_')) {
@@ -678,6 +759,7 @@ class LevelEditor {
       const segs = cornerMap[c] || ['N', 'W'];
       segs.forEach(s => {
         if (!currentSegs.includes(s)) currentSegs.push(s);
+        this.setSegmentStyle(x, y, s);
       });
       changed = true;
     } else {
@@ -691,15 +773,26 @@ class LevelEditor {
         codeToPlace = 'W' + this.hoverSubEdge;
       }
 
+      // Las puertas no están permitidas en paredes centradas (CH/CV): el motor 3D
+      // las abre incorrectamente al tratarse de un eje que divide la celda por la mitad.
+      if (codeToPlace.startsWith('D') && (this.hoverSubEdge === 'CH' || this.hoverSubEdge === 'CV')) {
+        this.showToast('🚫 No se pueden colocar puertas en paredes centradas');
+        return;
+      }
+
       // Limpiar cualquier pared, puerta o ventana previa en este mismo borde
       const baseEdge = codeToPlace.replace(/^[DW]/, '');
       const conflicts = [baseEdge, 'D' + baseEdge, 'W' + baseEdge];
       conflicts.forEach(c => {
         const idx = currentSegs.indexOf(c);
-        if (idx !== -1) currentSegs.splice(idx, 1);
+        if (idx !== -1) {
+          currentSegs.splice(idx, 1);
+          this.clearSegmentStyle(x, y, c);
+        }
       });
 
       currentSegs.push(codeToPlace);
+      this.setSegmentStyle(x, y, codeToPlace);
       changed = true;
     }
 
@@ -725,6 +818,8 @@ class LevelEditor {
         if (x === x1) segs.push('W');
         if (x === x2) segs.push('E');
         this.grid[y][x] = segs;
+        this.clearCellStyles(x, y);
+        segs.forEach(s => this.setSegmentStyle(x, y, s));
       }
     }
   }
@@ -776,6 +871,7 @@ class LevelEditor {
     this.cols = newCols;
     this.rows = newRows;
     this.grid = [];
+    this.wallStyleMap = {};
 
     for (let y = 0; y < this.rows; y++) {
       const row = [];
@@ -811,6 +907,7 @@ class LevelEditor {
   }
 
   clearMap() {
+    this.wallStyleMap = {};
     for (let y = 0; y < this.rows; y++) {
       for (let x = 0; x < this.cols; x++) {
         const segs = [];
@@ -827,6 +924,7 @@ class LevelEditor {
   }
 
   applyPreset(presetName) {
+    this.wallStyleMap = {};
     if (presetName === '4doors') {
       this.cols = 7;
       this.rows = 7;
@@ -989,12 +1087,16 @@ class LevelEditor {
         else if (cell === 5) segs = ['DW'];
 
         // Dibujar cada segmento fino en su lateral o centro
+        const cellStyleEntry = this.wallStyleMap[`${x},${y}`];
         for (let i = 0; i < segs.length; i++) {
           const s = segs[i];
           const acc = accessoryConfig[s];
-          let wallColor = '#5a6275';
+          const segStyle = (cellStyleEntry && cellStyleEntry[s]) || 'castillo';
+          let wallColor = WALL_STYLE_COLORS[segStyle] || WALL_STYLE_COLORS.castillo;
+          let badgeBorder = acc ? acc.border : null;
           if (acc) {
             wallColor = acc.bg;
+            if (s.startsWith('D')) badgeBorder = DOOR_STYLE_COLORS[segStyle] || DOOR_STYLE_COLORS.castillo;
           }
 
           ctx.fillStyle = wallColor;
@@ -1004,32 +1106,32 @@ class LevelEditor {
             case 'DN':
             case 'WN':
               ctx.fillRect(px, py, cs, th);
-              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + th / 2, acc.icon, acc.border, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + th / 2, acc.icon, badgeBorder, cs);
               break;
             case 'S':
             case 'DS':
             case 'WS':
               ctx.fillRect(px, py + cs - th, cs, th);
-              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs - th / 2, acc.icon, acc.border, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs - th / 2, acc.icon, badgeBorder, cs);
               break;
             case 'W':
             case 'DW':
             case 'WW':
               ctx.fillRect(px, py, th, cs);
-              if (acc) this.drawDoorBadge(ctx, px + th / 2, py + cs / 2, acc.icon, acc.border, cs);
+              if (acc) this.drawDoorBadge(ctx, px + th / 2, py + cs / 2, acc.icon, badgeBorder, cs);
               break;
             case 'E':
             case 'DE':
             case 'WE':
               ctx.fillRect(px + cs - th, py, th, cs);
-              if (acc) this.drawDoorBadge(ctx, px + cs - th / 2, py + cs / 2, acc.icon, acc.border, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs - th / 2, py + cs / 2, acc.icon, badgeBorder, cs);
               break;
             case 'CH':
             case 'DCH':
             case 'WCH': {
               const cy0 = py + Math.floor((cs - th) / 2);
               ctx.fillRect(px, cy0, cs, th);
-              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs / 2, acc.icon, acc.border, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs / 2, acc.icon, badgeBorder, cs);
               break;
             }
             case 'CV':
@@ -1037,7 +1139,7 @@ class LevelEditor {
             case 'WCV': {
               const cx0 = px + Math.floor((cs - th) / 2);
               ctx.fillRect(cx0, py, th, cs);
-              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs / 2, acc.icon, acc.border, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs / 2, acc.icon, badgeBorder, cs);
               break;
             }
             case 'CN': {
@@ -1238,7 +1340,7 @@ class LevelEditor {
    */
   getLevelObject() {
     const mapName = (this.inputMapName && this.inputMapName.value.trim()) ? this.inputMapName.value.trim() : 'Laberinto Personalizado';
-    return {
+    const level = {
       name: mapName,
       width: this.cols,
       height: this.rows,
@@ -1250,11 +1352,22 @@ class LevelEditor {
       legend: {
         0: 'Suelo libre / pasillo',
         1: 'Pared de piedra (N, S, E, W, CH, CV, etc.)',
-        'DN, DS, DE, DW, DCH, DCV': 'Puertas',
+        'DN, DS, DE, DW': 'Puertas (no permitidas en ejes centrales CH/CV)',
         'WN, WS, WE, WW, WCH, WCV': 'Ventanas'
       },
       map: this.grid
     };
+    if (Object.keys(this.customTextures).length > 0) {
+      level.customTextures = this.customTextures;
+    }
+    // Estilo con el que se pintó cada segmento (persiste por pared/puerta, no es global)
+    if (Object.keys(this.wallStyleMap).length > 0) {
+      level.wallStyleMap = this.wallStyleMap;
+    }
+    // Pincel activo en el editor (solo afecta a lo próximo que se coloque)
+    if (this.wallStyle !== 'castillo') level.activeWallStyle = this.wallStyle;
+    if (this.doorStyle !== 'castillo') level.activeDoorStyle = this.doorStyle;
+    return level;
   }
 
   updateJSON() {
@@ -1500,6 +1613,14 @@ class LevelEditor {
       this.inputMapName.value = data.name;
     }
 
+    this.customTextures = (data.customTextures && typeof data.customTextures === 'object') ? data.customTextures : {};
+    this.renderTextureGrid();
+
+    this.wallStyleMap = (data.wallStyleMap && typeof data.wallStyleMap === 'object') ? data.wallStyleMap : {};
+    this.wallStyle = (data.activeWallStyle && WALL_STYLES[data.activeWallStyle]) ? data.activeWallStyle : 'castillo';
+    this.doorStyle = (data.activeDoorStyle && DOOR_STYLES[data.activeDoorStyle]) ? data.activeDoorStyle : 'castillo';
+    this.updateStyleLabels();
+
     // Actualizar botones de chips de dimensiones rápidas
     document.querySelectorAll('.btn-chip').forEach(chip => {
       const c = parseInt(chip.dataset.cols, 10);
@@ -1523,6 +1644,177 @@ class LevelEditor {
     setTimeout(() => {
       window.location.href = '../demo/index.html?custom=1';
     }, 300);
+  }
+
+  /**
+   * Construye la cuadrícula de slots de texturas personalizadas y conecta
+   * la subida/eliminación de imágenes (delegación de eventos en el contenedor)
+   */
+  setupTextureManager() {
+    this.textureGridEl = document.getElementById('textureGrid');
+    if (!this.textureGridEl) return;
+
+    this.textureGridEl.innerHTML = TEXTURE_SLOTS.map(slot => `
+      <div class="texture-slot" data-type="${slot.type}">
+        <div class="texture-thumb" id="textureThumb-${slot.type}"></div>
+        <div class="texture-slot-info">
+          <strong>${slot.label}</strong>
+          <div class="texture-slot-actions">
+            <label class="texture-upload-btn">
+              <i class="ri-upload-2-line"></i> Subir
+              <input type="file" accept="image/*" data-type="${slot.type}" hidden>
+            </label>
+            <button class="texture-remove-btn" data-type="${slot.type}" hidden><i class="ri-close-line"></i> Quitar</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    this.textureGridEl.addEventListener('change', (e) => {
+      const input = e.target.closest('input[type="file"]');
+      if (!input || !input.files || !input.files[0]) return;
+      const type = parseInt(input.dataset.type, 10);
+      this.handleTextureUpload(type, input.files[0]);
+      input.value = '';
+    });
+
+    this.textureGridEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.texture-remove-btn');
+      if (!btn) return;
+      this.removeCustomTexture(parseInt(btn.dataset.type, 10));
+    });
+
+    this.renderTextureGrid();
+  }
+
+  /**
+   * Lee la imagen subida, la reescala a 64x64 (tamaño de textura del motor)
+   * y la guarda como Data URL en this.customTextures
+   */
+  handleTextureUpload(type, file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 64;
+        const off = document.createElement('canvas');
+        off.width = size;
+        off.height = size;
+        const octx = off.getContext('2d');
+        octx.drawImage(img, 0, 0, size, size);
+        this.customTextures[type] = off.toDataURL('image/png');
+        this.renderTextureSlot(type);
+        this.updateJSON();
+        this.showToast('✅ Textura personalizada aplicada');
+      };
+      img.onerror = () => this.showToast('⚠️ No se pudo leer la imagen');
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  removeCustomTexture(type) {
+    delete this.customTextures[type];
+    this.renderTextureSlot(type);
+    this.updateJSON();
+    this.showToast('Textura personalizada eliminada');
+  }
+
+  renderTextureGrid() {
+    if (!this.textureGridEl) return;
+    TEXTURE_SLOTS.forEach(slot => this.renderTextureSlot(slot.type));
+  }
+
+  renderTextureSlot(type) {
+    const slotEl = this.textureGridEl && this.textureGridEl.querySelector(`.texture-slot[data-type="${type}"]`);
+    if (!slotEl) return;
+    const thumbEl = slotEl.querySelector('.texture-thumb');
+    const removeBtn = slotEl.querySelector('.texture-remove-btn');
+    const dataUrl = this.customTextures[type];
+
+    thumbEl.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="">` : '';
+    slotEl.classList.toggle('has-custom', !!dataUrl);
+    if (removeBtn) removeBtn.hidden = !dataUrl;
+  }
+
+  /**
+   * Conecta los botones "Estilo de Pared" / "Estilo de Puerta" con el modal
+   * selector, que muestra miniaturas generadas en vivo desde src/engine/textures.js
+   */
+  setupStyleModals() {
+    this.styleModalOverlay = document.getElementById('styleModalOverlay');
+    this.styleModalTitle = document.getElementById('styleModalTitle');
+    this.styleModalGrid = document.getElementById('styleModalGrid');
+    if (!this.styleModalOverlay) return;
+
+    document.getElementById('styleModalClose').addEventListener('click', () => this.closeStyleModal());
+    this.styleModalOverlay.addEventListener('click', (e) => {
+      if (e.target === this.styleModalOverlay) this.closeStyleModal();
+    });
+
+    const btnWallStyle = document.getElementById('btnWallStyle');
+    const btnDoorStyle = document.getElementById('btnDoorStyle');
+    if (btnWallStyle) btnWallStyle.addEventListener('click', () => this.openStyleModal('wall'));
+    if (btnDoorStyle) btnDoorStyle.addEventListener('click', () => this.openStyleModal('door'));
+
+    this.updateStyleLabels();
+  }
+
+  openStyleModal(kind) {
+    this.styleModalKind = kind;
+    const styles = kind === 'wall' ? WALL_STYLES : DOOR_STYLES;
+    const current = kind === 'wall' ? this.wallStyle : this.doorStyle;
+
+    this.styleModalTitle.innerHTML = `<i class="ri-palette-line"></i> Estilo de ${kind === 'wall' ? 'Pared' : 'Puerta'}`;
+    this.styleModalGrid.innerHTML = Object.entries(styles).map(([key, def]) => `
+      <button class="style-card ${key === current ? 'active' : ''}" data-style="${key}">
+        <img src="${this.renderStylePreview(kind, def)}" alt="${def.label}">
+        <span>${def.label}</span>
+      </button>
+    `).join('');
+
+    this.styleModalGrid.querySelectorAll('.style-card').forEach(card => {
+      card.addEventListener('click', () => this.selectStyle(kind, card.dataset.style));
+    });
+
+    this.styleModalOverlay.hidden = false;
+  }
+
+  /**
+   * Dibuja una miniatura 64x64 con la misma función procedural que usará el motor 3D
+   */
+  renderStylePreview(kind, styleDef) {
+    const size = 64;
+    const pixels = kind === 'wall' ? styleDef.wall(size) : styleDef.door(size, { color: '#e5a93b', rune: 'N' });
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(size, size);
+    new Uint32Array(imgData.data.buffer).set(pixels);
+    ctx.putImageData(imgData, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+
+  selectStyle(kind, styleKey) {
+    if (kind === 'wall') this.wallStyle = styleKey;
+    else this.doorStyle = styleKey;
+    this.updateStyleLabels();
+    this.closeStyleModal();
+    this.updateJSON();
+    const label = (kind === 'wall' ? WALL_STYLES : DOOR_STYLES)[styleKey].label;
+    this.showToast(`🖌️ Pincel de ${kind === 'wall' ? 'pared' : 'puerta'}: ${label} (se aplicará a lo próximo que coloques)`);
+  }
+
+  closeStyleModal() {
+    this.styleModalOverlay.hidden = true;
+  }
+
+  updateStyleLabels() {
+    const wallLabelEl = document.getElementById('wallStyleLabel');
+    const doorLabelEl = document.getElementById('doorStyleLabel');
+    if (wallLabelEl) wallLabelEl.textContent = WALL_STYLES[this.wallStyle].label;
+    if (doorLabelEl) doorLabelEl.textContent = DOOR_STYLES[this.doorStyle].label;
   }
 
   showToast(msg) {

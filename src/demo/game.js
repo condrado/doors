@@ -62,6 +62,8 @@ window.addEventListener('DOMContentLoaded', () => {
         engine.map = customData.map;
         engine.mapWidth = customData.map[0].length;
         engine.mapHeight = customData.map.length;
+        // Estilo con el que se pintó cada pared/puerta en el Editor (por segmento, no global)
+        engine.wallStyleMap = customData.wallStyleMap || {};
         engine.clearSegmentsCache?.();
 
         if (customData.playerStart) {
@@ -74,6 +76,10 @@ window.addEventListener('DOMContentLoaded', () => {
         if (levelPill && levelNameText) {
           levelPill.style.display = 'inline-block';
           levelNameText.textContent = `${customData.name || 'Nivel Editor'} (${engine.mapWidth}x${engine.mapHeight})`;
+        }
+
+        if (customData.customTextures) {
+          engine.applyCustomTextures(customData.customTextures);
         }
       }
     } catch (err) {

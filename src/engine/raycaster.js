@@ -48,9 +48,17 @@ class RaycasterEngine {
     this.imgData = this.ctx.createImageData(this.width, this.height);
     this.pixels = new Uint32Array(this.imgData.data.buffer);
 
-    // Generar texturas procedurales (sin depender de imágenes externas)
+    // Estilo por segmento, tal como lo pintó el Editor: { "x,y": { N: 'blanca', DW: 'negra', ... } }
+    // Cada pared/puerta conserva su propio estilo; no hay un único "estilo del mapa".
+    this.wallStyleMap = {};
+
+    // Generar TODAS las variantes de textura de una vez (sin depender de imágenes externas),
+    // para poder mezclar estilos distintos en el mismo mapa sin recalcular nada en caliente.
     this.textures = {};
     this.generateProceduralTextures();
+
+    // Intentar sustituir por imágenes de proyecto en src/engine/textures/ si existen (no bloqueante)
+    this.textureOverridesReady = this.loadDefaultTextureOverrides();
 
     // Objeto frente al jugador (actualizado en cada frame)
     this.facingTarget = { name: 'Pared de piedra', type: 'wall', distance: 0 };
@@ -253,119 +261,6 @@ class RaycasterEngine {
     return null;
   }
 
-  isSolidCell(codes) {
-    if (!codes || codes.length === 0) return false;
-    return codes.includes('N') && codes.includes('S') && codes.includes('E') && codes.includes('W');
-  }
-
-  isCenterWestConnected(mapX, mapY, currentCodes) {
-    if (currentCodes.includes('W') || currentCodes.includes('DW') || currentCodes.includes('WW')) return true;
-    if (mapX - 1 < 0) return false;
-    const wCodes = this.getCellCodes(mapX - 1, mapY);
-    if (this.isSolidCell(wCodes)) return true;
-    return wCodes.some(c => ['CH', 'DCH', 'WCH', 'CE', 'E', 'DE', 'WE'].includes(c));
-  }
-
-  isCenterEastConnected(mapX, mapY, currentCodes) {
-    if (currentCodes.includes('E') || currentCodes.includes('DE') || currentCodes.includes('WE')) return true;
-    if (mapX + 1 >= this.mapWidth) return false;
-    const eCodes = this.getCellCodes(mapX + 1, mapY);
-    if (this.isSolidCell(eCodes)) return true;
-    return eCodes.some(c => ['CH', 'DCH', 'WCH', 'CW', 'W', 'DW', 'WW'].includes(c));
-  }
-
-  isCenterNorthConnected(mapX, mapY, currentCodes) {
-    if (currentCodes.includes('N') || currentCodes.includes('DN') || currentCodes.includes('WN')) return true;
-    if (mapY - 1 < 0) return false;
-    const nCodes = this.getCellCodes(mapX, mapY - 1);
-    if (this.isSolidCell(nCodes)) return true;
-    return nCodes.some(c => ['CV', 'DCV', 'WCV', 'CS', 'S', 'DS', 'WS'].includes(c));
-  }
-
-  isCenterSouthConnected(mapX, mapY, currentCodes) {
-    if (currentCodes.includes('S') || currentCodes.includes('DS') || currentCodes.includes('WS')) return true;
-    if (mapY + 1 >= this.mapHeight) return false;
-    const sCodes = this.getCellCodes(mapX, mapY + 1);
-    if (this.isSolidCell(sCodes)) return true;
-    return sCodes.some(c => ['CV', 'DCV', 'WCV', 'CN', 'N', 'DN', 'WN'].includes(c));
-  }
-
-  isPerimeterWestConnected(whichEdge, mapX, mapY, currentCodes) {
-    if (currentCodes.includes('W') || currentCodes.includes('DW') || currentCodes.includes('WW')) return true;
-    if (mapX - 1 >= 0) {
-      const wCodes = this.getCellCodes(mapX - 1, mapY);
-      if (this.isSolidCell(wCodes)) return true;
-      if (whichEdge === 'N' && wCodes.some(c => ['N', 'DN', 'WN', 'E', 'DE', 'WE'].includes(c))) return true;
-      if (whichEdge === 'S' && wCodes.some(c => ['S', 'DS', 'WS', 'E', 'DE', 'WE'].includes(c))) return true;
-    }
-    if (whichEdge === 'N' && mapY - 1 >= 0) {
-      const nCodes = this.getCellCodes(mapX, mapY - 1);
-      if (this.isSolidCell(nCodes) || nCodes.some(c => ['W', 'DW', 'WW'].includes(c))) return true;
-    }
-    if (whichEdge === 'S' && mapY + 1 < this.mapHeight) {
-      const sCodes = this.getCellCodes(mapX, mapY + 1);
-      if (this.isSolidCell(sCodes) || sCodes.some(c => ['W', 'DW', 'WW'].includes(c))) return true;
-    }
-    return false;
-  }
-
-  isPerimeterEastConnected(whichEdge, mapX, mapY, currentCodes) {
-    if (currentCodes.includes('E') || currentCodes.includes('DE') || currentCodes.includes('WE')) return true;
-    if (mapX + 1 < this.mapWidth) {
-      const eCodes = this.getCellCodes(mapX + 1, mapY);
-      if (this.isSolidCell(eCodes)) return true;
-      if (whichEdge === 'N' && eCodes.some(c => ['N', 'DN', 'WN', 'W', 'DW', 'WW'].includes(c))) return true;
-      if (whichEdge === 'S' && eCodes.some(c => ['S', 'DS', 'WS', 'W', 'DW', 'WW'].includes(c))) return true;
-    }
-    if (whichEdge === 'N' && mapY - 1 >= 0) {
-      const nCodes = this.getCellCodes(mapX, mapY - 1);
-      if (this.isSolidCell(nCodes) || nCodes.some(c => ['E', 'DE', 'WE'].includes(c))) return true;
-    }
-    if (whichEdge === 'S' && mapY + 1 < this.mapHeight) {
-      const sCodes = this.getCellCodes(mapX, mapY + 1);
-      if (this.isSolidCell(sCodes) || sCodes.some(c => ['E', 'DE', 'WE'].includes(c))) return true;
-    }
-    return false;
-  }
-
-  isPerimeterNorthConnected(whichEdge, mapX, mapY, currentCodes) {
-    if (currentCodes.includes('N') || currentCodes.includes('DN') || currentCodes.includes('WN')) return true;
-    if (mapY - 1 >= 0) {
-      const nCodes = this.getCellCodes(mapX, mapY - 1);
-      if (this.isSolidCell(nCodes)) return true;
-      if (whichEdge === 'W' && nCodes.some(c => ['W', 'DW', 'WW', 'S', 'DS', 'WS'].includes(c))) return true;
-      if (whichEdge === 'E' && nCodes.some(c => ['E', 'DE', 'WE', 'S', 'DS', 'WS'].includes(c))) return true;
-    }
-    if (whichEdge === 'W' && mapX - 1 >= 0) {
-      const wCodes = this.getCellCodes(mapX - 1, mapY);
-      if (this.isSolidCell(wCodes) || wCodes.some(c => ['N', 'DN', 'WN'].includes(c))) return true;
-    }
-    if (whichEdge === 'E' && mapX + 1 < this.mapWidth) {
-      const eCodes = this.getCellCodes(mapX + 1, mapY);
-      if (this.isSolidCell(eCodes) || eCodes.some(c => ['N', 'DN', 'WN'].includes(c))) return true;
-    }
-    return false;
-  }
-
-  isPerimeterSouthConnected(whichEdge, mapX, mapY, currentCodes) {
-    if (currentCodes.includes('S') || currentCodes.includes('DS') || currentCodes.includes('WS')) return true;
-    if (mapY + 1 < this.mapHeight) {
-      const sCodes = this.getCellCodes(mapX, mapY + 1);
-      if (this.isSolidCell(sCodes)) return true;
-      if (whichEdge === 'W' && sCodes.some(c => ['W', 'DW', 'WW', 'N', 'DN', 'WN'].includes(c))) return true;
-      if (whichEdge === 'E' && sCodes.some(c => ['E', 'DE', 'WE', 'N', 'DN', 'WN'].includes(c))) return true;
-    }
-    if (whichEdge === 'W' && mapX - 1 >= 0) {
-      const wCodes = this.getCellCodes(mapX - 1, mapY);
-      if (this.isSolidCell(wCodes) || wCodes.some(c => ['S', 'DS', 'WS'].includes(c))) return true;
-    }
-    if (whichEdge === 'E' && mapX + 1 < this.mapWidth) {
-      const eCodes = this.getCellCodes(mapX + 1, mapY);
-      if (this.isSolidCell(eCodes) || eCodes.some(c => ['S', 'DS', 'WS'].includes(c))) return true;
-    }
-    return false;
-  }
-
   /**
    * Obtiene la lista de caras 3D de volumen sólido y puertas en una celda
    * con caché acelerada para no recalcular en cada rayo de cada fotograma.
@@ -386,8 +281,11 @@ class RaycasterEngine {
 
   /**
    * Genera las caras 3D de volumen sólido (espesor 0.20) para tabiques, esquinas y puertas.
-   * Los cantos (textures[10]) solo se colocan en extremos abiertos/vistos al aire;
-   * si la pared se une con otra pared o esquina, el canto se suprime para aligerar la carga y evitar ralentizaciones.
+   * Los cantos se generan siempre en ambos extremos de cada tramo, estén o no conectados
+   * a otra pared: el coste extra es insignificante frente al beneficio de una lógica única
+   * sin casos especiales por conexión. El canto de pared usa textures[10] (estilo de PARED)
+   * y el canto de puerta usa textures[11] (estilo de PUERTA), para que cada uno coincida
+   * visualmente con el material seleccionado (Castillo/Blanca/Negra/Cristal).
    */
   generateCellFaces(codes, mapX, mapY) {
     if (!codes || codes.length === 0) return [];
@@ -414,13 +312,23 @@ class RaycasterEngine {
 
     const has = (c) => codes.includes(c);
 
+    // Estilo con el que se colocó CADA código de ESTA celda (ver setSegmentStyle en
+    // el Editor). A diferencia de antes, aquí NO se combina en un único estilo para
+    // toda la figura: cuando dos paredes comparten celda y forman una esquina/cruce,
+    // cada tramo de la figura conserva la textura de SU propio código (p. ej. en una
+    // esquina NO, la cara que pertenece a "N" usa el estilo de N y la que pertenece
+    // a "W" usa el estilo de W), tal y como si fuesen dos paredes independientes que
+    // simplemente encajan entre sí — porque eso es exactamente lo que son.
+    const cellStyleEntry = this.wallStyleMap[`${mapX},${mapY}`];
+    const styleOf = (code) => (cellStyleEntry && cellStyleEntry[code]) || 'castillo';
+
     // 0. BLOQUE SÓLIDO COMPLETO 1x1 (celda numérica 1 o ['N', 'S', 'E', 'W'])
     if (has('N') && has('S') && has('E') && has('W')) {
       faces.push(
-        { axis: 'y', pos: y0, minX: x0, maxX: x1, type: 1, name: 'Pared Bloque (N)' },
-        { axis: 'y', pos: y1, minX: x0, maxX: x1, type: 1, name: 'Pared Bloque (S)' },
-        { axis: 'x', pos: x0, minY: y0, maxY: y1, type: 1, name: 'Pared Bloque (O)' },
-        { axis: 'x', pos: x1, minY: y0, maxY: y1, type: 1, name: 'Pared Bloque (E)' }
+        { axis: 'y', pos: y0, minX: x0, maxX: x1, type: 1, name: 'Pared Bloque (N)', style: styleOf('N') },
+        { axis: 'y', pos: y1, minX: x0, maxX: x1, type: 1, name: 'Pared Bloque (S)', style: styleOf('S') },
+        { axis: 'x', pos: x0, minY: y0, maxY: y1, type: 1, name: 'Pared Bloque (O)', style: styleOf('W') },
+        { axis: 'x', pos: x1, minY: y0, maxY: y1, type: 1, name: 'Pared Bloque (E)', style: styleOf('E') }
       );
       return faces;
     }
@@ -428,94 +336,80 @@ class RaycasterEngine {
     // 1. RINCONES EN EL CENTRO (EN FORMA DE L CON GROSOR 0.20)
     // -------------------------------------------------------------
     if (has('CN') && has('CW')) { // Rincón Centro Noroeste ┌
+      const styleCN = styleOf('CN');
+      const styleCW = styleOf('CW');
       faces.push(
-        { axis: 'x', pos: cxB, minY: y0, maxY: cyB, type: 1, name: 'Rincón (Exterior Este)' },
-        { axis: 'y', pos: cyB, minX: x0, maxX: cxB, type: 1, name: 'Rincón (Exterior Sur)' },
-        { axis: 'x', pos: cxA, minY: y0, maxY: cyA, type: 1, name: 'Rincón (Interior Oeste)' },
-        { axis: 'y', pos: cyA, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Norte)' }
+        { axis: 'x', pos: cxB, minY: y0, maxY: cyB, type: 1, name: 'Rincón (Exterior Este)', style: styleCN },
+        { axis: 'y', pos: cyB, minX: x0, maxX: cxB, type: 1, name: 'Rincón (Exterior Sur)', style: styleCW },
+        { axis: 'x', pos: cxA, minY: y0, maxY: cyA, type: 1, name: 'Rincón (Interior Oeste)', style: styleCN },
+        { axis: 'y', pos: cyA, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Norte)', style: styleCW },
+        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style: styleCN },
+        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style: styleCW }
       );
-      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
-      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
       return faces;
     }
 
     if (has('CN') && has('CE')) { // Rincón Centro Noreste ┐
+      const styleCN = styleOf('CN');
+      const styleCE = styleOf('CE');
       faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: cyB, type: 1, name: 'Rincón (Exterior Oeste)' },
-        { axis: 'y', pos: cyB, minX: cxA, maxX: x1, type: 1, name: 'Rincón (Exterior Sur)' },
-        { axis: 'x', pos: cxB, minY: y0, maxY: cyA, type: 1, name: 'Rincón (Interior Este)' },
-        { axis: 'y', pos: cyA, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Norte)' }
+        { axis: 'x', pos: cxA, minY: y0, maxY: cyB, type: 1, name: 'Rincón (Exterior Oeste)', style: styleCN },
+        { axis: 'y', pos: cyB, minX: cxA, maxX: x1, type: 1, name: 'Rincón (Exterior Sur)', style: styleCE },
+        { axis: 'x', pos: cxB, minY: y0, maxY: cyA, type: 1, name: 'Rincón (Interior Este)', style: styleCN },
+        { axis: 'y', pos: cyA, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Norte)', style: styleCE },
+        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style: styleCN },
+        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style: styleCE }
       );
-      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
-      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
-      }
       return faces;
     }
 
     if (has('CS') && has('CW')) { // Rincón Centro Suroeste └
+      const styleCS = styleOf('CS');
+      const styleCW = styleOf('CW');
       faces.push(
-        { axis: 'x', pos: cxB, minY: cyA, maxY: y1, type: 1, name: 'Rincón (Exterior Este)' },
-        { axis: 'y', pos: cyA, minX: x0, maxX: cxB, type: 1, name: 'Rincón (Exterior Norte)' },
-        { axis: 'x', pos: cxA, minY: cyB, maxY: y1, type: 1, name: 'Rincón (Interior Oeste)' },
-        { axis: 'y', pos: cyB, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Sur)' }
+        { axis: 'x', pos: cxB, minY: cyA, maxY: y1, type: 1, name: 'Rincón (Exterior Este)', style: styleCS },
+        { axis: 'y', pos: cyA, minX: x0, maxX: cxB, type: 1, name: 'Rincón (Exterior Norte)', style: styleCW },
+        { axis: 'x', pos: cxA, minY: cyB, maxY: y1, type: 1, name: 'Rincón (Interior Oeste)', style: styleCS },
+        { axis: 'y', pos: cyB, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Sur)', style: styleCW },
+        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style: styleCS },
+        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style: styleCW }
       );
-      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
-      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
       return faces;
     }
 
     if (has('CS') && has('CE')) { // Rincón Centro Sureste ┘
+      const styleCS = styleOf('CS');
+      const styleCE = styleOf('CE');
       faces.push(
-        { axis: 'x', pos: cxA, minY: cyA, maxY: y1, type: 1, name: 'Rincón (Exterior Oeste)' },
-        { axis: 'y', pos: cyA, minX: cxA, maxX: x1, type: 1, name: 'Rincón (Exterior Norte)' },
-        { axis: 'x', pos: cxB, minY: cyB, maxY: y1, type: 1, name: 'Rincón (Interior Este)' },
-        { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Sur)' }
+        { axis: 'x', pos: cxA, minY: cyA, maxY: y1, type: 1, name: 'Rincón (Exterior Oeste)', style: styleCS },
+        { axis: 'y', pos: cyA, minX: cxA, maxX: x1, type: 1, name: 'Rincón (Exterior Norte)', style: styleCE },
+        { axis: 'x', pos: cxB, minY: cyB, maxY: y1, type: 1, name: 'Rincón (Interior Este)', style: styleCS },
+        { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Sur)', style: styleCE },
+        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style: styleCS },
+        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style: styleCE }
       );
-      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
-      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
-      }
       return faces;
     }
 
     // 2. CRUCE CENTRAL (H + V)
     // -------------------------------------------------------------
     if (has('CH') && has('CV')) {
+      const styleCH = styleOf('CH');
+      const styleCV = styleOf('CV');
       faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: cyA, type: 1, name: 'Cruce (NO-V)' },
-        { axis: 'y', pos: cyA, minX: x0, maxX: cxA, type: 1, name: 'Cruce (NO-H)' },
-        { axis: 'x', pos: cxB, minY: y0, maxY: cyA, type: 1, name: 'Cruce (NE-V)' },
-        { axis: 'y', pos: cyA, minX: cxB, maxX: x1, type: 1, name: 'Cruce (NE-H)' },
-        { axis: 'x', pos: cxA, minY: cyB, maxY: y1, type: 1, name: 'Cruce (SO-V)' },
-        { axis: 'y', pos: cyB, minX: x0, maxX: cxA, type: 1, name: 'Cruce (SO-H)' },
-        { axis: 'x', pos: cxB, minY: cyB, maxY: y1, type: 1, name: 'Cruce (SE-V)' },
-        { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Cruce (SE-H)' }
+        { axis: 'x', pos: cxA, minY: y0, maxY: cyA, type: 1, name: 'Cruce (NO-V)', style: styleCV },
+        { axis: 'y', pos: cyA, minX: x0, maxX: cxA, type: 1, name: 'Cruce (NO-H)', style: styleCH },
+        { axis: 'x', pos: cxB, minY: y0, maxY: cyA, type: 1, name: 'Cruce (NE-V)', style: styleCV },
+        { axis: 'y', pos: cyA, minX: cxB, maxX: x1, type: 1, name: 'Cruce (NE-H)', style: styleCH },
+        { axis: 'x', pos: cxA, minY: cyB, maxY: y1, type: 1, name: 'Cruce (SO-V)', style: styleCV },
+        { axis: 'y', pos: cyB, minX: x0, maxX: cxA, type: 1, name: 'Cruce (SO-H)', style: styleCH },
+        { axis: 'x', pos: cxB, minY: cyB, maxY: y1, type: 1, name: 'Cruce (SE-V)', style: styleCV },
+        { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Cruce (SE-H)', style: styleCH },
+        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style: styleCV },
+        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style: styleCV },
+        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style: styleCH },
+        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style: styleCH }
       );
-      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
-      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
-      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
-      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
-      }
       return faces;
     }
 
@@ -526,16 +420,13 @@ class RaycasterEngine {
       const isWin = has('WCH');
       const type = isDoor ? 2 : isWin ? 6 : 1;
       const name = isDoor ? 'Puerta Central' : isWin ? 'Ventana Central' : 'Pared Central (N)';
+      const style = styleOf(isDoor ? 'DCH' : isWin ? 'WCH' : 'CH');
       faces.push(
-        { axis: 'y', pos: cyA, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: cyB, minX: x0, maxX: x1, type, name }
+        { axis: 'y', pos: cyA, minX: x0, maxX: x1, type, name, style },
+        { axis: 'y', pos: cyB, minX: x0, maxX: x1, type, name, style },
+        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Oeste', style },
+        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Este', style }
       );
-      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
-      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
-      }
     }
 
     if (has('CV') || has('DCV') || has('WCV')) {
@@ -543,132 +434,109 @@ class RaycasterEngine {
       const isWin = has('WCV');
       const type = isDoor ? 3 : isWin ? 6 : 1;
       const name = isDoor ? 'Puerta Central' : isWin ? 'Ventana Central' : 'Pared Central (O)';
+      const style = styleOf(isDoor ? 'DCV' : isWin ? 'WCV' : 'CV');
       faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: cxB, minY: y0, maxY: y1, type, name }
+        { axis: 'x', pos: cxA, minY: y0, maxY: y1, type, name, style },
+        { axis: 'x', pos: cxB, minY: y0, maxY: y1, type, name, style },
+        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Norte', style },
+        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Sur', style }
       );
-      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
-      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
     }
 
     // Semiramas aisladas o conectadas en T
     if (has('CN') && !has('CW') && !has('CE')) {
       const endY = has('CH') ? cyA : cyB;
+      const style = styleOf('CN');
       faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: endY, type: 1, name: 'Muro CN (O)' },
-        { axis: 'x', pos: cxB, minY: y0, maxY: endY, type: 1, name: 'Muro CN (E)' }
+        { axis: 'x', pos: cxA, minY: y0, maxY: endY, type: 1, name: 'Muro CN (O)', style },
+        { axis: 'x', pos: cxB, minY: y0, maxY: endY, type: 1, name: 'Muro CN (E)', style },
+        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style },
+        { axis: 'y', pos: cyB, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style }
       );
-      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
-      if (!has('CH') && !has('CS')) {
-        faces.push({ axis: 'y', pos: cyB, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
     }
     if (has('CS') && !has('CW') && !has('CE')) {
       const startY = has('CH') ? cyB : cyA;
+      const style = styleOf('CS');
       faces.push(
-        { axis: 'x', pos: cxA, minY: startY, maxY: y1, type: 1, name: 'Muro CS (O)' },
-        { axis: 'x', pos: cxB, minY: startY, maxY: y1, type: 1, name: 'Muro CS (E)' }
+        { axis: 'x', pos: cxA, minY: startY, maxY: y1, type: 1, name: 'Muro CS (O)', style },
+        { axis: 'x', pos: cxB, minY: startY, maxY: y1, type: 1, name: 'Muro CS (E)', style },
+        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style },
+        { axis: 'y', pos: cyA, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style }
       );
-      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
-      if (!has('CH') && !has('CN')) {
-        faces.push({ axis: 'y', pos: cyA, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
     }
     if (has('CW') && !has('CN') && !has('CS')) {
       const endX = has('CV') ? cxA : cxB;
+      const style = styleOf('CW');
       faces.push(
-        { axis: 'y', pos: cyA, minX: x0, maxX: endX, type: 1, name: 'Muro CW (N)' },
-        { axis: 'y', pos: cyB, minX: x0, maxX: endX, type: 1, name: 'Muro CW (S)' }
+        { axis: 'y', pos: cyA, minX: x0, maxX: endX, type: 1, name: 'Muro CW (N)', style },
+        { axis: 'y', pos: cyB, minX: x0, maxX: endX, type: 1, name: 'Muro CW (S)', style },
+        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style },
+        { axis: 'x', pos: cxB, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style }
       );
-      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
-      if (!has('CV') && !has('CE')) {
-        faces.push({ axis: 'x', pos: cxB, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
-      }
     }
     if (has('CE') && !has('CN') && !has('CS')) {
       const startX = has('CV') ? cxB : cxA;
+      const style = styleOf('CE');
       faces.push(
-        { axis: 'y', pos: cyA, minX: startX, maxX: x1, type: 1, name: 'Muro CE (N)' },
-        { axis: 'y', pos: cyB, minX: startX, maxX: x1, type: 1, name: 'Muro CE (S)' }
+        { axis: 'y', pos: cyA, minX: startX, maxX: x1, type: 1, name: 'Muro CE (N)', style },
+        { axis: 'y', pos: cyB, minX: startX, maxX: x1, type: 1, name: 'Muro CE (S)', style },
+        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style },
+        { axis: 'x', pos: cxA, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style }
       );
-      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
-      }
-      if (!has('CV') && !has('CW')) {
-        faces.push({ axis: 'x', pos: cxA, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
     }
 
     // 4. ESQUINAS EN BORDES (NW, NE, SW, SE)
     // -------------------------------------------------------------
     if (has('N') && has('W') && !has('S') && !has('E')) {
+      const styleN = styleOf('N');
+      const styleW = styleOf('W');
       faces.push(
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NO (N)' },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina NO (O)' },
-        { axis: 'y', pos: nyB, minX: wxB, maxX: x1, type: 1, name: 'Esquina NO (S)' },
-        { axis: 'x', pos: wxB, minY: nyB, maxY: y1, type: 1, name: 'Esquina NO (E)' }
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NO (N)', style: styleN },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina NO (O)', style: styleW },
+        { axis: 'y', pos: nyB, minX: wxB, maxX: x1, type: 1, name: 'Esquina NO (S)', style: styleN },
+        { axis: 'x', pos: wxB, minY: nyB, maxY: y1, type: 1, name: 'Esquina NO (E)', style: styleW },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este', style: styleN },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur', style: styleW }
       );
-      if (!this.isPerimeterEastConnected('N', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este' });
-      }
-      if (!this.isPerimeterSouthConnected('W', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
       return faces;
     }
     if (has('N') && has('E') && !has('S') && !has('W')) {
+      const styleN = styleOf('N');
+      const styleE = styleOf('E');
       faces.push(
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NE (N)' },
-        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina NE (E)' },
-        { axis: 'y', pos: nyB, minX: x0, maxX: exA, type: 1, name: 'Esquina NE (S)' },
-        { axis: 'x', pos: exA, minY: nyB, maxY: y1, type: 1, name: 'Esquina NE (O)' }
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NE (N)', style: styleN },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina NE (E)', style: styleE },
+        { axis: 'y', pos: nyB, minX: x0, maxX: exA, type: 1, name: 'Esquina NE (S)', style: styleN },
+        { axis: 'x', pos: exA, minY: nyB, maxY: y1, type: 1, name: 'Esquina NE (O)', style: styleE },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste', style: styleN },
+        { axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur', style: styleE }
       );
-      if (!this.isPerimeterWestConnected('N', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
-      if (!this.isPerimeterSouthConnected('E', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
       return faces;
     }
     if (has('S') && has('W') && !has('N') && !has('E')) {
+      const styleS = styleOf('S');
+      const styleW = styleOf('W');
       faces.push(
-        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SO (S)' },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina SO (O)' },
-        { axis: 'y', pos: syA, minX: wxB, maxX: x1, type: 1, name: 'Esquina SO (N)' },
-        { axis: 'x', pos: wxB, minY: y0, maxY: syA, type: 1, name: 'Esquina SO (E)' }
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SO (S)', style: styleS },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina SO (O)', style: styleW },
+        { axis: 'y', pos: syA, minX: wxB, maxX: x1, type: 1, name: 'Esquina SO (N)', style: styleS },
+        { axis: 'x', pos: wxB, minY: y0, maxY: syA, type: 1, name: 'Esquina SO (E)', style: styleW },
+        { axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este', style: styleS },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte', style: styleW }
       );
-      if (!this.isPerimeterEastConnected('S', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este' });
-      }
-      if (!this.isPerimeterNorthConnected('W', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
       return faces;
     }
     if (has('S') && has('E') && !has('N') && !has('W')) {
+      const styleS = styleOf('S');
+      const styleE = styleOf('E');
       faces.push(
-        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SE (S)' },
-        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina SE (E)' },
-        { axis: 'y', pos: syA, minX: x0, maxX: exA, type: 1, name: 'Esquina SE (N)' },
-        { axis: 'x', pos: exA, minY: y0, maxY: syA, type: 1, name: 'Esquina SE (O)' }
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SE (S)', style: styleS },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina SE (E)', style: styleE },
+        { axis: 'y', pos: syA, minX: x0, maxX: exA, type: 1, name: 'Esquina SE (N)', style: styleS },
+        { axis: 'x', pos: exA, minY: y0, maxY: syA, type: 1, name: 'Esquina SE (O)', style: styleE },
+        { axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste', style: styleS },
+        { axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte', style: styleE }
       );
-      if (!this.isPerimeterWestConnected('S', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
-      if (!this.isPerimeterNorthConnected('E', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
       return faces;
     }
 
@@ -679,16 +547,13 @@ class RaycasterEngine {
       const isWin = has('WN');
       const type = isDoor ? 2 : isWin ? 6 : 1;
       const name = isDoor ? 'Puerta Norte' : isWin ? 'Ventana Norte' : 'Pared Norte';
+      const style = styleOf(isDoor ? 'DN' : isWin ? 'WN' : 'N');
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name }
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Oeste', style },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Este', style }
       );
-      if (!this.isPerimeterWestConnected('N', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
-      if (!this.isPerimeterEastConnected('N', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este' });
-      }
     }
 
     if (has('S') || has('DS') || has('WS')) {
@@ -696,16 +561,13 @@ class RaycasterEngine {
       const isWin = has('WS');
       const type = isDoor ? 4 : isWin ? 6 : 1;
       const name = isDoor ? 'Puerta Sur' : isWin ? 'Ventana Sur' : 'Pared Sur';
+      const style = styleOf(isDoor ? 'DS' : isWin ? 'WS' : 'S');
       faces.push(
-        { axis: 'y', pos: syA, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: syB, minX: x0, maxX: x1, type, name }
+        { axis: 'y', pos: syA, minX: x0, maxX: x1, type, name, style },
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type, name, style },
+        { axis: 'x', pos: x0, minY: syA, maxY: syB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Oeste', style },
+        { axis: 'x', pos: x1, minY: syA, maxY: syB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Este', style }
       );
-      if (!this.isPerimeterWestConnected('S', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste' });
-      }
-      if (!this.isPerimeterEastConnected('S', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este' });
-      }
     }
 
     if (has('W') || has('DW') || has('WW')) {
@@ -713,16 +575,13 @@ class RaycasterEngine {
       const isWin = has('WW');
       const type = isDoor ? 5 : isWin ? 6 : 1;
       const name = isDoor ? 'Puerta Oeste' : isWin ? 'Ventana Oeste' : 'Pared Oeste';
+      const style = styleOf(isDoor ? 'DW' : isWin ? 'WW' : 'W');
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name }
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Norte', style },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Sur', style }
       );
-      if (!this.isPerimeterNorthConnected('W', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
-      if (!this.isPerimeterSouthConnected('W', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
     }
 
     if (has('E') || has('DE') || has('WE')) {
@@ -730,91 +589,88 @@ class RaycasterEngine {
       const isWin = has('WE');
       const type = isDoor ? 3 : isWin ? 6 : 1;
       const name = isDoor ? 'Puerta Este' : isWin ? 'Ventana Este' : 'Pared Este';
+      const style = styleOf(isDoor ? 'DE' : isWin ? 'WE' : 'E');
       faces.push(
-        { axis: 'x', pos: exA, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: exB, minY: y0, maxY: y1, type, name }
+        { axis: 'x', pos: exA, minY: y0, maxY: y1, type, name, style },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type, name, style },
+        { axis: 'y', pos: y0, minX: exA, maxX: exB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Norte', style },
+        { axis: 'y', pos: y1, minX: exA, maxX: exB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Sur', style }
       );
-      if (!this.isPerimeterNorthConnected('E', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte' });
-      }
-      if (!this.isPerimeterSouthConnected('E', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur' });
-      }
     }
 
     // 6. PUERTAS ABIERTAS (HOJA ABATIDA A 90° CON DIMENSIONES IDÉNTICAS A CERRADA: 1.0x0.20)
+    // El estilo se toma del código de la puerta CERRADA correspondiente (DN, DS...),
+    // que es donde el Editor guardó con qué pincel se colocó esa puerta.
     // --------------------------------------------------------------------------------------
     if (has('ODN')) {
       const type = 2;
       const name = 'Puerta Norte [N] (Abierta)';
+      const style = styleOf('DN');
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' }
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style }
       );
-      if (!this.isPerimeterNorthConnected('W', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' });
-      }
     }
 
     if (has('ODS')) {
       const type = 4;
       const name = 'Puerta Sur [S] (Abierta)';
+      const style = styleOf('DS');
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' }
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style }
       );
-      if (!this.isPerimeterSouthConnected('W', mapX, mapY, codes)) {
-        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' });
-      }
     }
 
     if (has('ODW')) {
       const type = 5;
       const name = 'Puerta Oeste [O] (Abierta)';
+      const style = styleOf('DW');
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' }
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style }
       );
-      if (!this.isPerimeterWestConnected('N', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' });
-      }
     }
 
     if (has('ODE')) {
       const type = 3;
       const name = 'Puerta Este [E] (Abierta)';
+      const style = styleOf('DE');
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' }
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style }
       );
-      if (!this.isPerimeterEastConnected('N', mapX, mapY, codes)) {
-        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' });
-      }
     }
 
     if (has('ODCH')) {
       const type = 2;
       const name = 'Puerta Central (Abierta)';
+      const style = styleOf('DCH');
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' }
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style }
       );
     }
 
     if (has('ODCV')) {
       const type = 3;
       const name = 'Puerta Central (Abierta)';
+      const style = styleOf('DCV');
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' }
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style }
       );
     }
 
@@ -822,240 +678,103 @@ class RaycasterEngine {
   }
 
   /**
-   * Genera texturas retro de 64x64 píxeles en memoria
+   * Genera TODAS las variantes de textura de pared/canto y puerta/canto (una por
+   * cada estilo disponible en WALL_STYLES/DOOR_STYLES), más la ventana (sin
+   * variantes). Cada tipo de textura (1, 2-5, 10, 11) queda como un diccionario
+   * { [estilo]: pixeles }, para que cada segmento del mapa pueda usar el suyo
+   * propio (ver getSegmentStyle() y su uso en generateCellFaces()).
    */
   generateProceduralTextures() {
-    // Textura 1: Muro de piedra/ladrillo dungeon
-    this.textures[1] = this.createStoneTexture();
-
-    // Texturas 2, 3, 4, 5: Puertas de madera reforzadas con gemas/emblemas de colores
-    this.textures[2] = this.createDoorTexture(this.doorInfo[2]);
-    this.textures[3] = this.createDoorTexture(this.doorInfo[3]);
-    this.textures[4] = this.createDoorTexture(this.doorInfo[4]);
-    this.textures[5] = this.createDoorTexture(this.doorInfo[5]);
-
-    // Textura 6: Ventana medieval gótica de cristal biselado con cruceta de hierro
-    this.textures[6] = this.createWindowTexture();
-
-    // Textura 10: Marco / Jamba de puerta metálica y piedra (profundidad fina 0.2)
-    this.textures[10] = this.createDoorFrameTexture();
-  }
-
-  createWindowTexture() {
-    const size = this.textureSize;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // Marco exterior de piedra oscura
-    ctx.fillStyle = '#1e222a';
-    ctx.fillRect(0, 0, size, size);
-
-    // Alféizar y bisel
-    ctx.fillStyle = '#2f3640';
-    ctx.fillRect(4, 4, size - 8, size - 8);
-
-    // Vidrio con degradado azul cielo translúcido
-    const grad = ctx.createLinearGradient(0, 0, size, size);
-    grad.addColorStop(0, '#54a0ff');
-    grad.addColorStop(0.35, '#70a1ff');
-    grad.addColorStop(0.7, '#2e86de');
-    grad.addColorStop(1, '#1e3799');
-    ctx.fillStyle = grad;
-    ctx.fillRect(7, 7, size - 14, size - 14);
-
-    // Destellos diagonales en el cristal
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-    ctx.beginPath();
-    ctx.moveTo(12, 7);
-    ctx.lineTo(24, 7);
-    ctx.lineTo(7, 24);
-    ctx.lineTo(7, 12);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.moveTo(30, 7);
-    ctx.lineTo(40, 7);
-    ctx.lineTo(7, 40);
-    ctx.lineTo(7, 30);
-    ctx.closePath();
-    ctx.fill();
-
-    // Cruceta de herrería / madera oscura dividiendo la ventana en 4 vidrieras
-    const mid = Math.floor(size / 2);
-    ctx.fillStyle = '#151922';
-    ctx.fillRect(mid - 2, 6, 4, size - 12);
-    ctx.fillRect(6, mid - 2, size - 12, 4);
-
-    // Remache central
-    ctx.fillStyle = '#8395a7';
-    ctx.fillRect(mid - 1, mid - 1, 2, 2);
-
-    // Ruido granulado sutil
-    const img = ctx.getImageData(0, 0, size, size);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const noise = (Math.random() - 0.5) * 10;
-      img.data[i] = Math.min(255, Math.max(0, img.data[i] + noise));
-      img.data[i+1] = Math.min(255, Math.max(0, img.data[i+1] + noise));
-      img.data[i+2] = Math.min(255, Math.max(0, img.data[i+2] + noise));
-    }
-    ctx.putImageData(img, 0, 0);
-
-    return new Uint32Array(ctx.getImageData(0, 0, size, size).data.buffer);
-  }
-
-  createDoorFrameTexture() {
-    const size = this.textureSize;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // Hierro forjado oscuro
-    ctx.fillStyle = '#1c1f26';
-    ctx.fillRect(0, 0, size, size);
-
-    // Bisel metálico vertical
-    ctx.fillStyle = '#2f3542';
-    ctx.fillRect(4, 0, 10, size);
-    ctx.fillRect(size - 14, 0, 10, size);
-
-    // Placas de anclaje y remaches
-    for (let y = 8; y < size; y += 16) {
-      ctx.fillStyle = '#4b5366';
-      ctx.fillRect(2, y, size - 4, 3);
-      ctx.fillStyle = '#8395a7';
-      ctx.fillRect(6, y - 1, 3, 3);
-      ctx.fillRect(size - 9, y - 1, 3, 3);
-    }
-
-    return new Uint32Array(ctx.getImageData(0, 0, size, size).data.buffer);
-  }
-
-  createStoneTexture() {
-    const size = this.textureSize;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // Fondo grisáceo
-    ctx.fillStyle = '#484b54';
-    ctx.fillRect(0, 0, size, size);
-
-    // Líneas de mortero / ladrillos
-    const brickH = 16;
-    const brickW = 32;
-
-    for (let y = 0; y < size; y += brickH) {
-      const row = Math.floor(y / brickH);
-      const offsetX = (row % 2 === 0) ? 0 : brickW / 2;
-
-      for (let x = -brickW; x < size + brickW; x += brickW) {
-        const actualX = x + offsetX;
-        // Color aleatorio sutil para cada ladrillo
-        const shade = 65 + Math.floor(Math.random() * 20);
-        ctx.fillStyle = `rgb(${shade}, ${shade + 2}, ${shade + 8})`;
-        ctx.fillRect(actualX + 1, y + 1, brickW - 2, brickH - 2);
-
-        // Bisel superior/izquierdo claro
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-        ctx.fillRect(actualX + 1, y + 1, brickW - 2, 2);
-        ctx.fillRect(actualX + 1, y + 1, 2, brickH - 2);
-
-        // Bisel inferior oscuro
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-        ctx.fillRect(actualX + 1, y + brickH - 2, brickW - 2, 2);
-        ctx.fillRect(actualX + brickW - 2, y + 1, 2, brickH - 2);
-      }
-
-      // Línea horizontal de mortero
-      ctx.fillStyle = '#26282e';
-      ctx.fillRect(0, y, size, 2);
-    }
-
-    // Ruido granulado retro
-    const img = ctx.getImageData(0, 0, size, size);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const noise = (Math.random() - 0.5) * 18;
-      img.data[i] = Math.min(255, Math.max(0, img.data[i] + noise));
-      img.data[i+1] = Math.min(255, Math.max(0, img.data[i+1] + noise));
-      img.data[i+2] = Math.min(255, Math.max(0, img.data[i+2] + noise));
-    }
-    ctx.putImageData(img, 0, 0);
-
-    return new Uint32Array(ctx.getImageData(0, 0, size, size).data.buffer);
-  }
-
-  createDoorTexture(doorConfig) {
-    const size = this.textureSize;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // Marco exterior de hierro oscuro
-    ctx.fillStyle = '#20242a';
-    ctx.fillRect(0, 0, size, size);
-
-    // Marco interior biselado
-    ctx.fillStyle = '#14171c';
-    ctx.fillRect(4, 4, size - 8, size - 8);
-
-    // Tablones verticales de madera noble
-    const woodColors = ['#6d3e18', '#78461c', '#633714', '#71401a'];
-    const plankWidth = 14;
-    for (let x = 6; x < size - 6; x += plankWidth) {
-      ctx.fillStyle = woodColors[Math.floor(x / plankWidth) % woodColors.length];
-      ctx.fillRect(x, 6, Math.min(plankWidth - 2, size - 6 - x), size - 12);
-      
-      // Separación oscura de tablones
-      ctx.fillStyle = '#2a1608';
-      ctx.fillRect(x + plankWidth - 2, 6, 2, size - 12);
-    }
-
-    // Bisagras y refuerzos de hierro horizontales
-    ctx.fillStyle = '#2d3436';
-    ctx.fillRect(4, 14, size - 8, 6);
-    ctx.fillRect(4, size - 20, size - 8, 6);
-
-    // Remaches metálicos
-    ctx.fillStyle = '#7f8c8d';
-    [10, 24, 40, 54].forEach(px => {
-      ctx.fillRect(px, 16, 3, 3);
-      ctx.fillRect(px, size - 18, 3, 3);
+    this.textures[1] = {};
+    this.textures[10] = {};
+    Object.keys(WALL_STYLES).forEach(style => {
+      this.textures[1][style] = WALL_STYLES[style].wall(this.textureSize);
+      this.textures[10][style] = WALL_STYLES[style].cap(this.textureSize);
     });
 
-    // Pomo / Cerradura dorada
-    ctx.fillStyle = '#d4af37';
-    ctx.beginPath();
-    ctx.arc(size - 14, size / 2, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#111';
-    ctx.fillRect(size - 15, size / 2 + 1, 2, 4);
+    this.textures[2] = {};
+    this.textures[3] = {};
+    this.textures[4] = {};
+    this.textures[5] = {};
+    this.textures[11] = {};
+    Object.keys(DOOR_STYLES).forEach(style => {
+      [2, 3, 4, 5].forEach(type => {
+        this.textures[type][style] = DOOR_STYLES[style].door(this.textureSize, this.doorInfo[type]);
+      });
+      this.textures[11][style] = DOOR_STYLES[style].cap(this.textureSize);
+    });
 
-    // Emblema / Runa central con el color distintivo de la puerta
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, 12, 0, Math.PI * 2);
-    ctx.fill();
+    // Textura 6: Ventana medieval gótica de cristal biselado con cruceta de hierro (sin variantes)
+    this.textures[6] = createWindowPixels(this.textureSize);
+  }
 
-    ctx.strokeStyle = doorConfig.color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(size / 2, size / 2, 10, 0, Math.PI * 2);
-    ctx.stroke();
+  /**
+   * Estilo con el que se colocó un segmento concreto (pared o puerta) de una celda.
+   * 'castillo' por defecto si no hay dato guardado (mapas antiguos o celdas sin estilo).
+   */
+  getSegmentStyle(mapX, mapY, edgeCode) {
+    const cell = this.wallStyleMap[`${mapX},${mapY}`];
+    return (cell && cell[edgeCode]) || 'castillo';
+  }
 
-    // Letra de la runa (N, S, E, O)
-    ctx.fillStyle = doorConfig.color;
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(doorConfig.rune, size / 2, size / 2);
+  /**
+   * Carga una imagen (ruta de archivo o Data URL) y la reescala a textureSize x textureSize
+   * para sustituir la textura procedural del tipo indicado. Si la imagen no existe o falla
+   * al cargar, se ignora silenciosamente y se conserva la textura anterior (procedural).
+   */
+  loadTextureImage(type, url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = this.textureSize;
+        const off = document.createElement('canvas');
+        off.width = size;
+        off.height = size;
+        const octx = off.getContext('2d');
+        octx.drawImage(img, 0, 0, size, size);
+        this.textures[type] = new Uint32Array(octx.getImageData(0, 0, size, size).data.buffer);
+        resolve(true);
+      };
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+  }
 
-    return new Uint32Array(ctx.getImageData(0, 0, size, size).data.buffer);
+  /**
+   * Intenta cargar overrides de textura por defecto del proyecto desde src/engine/textures/
+   * (wall.png, door_n.png, door_e.png, door_s.png, door_w.png, window.png, cap.png, door_cap.png).
+   * Los archivos que no existan se ignoran y se mantiene la textura procedural/de estilo activa.
+   */
+  loadDefaultTextureOverrides() {
+    const base = '/src/engine/textures/';
+    const files = {
+      1: 'wall.png',
+      2: 'door_n.png',
+      3: 'door_e.png',
+      4: 'door_s.png',
+      5: 'door_w.png',
+      6: 'window.png',
+      10: 'cap.png',
+      11: 'door_cap.png'
+    };
+    return Promise.all(
+      Object.entries(files).map(([type, file]) => this.loadTextureImage(Number(type), base + file))
+    );
+  }
+
+  /**
+   * Aplica texturas personalizadas de un mapa concreto (Data URLs guardadas desde el Editor),
+   * sustituyendo tanto la textura procedural como cualquier override de proyecto ya cargado.
+   */
+  applyCustomTextures(customTextures) {
+    if (!customTextures) return Promise.resolve();
+    return this.textureOverridesReady.then(() =>
+      Promise.all(
+        Object.entries(customTextures)
+          .filter(([, url]) => !!url)
+          .map(([type, url]) => this.loadTextureImage(Number(type), url))
+      )
+    );
   }
 
   /**
@@ -1144,6 +863,7 @@ class RaycasterEngine {
       let hitSide = 0;
       let wallHitCoord = 0;
       let hitTargetName = 'Pared de piedra';
+      let hitStyle = 'castillo';
 
       // Comprobar primero si hay un tabique frente al jugador en su propia celda de inicio
       const startCellSegs = this.getCellSegments(mapX, mapY);
@@ -1200,6 +920,7 @@ class RaycasterEngine {
           wallHitCoord = bestWallX;
           hitSide = bestSide;
           hitTargetName = bestSeg.name;
+          hitStyle = bestSeg.style || 'castillo';
         }
       }
 
@@ -1279,6 +1000,7 @@ class RaycasterEngine {
               wallHitCoord = bestWallX;
               hitSide = bestSide;
               hitTargetName = bestSeg.name;
+              hitStyle = bestSeg.style || 'castillo';
               break;
             }
           }
@@ -1324,8 +1046,11 @@ class RaycasterEngine {
       const clipStart = Math.max(0, Math.floor(drawStart));
       const clipEnd = Math.min(h - 1, Math.floor(drawEnd));
 
-      // Cálculo de textura
-      const tex = this.textures[hit] || this.textures[1];
+      // Cálculo de textura: this.textures[hit] es normalmente un diccionario { estilo: pixeles }
+      // (para poder mezclar estilos por segmento); si es un Uint32Array plano es una textura
+      // subida/override (imagen personalizada o de proyecto) que sustituye a todos los estilos.
+      const rawTex = this.textures[hit] || this.textures[1];
+      const tex = (rawTex instanceof Uint32Array) ? rawTex : (rawTex[hitStyle] || rawTex.castillo);
       const texSize = this.textureSize;
 
       // Coordenada X de la textura (0..1)

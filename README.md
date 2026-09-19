@@ -80,3 +80,7 @@ El servidor iniciará automáticamente en el puerto `3000` (o el siguiente dispo
 - **Herramienta Habitación**: Arrastra sobre la cuadrícula para construir recintos completos con muros perimetrales.
 - **Importación y Exportación JSON**: Carga o guarda mapas en formato `.json` al instante.
 - **Probar en 3D**: Guarda el mapa actual en `localStorage` y lo abre automáticamente en la demo jugable (`?custom=1`).
+- **Texturas Personalizadas**: Sube imágenes desde el navegador para sustituir el diseño de pared, puertas, ventana y canto/jamba. Se reescalan a 64x64 y viajan guardadas con el mapa (JSON, `localStorage`).
+
+### Texturas a nivel de proyecto
+Además del gestor del editor (por mapa), puedes colocar imágenes en [`src/engine/textures/`](src/engine/textures/) (`wall.png`, `door_n.png`, `door_e.png`, `door_s.png`, `door_w.png`, `window.png`, `cap.png`) para cambiar el diseño por defecto de toda la Demo 3D sin tocar código. Ver el `README.md` de esa carpeta para más detalle.

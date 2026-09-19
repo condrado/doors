@@ -283,6 +283,12 @@
               <span class="aux-icon"><i class="ri-delete-bin-7-line"></i></span> Vaciar
             </button>
           </div>
+
+          <button class="style-picker-btn" id="btnWallStyle" title="Elegir el diseño con el que se dibujarán las PRÓXIMAS paredes que coloques">
+            <span class="aux-icon"><i class="ri-palette-line"></i></span>
+            <span>Pincel de Pared: <strong id="wallStyleLabel">Castillo</strong></span>
+            <i class="ri-arrow-right-s-line style-picker-chevron"></i>
+          </button>
         </section>
 
         <!-- 5. Colocación de Accesorios (Solo visible al seleccionar Accesorios) -->
@@ -317,6 +323,12 @@
             <span class="acc-note-icon"><i class="ri-lightbulb-line"></i></span>
             <span>Haz clic en el borde o centro de una casilla para colocar el accesorio.</span>
           </div>
+
+          <button class="style-picker-btn" id="btnDoorStyle" title="Elegir el diseño con el que se dibujarán las PRÓXIMAS puertas que coloques">
+            <span class="aux-icon"><i class="ri-palette-line"></i></span>
+            <span>Pincel de Puerta: <strong id="doorStyleLabel">Castillo</strong></span>
+            <i class="ri-arrow-right-s-line style-picker-chevron"></i>
+          </button>
         </section>
 
         <!-- 6. Plantillas rápidas (Plegadas por defecto para optimizar espacio) -->
@@ -331,6 +343,16 @@
             <button class="btn-preset" id="presetMaze"><i class="ri-route-line"></i> Mini Laberinto (11x11)</button>
             <button class="btn-subtle danger" id="btnClearMap"><i class="ri-delete-bin-line"></i> Limpiar / Vaciar Todo</button>
           </div>
+        </section>
+
+        <!-- 7. Texturas Personalizadas (Plegado por defecto para optimizar espacio) -->
+        <section class="tool-section collapsed" id="sectionTextures">
+          <h2>
+            <span><i class="ri-image-2-line"></i> Texturas Personalizadas</span>
+            <span class="collapse-icon">▾</span>
+          </h2>
+          <p class="section-desc">Sube una imagen por elemento para sustituir su diseño en la Demo 3D (se ajusta a 64x64 y viaja guardada con el mapa).</p>
+          <div class="texture-grid" id="textureGrid"></div>
         </section>
       </aside>
 
@@ -388,8 +410,21 @@
 
     <!-- Toast de notificación -->
     <div class="toast" id="toastMessage">Nivel guardado correctamente</div>
+
+    <!-- Modal Selector de Estilo (Pared / Puerta) -->
+    <div class="modal-overlay" id="styleModalOverlay" hidden>
+      <div class="modal-box">
+        <div class="modal-header">
+          <h3 id="styleModalTitle"><i class="ri-palette-line"></i> Estilo de Pared</h3>
+          <button class="modal-close-btn" id="styleModalClose"><i class="ri-close-line"></i></button>
+        </div>
+        <p class="modal-subtitle">Elige el diseño para lo próximo que coloques. Lo que ya está en el mapa conserva su estilo.</p>
+        <div class="style-modal-grid" id="styleModalGrid"></div>
+      </div>
+    </div>
   </div>
 
+  <script src="../engine/textures.js"></script>
   <script src="editor.js"></script>
 </body>
 </html>
