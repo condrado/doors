@@ -18,15 +18,16 @@ class LevelEditor {
 
     // Herramientas y selección
     this.currentTool = 'brush'; // 'brush', 'room', 'eraser'
-    this.selectedTile = 1; // 1 = piedra, 0 = suelo, 2..5 = puertas, 'player' = spawn
+    this.selectedTile = 1; // 1 = pared, 0 = suelo, 'accessories' = accesorios, 'player' = spawn
+    this.selectedAccessory = 'door'; // 'door', 'window'
     this.isMouseDown = false;
     this.roomStart = null;
     this.hoverCell = { x: -1, y: -1 };
 
     // Colocación y Rotación de tabique (5x1)
-    this.placementMode = 'auto'; // 'auto', 'N', 'S', 'E', 'W', 'center'
+    this.placementMode = 'corner_CENTER_CROSS';
     this.rotation = 'H'; // 'H' (Horizontal ━) o 'V' (Vertical ┃)
-    this.hoverSubEdge = 'N';
+    this.hoverSubEdge = 'corner_CENTER_CROSS';
 
     // Modo de Zoom
     this.zoomMode = 'auto'; // 'auto' o 'manual'
@@ -41,7 +42,6 @@ class LevelEditor {
     this.zoomLabel = document.getElementById('zoomLabel');
     this.inputCols = document.getElementById('inputCols');
     this.inputRows = document.getElementById('inputRows');
-    this.rotLabel = document.getElementById('rotLabel');
 
     this.initDefaultMap();
     this.setupEventListeners();
@@ -112,37 +112,42 @@ class LevelEditor {
       });
     });
 
-    // Rotación de tabique (tecla R y botón)
-    const toggleRotation = () => {
-      this.rotation = (this.rotation === 'H') ? 'V' : 'H';
-      if (this.rotLabel) {
-        this.rotLabel.textContent = (this.rotation === 'H') ? '━ H' : '┃ V';
-      }
-      this.showToast(`Orientación: ${this.rotation === 'H' ? 'Horizontal ━' : 'Vertical ┃'}`);
-      this.render();
-    };
-
-    const btnRotateWall = document.getElementById('btnRotateWall');
-    if (btnRotateWall) {
-      btnRotateWall.addEventListener('click', toggleRotation);
-    }
-
-    window.addEventListener('keydown', (e) => {
-      if ((e.key === 'r' || e.key === 'R') && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-        toggleRotation();
+    // Secciones plegables y desplegables (Accordion)
+    document.querySelectorAll('.tool-section').forEach(section => {
+      const header = section.querySelector('h2');
+      if (header) {
+        header.addEventListener('click', () => {
+          section.classList.toggle('collapsed');
+        });
       }
     });
 
-    // Cuadrícula visual 5x5 de colocación de paredes y esquinas
-    document.querySelectorAll('.wall-tile-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.dataset.action === 'toggle-rot') {
-          toggleRotation();
-          return;
-        }
+    // Selector de categorías de paredes (Laterales, Centro, Uniones T)
+    document.querySelectorAll('.wall-cat-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.wall-cat-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
 
+        const target = tab.dataset.tab;
+        const pLaterales = document.getElementById('panelLaterales');
+        const pCentro = document.getElementById('panelCentro');
+        const pUnionesT = document.getElementById('panelUnionesT');
+
+        if (pLaterales) pLaterales.classList.add('hidden');
+        if (pCentro) pCentro.classList.add('hidden');
+        if (pUnionesT) pUnionesT.classList.add('hidden');
+
+        if (target === 'laterales' && pLaterales) pLaterales.classList.remove('hidden');
+        else if (target === 'centro' && pCentro) pCentro.classList.remove('hidden');
+        else if (target === 'uniones-t' && pUnionesT) pUnionesT.classList.remove('hidden');
+      });
+    });
+
+    // Cuadrículas visuales (3x3, 2x2) y botones auxiliares de paredes y esquinas
+    document.querySelectorAll('.wall-tile-btn, .wall-aux-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
         if (btn.dataset.action === 'select-floor') {
-          document.querySelectorAll('.wall-tile-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.wall-tile-btn, .wall-aux-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           this.placementMode = 'empty';
           this.showToast('Modo: Suelo libre / Borrar muros de casilla');
@@ -153,7 +158,7 @@ class LevelEditor {
         const mode = btn.dataset.mode;
         if (!mode) return;
 
-        document.querySelectorAll('.wall-tile-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.wall-tile-btn, .wall-aux-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.placementMode = mode;
         this.showToast(`Modo: ${btn.title}`);
@@ -161,13 +166,50 @@ class LevelEditor {
       });
     });
 
-    // Paleta de elementos
+    // Paleta de elementos (auto-mostrar Colocación de Paredes o Accesorios según selección)
+    const sectionWallPlacement = document.getElementById('sectionWallPlacement');
+    const sectionAccessoryPlacement = document.getElementById('sectionAccessoryPlacement');
+
     document.querySelectorAll('input[name="tileSelect"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
         e.target.closest('.palette-item').classList.add('active');
         const val = e.target.value;
-        this.selectedTile = (val === 'player') ? 'player' : parseInt(val, 10);
+        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'door' || val === 'window') ? val : parseInt(val, 10);
+
+        // Si pulso en Pared (1), mostrar solo Colocación de Paredes
+        if (sectionWallPlacement) {
+          if (val === '1' || val === 1) {
+            sectionWallPlacement.style.display = '';
+            sectionWallPlacement.classList.remove('collapsed');
+          } else {
+            sectionWallPlacement.style.display = 'none';
+          }
+        }
+
+        // Si pulso en Accesorios, mostrar solo Colocación de Accesorios
+        if (sectionAccessoryPlacement) {
+          if (val === 'accessories') {
+            sectionAccessoryPlacement.style.display = '';
+            sectionAccessoryPlacement.classList.remove('collapsed');
+          } else {
+            sectionAccessoryPlacement.style.display = 'none';
+          }
+        }
+
+        this.render();
+      });
+    });
+
+    // Selector de accesorios (Puerta, Ventana, etc.)
+    document.querySelectorAll('.accessory-tile-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.accessory-tile-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.selectedAccessory = btn.dataset.accessory;
+        const name = this.selectedAccessory === 'door' ? 'Puerta' : 'Ventana';
+        this.showToast(`Accesorio activo: ${name}`);
+        this.render();
       });
     });
 
@@ -189,7 +231,7 @@ class LevelEditor {
       const newCols = parseInt(this.inputCols.value, 10);
       const newRows = parseInt(this.inputRows.value, 10);
       if (isNaN(newCols) || isNaN(newRows) || newCols < 5 || newRows < 5 || newCols > 50 || newRows > 50) {
-        this.showToast('⚠️ Las dimensiones deben estar entre 5 y 50 celdas');
+        this.showToast('Las dimensiones deben estar entre 5 y 50 celdas');
         return;
       }
       this.resizeGrid(newCols, newRows);
@@ -292,6 +334,46 @@ class LevelEditor {
 
     // Probar en 3D
     document.getElementById('btnPlayLevel').addEventListener('click', () => this.playCurrentLevel());
+
+    // Colapsar y expandir sidebar de JSON (40px colapsada)
+    const workspace = document.querySelector('.workspace');
+    const jsonSidebar = document.getElementById('jsonSidebar');
+    const btnToggleJsonSidebar = document.getElementById('btnToggleJsonSidebar');
+    const iconToggleJson = document.getElementById('iconToggleJson');
+
+    const toggleJsonSidebar = () => {
+      if (!workspace || !jsonSidebar) return;
+      const isCollapsed = workspace.classList.toggle('json-collapsed');
+      jsonSidebar.classList.toggle('collapsed', isCollapsed);
+
+      if (iconToggleJson) {
+        iconToggleJson.className = isCollapsed ? 'ri-arrow-left-s-line' : 'ri-arrow-right-s-line';
+      }
+      if (btnToggleJsonSidebar) {
+        btnToggleJsonSidebar.title = isCollapsed ? 'Descolapsar panel JSON' : 'Colapsar panel JSON (40px)';
+      }
+
+      // Reajustar tamaño del canvas cuando se termine la animación
+      setTimeout(() => {
+        this.resizeCanvas();
+        this.render();
+      }, 260);
+    };
+
+    if (btnToggleJsonSidebar) {
+      btnToggleJsonSidebar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        toggleJsonSidebar();
+      });
+    }
+
+    if (jsonSidebar) {
+      jsonSidebar.addEventListener('click', () => {
+        if (jsonSidebar.classList.contains('collapsed')) {
+          toggleJsonSidebar();
+        }
+      });
+    }
   }
 
   getCellFromEvent(e) {
@@ -313,9 +395,110 @@ class LevelEditor {
     if (this.currentTool === 'room') {
       this.roomStart = cell;
     } else {
+      const rect = this.canvas.getBoundingClientRect();
+      const localX = (e.clientX - rect.left) / this.cellSize - cell.x;
+      const localY = (e.clientY - rect.top) / this.cellSize - cell.y;
+      this.updateHoverSubEdge(cell, localX, localY);
       this.applyToolAt(cell.x, cell.y);
     }
     this.render();
+  }
+
+  updateHoverSubEdge(cell, localX, localY) {
+    this.lastLocalX = localX;
+    this.lastLocalY = localY;
+
+    let cellSegs = [];
+    if (this.grid[cell.y] && this.grid[cell.y][cell.x]) {
+      const val = this.grid[cell.y][cell.x];
+      if (Array.isArray(val)) {
+        cellSegs = val;
+      } else if (val === 1) {
+        cellSegs = ['N', 'S', 'E', 'W'];
+      } else if (typeof val === 'number' && val >= 2 && val <= 5) {
+        cellSegs = [['DN'], ['DE'], ['DS'], ['DW']][val - 2];
+      }
+    }
+
+    if (this.currentTool === 'eraser') {
+      // Si la casilla tiene solo 1 segmento (como un muro de habitación 'N', 'S', etc.), ese es el objetivo directo
+      if (cellSegs.length === 1) {
+        this.hoverSubEdge = cellSegs[0].replace(/^[DW]/, '');
+        return;
+      }
+
+      // Si la casilla tiene varios segmentos existentes, buscar el más cercano geométricamente al cursor
+      if (cellSegs.length > 1) {
+        let bestSeg = cellSegs[0];
+        let minDist = Infinity;
+
+        const getDist = (segRaw) => {
+          const s = segRaw.replace(/^[DW]/, '');
+          switch (s) {
+            case 'N': return Math.abs(localY);
+            case 'S': return Math.abs(1 - localY);
+            case 'W': return Math.abs(localX);
+            case 'E': return Math.abs(1 - localX);
+            case 'CH': return Math.abs(0.5 - localY);
+            case 'CV': return Math.abs(0.5 - localX);
+            case 'CN': return Math.hypot(0.5 - localX, Math.max(0, localY - 0.5));
+            case 'CS': return Math.hypot(0.5 - localX, Math.max(0, 0.5 - localY));
+            case 'CW': return Math.hypot(Math.max(0, localX - 0.5), 0.5 - localY);
+            case 'CE': return Math.hypot(Math.max(0, 0.5 - localX), 0.5 - localY);
+            default: return 1;
+          }
+        };
+
+        for (const s of cellSegs) {
+          const d = getDist(s);
+          if (d < minDist) {
+            minDist = d;
+            bestSeg = s;
+          }
+        }
+        this.hoverSubEdge = bestSeg.replace(/^[DW]/, '');
+        return;
+      }
+
+      // Si la celda está vacía, detectar el borde más cercano por geometría general
+      const dN = localY;
+      const dS = 1 - localY;
+      const dW = localX;
+      const dE = 1 - localX;
+      const dCH = Math.abs(0.5 - localY);
+      const dCV = Math.abs(0.5 - localX);
+
+      const minEdgeDist = Math.min(dN, dS, dW, dE, dCH, dCV);
+      if (minEdgeDist === dN) this.hoverSubEdge = 'N';
+      else if (minEdgeDist === dS) this.hoverSubEdge = 'S';
+      else if (minEdgeDist === dW) this.hoverSubEdge = 'W';
+      else if (minEdgeDist === dE) this.hoverSubEdge = 'E';
+      else if (minEdgeDist === dCH) this.hoverSubEdge = 'CH';
+      else this.hoverSubEdge = 'CV';
+      return;
+    }
+
+    if (this.selectedTile === 'accessories' || this.selectedTile === 'door' || this.selectedTile === 'window') {
+      if (localY < 0.28) this.hoverSubEdge = 'N';
+      else if (localY > 0.72) this.hoverSubEdge = 'S';
+      else if (localX < 0.28) this.hoverSubEdge = 'W';
+      else if (localX > 0.72) this.hoverSubEdge = 'E';
+      else this.hoverSubEdge = (this.rotation === 'H') ? 'CH' : 'CV';
+    } else if (this.placementMode.startsWith('corner_')) {
+      this.hoverSubEdge = this.placementMode;
+    } else if (this.placementMode === 'auto') {
+      if (localY < 0.28) this.hoverSubEdge = 'N';
+      else if (localY > 0.72) this.hoverSubEdge = 'S';
+      else if (localX < 0.28) this.hoverSubEdge = 'W';
+      else if (localX > 0.72) this.hoverSubEdge = 'E';
+      else this.hoverSubEdge = (this.rotation === 'H') ? 'CH' : 'CV';
+    } else if (this.placementMode === 'center') {
+      this.hoverSubEdge = (this.rotation === 'H') ? 'CH' : 'CV';
+    } else if (this.placementMode === 'empty') {
+      this.hoverSubEdge = 'empty';
+    } else {
+      this.hoverSubEdge = this.placementMode;
+    }
   }
 
   handleMouseMove(e) {
@@ -329,21 +512,7 @@ class LevelEditor {
       const localX = (e.clientX - rect.left) / this.cellSize - cell.x;
       const localY = (e.clientY - rect.top) / this.cellSize - cell.y;
 
-      if (this.placementMode.startsWith('corner_')) {
-        this.hoverSubEdge = this.placementMode;
-      } else if (this.placementMode === 'auto') {
-        if (localY < 0.28) this.hoverSubEdge = 'N';
-        else if (localY > 0.72) this.hoverSubEdge = 'S';
-        else if (localX < 0.28) this.hoverSubEdge = 'W';
-        else if (localX > 0.72) this.hoverSubEdge = 'E';
-        else this.hoverSubEdge = (this.rotation === 'H') ? 'CH' : 'CV';
-      } else if (this.placementMode === 'center') {
-        this.hoverSubEdge = (this.rotation === 'H') ? 'CH' : 'CV';
-      } else if (this.placementMode === 'empty') {
-        this.hoverSubEdge = 'empty';
-      } else {
-        this.hoverSubEdge = this.placementMode;
-      }
+      this.updateHoverSubEdge(cell, localX, localY);
 
       if (this.isMouseDown && this.currentTool !== 'room') {
         this.applyToolAt(cell.x, cell.y);
@@ -384,7 +553,46 @@ class LevelEditor {
 
     const currentSegs = this.grid[y][x];
 
-    if (this.selectedTile === 'player') {
+    if (this.currentTool === 'eraser') {
+      // Borrado con herramienta Borrador
+      if (currentSegs.length > 0) {
+        const target = this.hoverSubEdge;
+        let idx = currentSegs.findIndex(s => s === target || s === 'D' + target || s === 'W' + target);
+
+        // Si no hubo coincidencia exacta pero solo queda 1 segmento en la celda, borrarlo directamente
+        if (idx === -1 && currentSegs.length === 1) {
+          idx = 0;
+        }
+
+        // Si aún no coincide y tenemos coordenadas del cursor, buscar el segmento geométricamente más cercano
+        if (idx === -1 && typeof this.lastLocalX === 'number' && typeof this.lastLocalY === 'number') {
+          const lx = this.lastLocalX;
+          const ly = this.lastLocalY;
+          let bestIdx = 0;
+          let minDist = Infinity;
+          currentSegs.forEach((segRaw, i) => {
+            const s = segRaw.replace(/^[DW]/, '');
+            let d = 1;
+            if (s === 'N') d = Math.abs(ly);
+            else if (s === 'S') d = Math.abs(1 - ly);
+            else if (s === 'W') d = Math.abs(lx);
+            else if (s === 'E') d = Math.abs(1 - lx);
+            else if (s === 'CH') d = Math.abs(0.5 - ly);
+            else if (s === 'CV') d = Math.abs(0.5 - lx);
+            if (d < minDist) {
+              minDist = d;
+              bestIdx = i;
+            }
+          });
+          idx = bestIdx;
+        }
+
+        if (idx !== -1) {
+          currentSegs.splice(idx, 1);
+          changed = true;
+        }
+      }
+    } else if (this.selectedTile === 'player') {
       this.player.x = x + 0.5;
       this.player.y = y + 0.5;
       this.grid[y][x] = [];
@@ -395,18 +603,11 @@ class LevelEditor {
         this.grid[y][x] = [];
         changed = true;
       }
-    } else if (this.currentTool === 'eraser') {
-      // Borrar segmento específico
-      const target = this.hoverSubEdge;
-      const idx = currentSegs.findIndex(s => s === target || s === 'D' + target);
-      if (idx !== -1) {
-        currentSegs.splice(idx, 1);
-        changed = true;
-      }
     } else if (this.hoverSubEdge.startsWith('corner_')) {
       // Esquinas rápidas en bordes, centradas y cruces
       const c = this.hoverSubEdge.replace('corner_', '');
       const cornerMap = {
+        'FULL_BOX': ['N', 'S', 'E', 'W'],
         'NW': ['N', 'W'],
         'NE': ['N', 'E'],
         'SW': ['S', 'W'],
@@ -421,7 +622,11 @@ class LevelEditor {
         'CENTER_NW': ['CN', 'CW'],
         'CENTER_NE': ['CN', 'CE'],
         'CENTER_SW': ['CS', 'CW'],
-        'CENTER_SE': ['CS', 'CE']
+        'CENTER_SE': ['CS', 'CE'],
+        'T_INT_N': ['CH', 'CN'],
+        'T_INT_S': ['CH', 'CS'],
+        'T_INT_W': ['CV', 'CW'],
+        'T_INT_E': ['CV', 'CE']
       };
       const segs = cornerMap[c] || ['N', 'W'];
       segs.forEach(s => {
@@ -429,21 +634,26 @@ class LevelEditor {
       });
       changed = true;
     } else {
-      // Colocar tabique o puerta fina en el lateral o centro
+      // Colocar pared, puerta o ventana en el lateral o centro
       let codeToPlace = this.hoverSubEdge;
-      if (this.selectedTile >= 2) {
+      if (this.selectedTile === 'accessories') {
+        codeToPlace = (this.selectedAccessory === 'window' ? 'W' : 'D') + this.hoverSubEdge;
+      } else if (this.selectedTile === 'door' || (typeof this.selectedTile === 'number' && this.selectedTile >= 2)) {
         codeToPlace = 'D' + this.hoverSubEdge;
+      } else if (this.selectedTile === 'window') {
+        codeToPlace = 'W' + this.hoverSubEdge;
       }
 
-      // Evitar tener pared normal y puerta en la misma posición exacta
-      const alt = codeToPlace.startsWith('D') ? codeToPlace.slice(1) : ('D' + codeToPlace);
-      const altIdx = currentSegs.indexOf(alt);
-      if (altIdx !== -1) currentSegs.splice(altIdx, 1);
+      // Limpiar cualquier pared, puerta o ventana previa en este mismo borde
+      const baseEdge = codeToPlace.replace(/^[DW]/, '');
+      const conflicts = [baseEdge, 'D' + baseEdge, 'W' + baseEdge];
+      conflicts.forEach(c => {
+        const idx = currentSegs.indexOf(c);
+        if (idx !== -1) currentSegs.splice(idx, 1);
+      });
 
-      if (!currentSegs.includes(codeToPlace)) {
-        currentSegs.push(codeToPlace);
-        changed = true;
-      }
+      currentSegs.push(codeToPlace);
+      changed = true;
     }
 
     if (changed) {
@@ -566,7 +776,7 @@ class LevelEditor {
     }
     this.render();
     this.updateJSON();
-    this.showToast('Mapa vaciado (tabiques perimetrales conservados)');
+    this.showToast('Mapa vaciado (paredes perimetrales conservadas)');
   }
 
   applyPreset(presetName) {
@@ -632,20 +842,48 @@ class LevelEditor {
     this.showToast(`Plantilla "${presetName}" cargada`);
   }
 
-  drawDoorBadge(ctx, bx, by, text, color, cs) {
+  drawDoorBadge(ctx, bx, by, iconType, color, cs) {
+    const r = Math.floor(cs * 0.24);
     ctx.beginPath();
-    ctx.arc(bx, by, Math.floor(cs * 0.2), 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(15, 18, 25, 0.9)';
+    ctx.arc(bx, by, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(15, 18, 25, 0.94)';
     ctx.fill();
     ctx.strokeStyle = color;
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    ctx.fillStyle = '#fff';
-    ctx.font = `bold ${Math.floor(cs * 0.22)}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, bx, by);
+    if (iconType === 'door') {
+      // Icono vectorial limpio de puerta
+      const dw = Math.floor(cs * 0.18);
+      const dh = Math.floor(cs * 0.28);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.3;
+      ctx.strokeRect(bx - dw / 2, by - dh / 2, dw, dh);
+      // Pomo dorado
+      ctx.fillStyle = '#f39c12';
+      ctx.beginPath();
+      ctx.arc(bx + dw / 4, by, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (iconType === 'window') {
+      // Icono vectorial limpio de ventana con cruceta
+      const sz = Math.floor(cs * 0.22);
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.3;
+      ctx.strokeRect(bx - sz / 2, by - sz / 2, sz, sz);
+      ctx.beginPath();
+      ctx.moveTo(bx, by - sz / 2);
+      ctx.lineTo(bx, by + sz / 2);
+      ctx.moveTo(bx - sz / 2, by);
+      ctx.lineTo(bx + sz / 2, by);
+      ctx.strokeStyle = 'rgba(84, 160, 255, 0.95)';
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${Math.floor(cs * 0.22)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(iconType, bx, by + 1);
+    }
   }
 
   /**
@@ -656,13 +894,19 @@ class LevelEditor {
     const cs = this.cellSize;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    const doorColors = {
-      'DN': { bg: '#e74c3c', text: 'N' },
-      'DE': { bg: '#2ecc71', text: 'E' },
-      'DS': { bg: '#3498db', text: 'S' },
-      'DW': { bg: '#f39c12', text: 'O' },
-      'DCH': { bg: '#e5a93b', text: 'D' },
-      'DCV': { bg: '#e5a93b', text: 'D' }
+    const accessoryConfig = {
+      'DN': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
+      'DE': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
+      'DS': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
+      'DW': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
+      'DCH': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
+      'DCV': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
+      'WN': { bg: '#54a0ff', icon: 'window', border: '#2e86de' },
+      'WE': { bg: '#54a0ff', icon: 'window', border: '#2e86de' },
+      'WS': { bg: '#54a0ff', icon: 'window', border: '#2e86de' },
+      'WW': { bg: '#54a0ff', icon: 'window', border: '#2e86de' },
+      'WCH': { bg: '#54a0ff', icon: 'window', border: '#2e86de' },
+      'WCV': { bg: '#54a0ff', icon: 'window', border: '#2e86de' }
     };
 
     const th = Math.max(4, Math.floor(cs * 0.22));
@@ -697,45 +941,53 @@ class LevelEditor {
         // Dibujar cada segmento fino en su lateral o centro
         for (let i = 0; i < segs.length; i++) {
           const s = segs[i];
-          const isDoor = s.startsWith('D');
-          const door = doorColors[s];
-          const wallColor = isDoor ? (door ? door.bg : '#e5a93b') : '#5a6275';
+          const acc = accessoryConfig[s];
+          let wallColor = '#5a6275';
+          if (acc) {
+            wallColor = acc.bg;
+          }
 
           ctx.fillStyle = wallColor;
 
           switch (s) {
             case 'N':
             case 'DN':
+            case 'WN':
               ctx.fillRect(px, py, cs, th);
-              if (isDoor) this.drawDoorBadge(ctx, px + cs / 2, py + th / 2, door ? door.text : 'N', door ? door.bg : '#e74c3c', cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + th / 2, acc.icon, acc.border, cs);
               break;
             case 'S':
             case 'DS':
+            case 'WS':
               ctx.fillRect(px, py + cs - th, cs, th);
-              if (isDoor) this.drawDoorBadge(ctx, px + cs / 2, py + cs - th / 2, door ? door.text : 'S', door ? door.bg : '#3498db', cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs - th / 2, acc.icon, acc.border, cs);
               break;
             case 'W':
             case 'DW':
+            case 'WW':
               ctx.fillRect(px, py, th, cs);
-              if (isDoor) this.drawDoorBadge(ctx, px + th / 2, py + cs / 2, door ? door.text : 'O', door ? door.bg : '#f39c12', cs);
+              if (acc) this.drawDoorBadge(ctx, px + th / 2, py + cs / 2, acc.icon, acc.border, cs);
               break;
             case 'E':
             case 'DE':
+            case 'WE':
               ctx.fillRect(px + cs - th, py, th, cs);
-              if (isDoor) this.drawDoorBadge(ctx, px + cs - th / 2, py + cs / 2, door ? door.text : 'E', door ? door.bg : '#2ecc71', cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs - th / 2, py + cs / 2, acc.icon, acc.border, cs);
               break;
             case 'CH':
-            case 'DCH': {
+            case 'DCH':
+            case 'WCH': {
               const cy0 = py + Math.floor((cs - th) / 2);
               ctx.fillRect(px, cy0, cs, th);
-              if (isDoor) this.drawDoorBadge(ctx, px + cs / 2, py + cs / 2, 'D', '#e5a93b', cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs / 2, acc.icon, acc.border, cs);
               break;
             }
             case 'CV':
-            case 'DCV': {
+            case 'DCV':
+            case 'WCV': {
               const cx0 = px + Math.floor((cs - th) / 2);
               ctx.fillRect(cx0, py, th, cs);
-              if (isDoor) this.drawDoorBadge(ctx, px + cs / 2, py + cs / 2, 'D', '#e5a93b', cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs / 2, acc.icon, acc.border, cs);
               break;
             }
             case 'CN': {
@@ -751,14 +1003,14 @@ class LevelEditor {
               break;
             }
             case 'CW': {
-              const cx1 = px + Math.floor((cellSize - th) / 2) + th;
-              const cy0 = py + Math.floor((cellSize - th) / 2);
+              const cx1 = px + Math.floor((cs - th) / 2) + th;
+              const cy0 = py + Math.floor((cs - th) / 2);
               ctx.fillRect(px, cy0, cx1 - px, th);
               break;
             }
             case 'CE': {
-              const cx0 = px + Math.floor((cellSize - th) / 2);
-              const cy0 = py + Math.floor((cellSize - th) / 2);
+              const cx0 = px + Math.floor((cs - th) / 2);
+              const cy0 = py + Math.floor((cs - th) / 2);
               ctx.fillRect(cx0, cy0, (px + cs) - cx0, th);
               break;
             }
@@ -791,7 +1043,15 @@ class LevelEditor {
       ctx.strokeRect(hpx, hpy, cs, cs);
 
       if (this.currentTool === 'brush') {
-        ctx.fillStyle = (this.selectedTile >= 2) ? 'rgba(229, 169, 59, 0.8)' : 'rgba(79, 163, 227, 0.8)';
+        if (this.selectedTile === 'accessories') {
+          ctx.fillStyle = (this.selectedAccessory === 'door') ? 'rgba(229, 169, 59, 0.8)' : 'rgba(84, 160, 255, 0.8)';
+        } else if (this.selectedTile === 'door' || (typeof this.selectedTile === 'number' && this.selectedTile >= 2)) {
+          ctx.fillStyle = 'rgba(229, 169, 59, 0.8)';
+        } else if (this.selectedTile === 'window') {
+          ctx.fillStyle = 'rgba(84, 160, 255, 0.8)';
+        } else {
+          ctx.fillStyle = 'rgba(79, 163, 227, 0.8)';
+        }
 
         if (this.hoverSubEdge.startsWith('corner_')) {
           const c = this.hoverSubEdge.replace('corner_', '');
@@ -800,7 +1060,13 @@ class LevelEditor {
           const hcy0 = hpy + Math.floor((cs - th) / 2);
           const hcy1 = hcy0 + th;
 
-          if (c === 'NW') { ctx.fillRect(hpx, hpy, cs, th); ctx.fillRect(hpx, hpy, th, cs); }
+          if (c === 'FULL_BOX') {
+            ctx.fillRect(hpx, hpy, cs, th);
+            ctx.fillRect(hpx, hpy + cs - th, cs, th);
+            ctx.fillRect(hpx, hpy, th, cs);
+            ctx.fillRect(hpx + cs - th, hpy, th, cs);
+          }
+          else if (c === 'NW') { ctx.fillRect(hpx, hpy, cs, th); ctx.fillRect(hpx, hpy, th, cs); }
           else if (c === 'NE') { ctx.fillRect(hpx, hpy, cs, th); ctx.fillRect(hpx + cs - th, hpy, th, cs); }
           else if (c === 'SW') { ctx.fillRect(hpx, hpy + cs - th, cs, th); ctx.fillRect(hpx, hpy, th, cs); }
           else if (c === 'SE') { ctx.fillRect(hpx, hpy + cs - th, cs, th); ctx.fillRect(hpx + cs - th, hpy, th, cs); }
@@ -825,6 +1091,22 @@ class LevelEditor {
             ctx.fillRect(hcx0, hcy0, th, (hpy + cs) - hcy0);
             ctx.fillRect(hcx0, hcy0, (hpx + cs) - hcx0, th);
           }
+          else if (c === 'T_INT_N') {
+            ctx.fillRect(hpx, hcy0, cs, th);
+            ctx.fillRect(hcx0, hpy, th, hcy1 - hpy);
+          }
+          else if (c === 'T_INT_S') {
+            ctx.fillRect(hpx, hcy0, cs, th);
+            ctx.fillRect(hcx0, hcy0, th, (hpy + cs) - hcy0);
+          }
+          else if (c === 'T_INT_W') {
+            ctx.fillRect(hcx0, hpy, th, cs);
+            ctx.fillRect(hpx, hcy0, hcx1 - hpx, th);
+          }
+          else if (c === 'T_INT_E') {
+            ctx.fillRect(hcx0, hpy, th, cs);
+            ctx.fillRect(hcx0, hcy0, (hpx + cs) - hcx0, th);
+          }
         } else if (this.hoverSubEdge === 'empty') {
           ctx.strokeStyle = '#e74c3c';
           ctx.lineWidth = 2;
@@ -838,6 +1120,31 @@ class LevelEditor {
             case 'CH': ctx.fillRect(hpx, hpy + Math.floor((cs - th) / 2), cs, th); break;
             case 'CV': ctx.fillRect(hpx + Math.floor((cs - th) / 2), hpy, th, cs); break;
           }
+        }
+      } else if (this.currentTool === 'eraser') {
+        // Previsualización de borrado en color rojo
+        ctx.fillStyle = 'rgba(231, 76, 60, 0.85)';
+        ctx.strokeStyle = 'rgba(231, 76, 60, 0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(hpx + 1, hpy + 1, cs - 2, cs - 2);
+
+        const hcx0 = hpx + Math.floor((cs - th) / 2);
+        const hcx1 = hcx0 + th;
+        const hcy0 = hpy + Math.floor((cs - th) / 2);
+        const hcy1 = hcy0 + th;
+
+        switch (this.hoverSubEdge) {
+          case 'N': ctx.fillRect(hpx, hpy, cs, th); break;
+          case 'S': ctx.fillRect(hpx, hpy + cs - th, cs, th); break;
+          case 'W': ctx.fillRect(hpx, hpy, th, cs); break;
+          case 'E': ctx.fillRect(hpx + cs - th, hpy, th, cs); break;
+          case 'CH': ctx.fillRect(hpx, hcy0, cs, th); break;
+          case 'CV': ctx.fillRect(hcx0, hpy, th, cs); break;
+          case 'CN': ctx.fillRect(hcx0, hpy, th, hcy1 - hpy); break;
+          case 'CS': ctx.fillRect(hcx0, hcy0, th, (hpy + cs) - hcy0); break;
+          case 'CW': ctx.fillRect(hpx, hcy0, hcx1 - hpx, th); break;
+          case 'CE': ctx.fillRect(hcx0, hcy0, (hpx + cs) - hcx0, th); break;
+          default: break;
         }
       }
     }
@@ -891,11 +1198,9 @@ class LevelEditor {
       },
       legend: {
         0: 'Suelo libre / pasillo',
-        1: 'Muro de piedra',
-        2: 'Puerta Norte [N]',
-        3: 'Puerta Este [E]',
-        4: 'Puerta Sur [S]',
-        5: 'Puerta Oeste [O]'
+        1: 'Pared de piedra (N, S, E, W, CH, CV, etc.)',
+        'DN, DS, DE, DW, DCH, DCV': 'Puertas',
+        'WN, WS, WE, WW, WCH, WCV': 'Ventanas'
       },
       map: this.grid
     };

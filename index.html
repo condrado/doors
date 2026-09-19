@@ -6,7 +6,7 @@
   <title>Laberinto 2.5D Doors • Portal del Proyecto</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg-dark: #07090e;
@@ -20,7 +20,7 @@
       --accent-green: #2ecc71;
       --text-main: #f0f4fc;
       --text-muted: #8d9bb5;
-      --font-title: 'Cinzel', serif;
+      --font-title: 'Rajdhani', sans-serif;
       --font-retro: 'Press Start 2P', monospace;
       --font-body: 'Rajdhani', sans-serif;
     }
@@ -29,6 +29,38 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(79, 163, 227, 0.35) rgba(10, 14, 22, 0.4);
+    }
+
+    /* Barras de scroll personalizadas finas y elegantes */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(10, 14, 22, 0.4);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(79, 163, 227, 0.3);
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: background 0.2s ease;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(79, 163, 227, 0.6);
+    }
+
+    ::-webkit-scrollbar-thumb:active {
+      background: var(--accent-gold);
+    }
+
+    ::-webkit-scrollbar-corner {
+      background: transparent;
     }
 
     body {
@@ -282,13 +314,15 @@
       color: var(--accent-cyan);
     }
   </style>
+  <!-- Librería de iconos libre Remix Icon -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css">
 </head>
 <body>
   <div class="portal-container">
     <!-- Encabezado -->
     <header class="portal-header">
       <div class="brand-pill">
-        <span>⚡</span> PROYECTO RAYCASTER 2.5D
+        <span><i class="ri-flashlight-line"></i></span> PROYECTO RAYCASTER 2.5D
       </div>
       <h1>LABERINTO: LA SALA DE LAS 4 PUERTAS</h1>
       <p>
@@ -301,7 +335,7 @@
       <!-- Tarjeta 1: Demo 3D -->
       <article class="app-card demo-card">
         <div class="card-top">
-          <div class="card-icon-wrap">🎮</div>
+          <div class="card-icon-wrap"><i class="ri-gamepad-line"></i></div>
           <h2 class="card-title">Demo Jugable 3D</h2>
           <p class="card-desc">
             Experiencia en primera persona estilo Wolfenstein 3D. Explora salas cerradas con tabiques finos, 4 puertas con runas elementales, minimapa de radar en vivo y brújula superior.
@@ -314,14 +348,14 @@
           </div>
         </div>
         <a href="src/demo/index.html" class="card-btn btn-demo" id="linkLaunchDemo">
-          ▶ Lanzar Demo 3D
+          <i class="ri-play-fill"></i> Lanzar Demo 3D
         </a>
       </article>
 
       <!-- Tarjeta 2: Editor de Niveles -->
       <article class="app-card editor-card">
         <div class="card-top">
-          <div class="card-icon-wrap">🛠️</div>
+          <div class="card-icon-wrap"><i class="ri-tools-line"></i></div>
           <h2 class="card-title">Editor de Niveles & Salas</h2>
           <p class="card-desc">
             Crea laberintos y recintos con precisión 5x1. Coloca tabiques finos con rotación rápida [R], genera 12 tipos de esquinas y rincones, importa/exporta JSON y pruébalo en 3D al instante.
@@ -334,7 +368,7 @@
           </div>
         </div>
         <a href="src/editor/index.html" class="card-btn btn-editor" id="linkLaunchEditor">
-          🛠️ Abrir Editor de Niveles
+          <i class="ri-edit-2-line"></i> Abrir Editor de Niveles
         </a>
       </article>
     </main>

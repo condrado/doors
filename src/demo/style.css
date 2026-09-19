@@ -9,7 +9,7 @@
   --text-muted: #8d98af;
   --wall-color: #555866;
   --door-color: #b8621b;
-  --font-title: 'Cinzel', serif;
+  --font-title: 'Rajdhani', sans-serif;
   --font-retro: 'Press Start 2P', monospace;
   --font-body: 'Rajdhani', sans-serif;
 }
@@ -19,6 +19,38 @@
   margin: 0;
   padding: 0;
   user-select: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 163, 227, 0.35) rgba(10, 14, 22, 0.4);
+}
+
+/* Barras de scroll personalizadas finas y elegantes */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 14, 22, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(79, 163, 227, 0.3);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(79, 163, 227, 0.6);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--accent-gold);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 html {

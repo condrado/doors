@@ -109,6 +109,17 @@ class RaycasterEngine {
 
     const has = (c) => codes.includes(c);
 
+    // 0. BLOQUE SÓLIDO COMPLETO 1x1 (celda numérica 1 o ['N', 'S', 'E', 'W'])
+    if (has('N') && has('S') && has('E') && has('W')) {
+      faces.push(
+        { axis: 'y', pos: y0, minX: x0, maxX: x1, type: 1, name: 'Pared Bloque (N)' },
+        { axis: 'y', pos: y1, minX: x0, maxX: x1, type: 1, name: 'Pared Bloque (S)' },
+        { axis: 'x', pos: x0, minY: y0, maxY: y1, type: 1, name: 'Pared Bloque (O)' },
+        { axis: 'x', pos: x1, minY: y0, maxY: y1, type: 1, name: 'Pared Bloque (E)' }
+      );
+      return faces;
+    }
+
     // 1. RINCONES EN EL CENTRO (EN FORMA DE L CON GROSOR 0.20)
     // -------------------------------------------------------------
     if (has('CN') && has('CW')) { // Rincón Centro Noroeste ┌
@@ -175,23 +186,29 @@ class RaycasterEngine {
       return faces;
     }
 
-    // 3. TABIQUES O PUERTAS COMPLETAS
+    // 3. TABIQUES, PUERTAS O VENTANAS COMPLETAS
     // -------------------------------------------------------------
-    if (has('CH') || has('DCH')) {
+    if (has('CH') || has('DCH') || has('WCH')) {
       const isDoor = has('DCH');
+      const isWin = has('WCH');
+      const type = isDoor ? 2 : isWin ? 6 : 1;
+      const name = isDoor ? 'Puerta Central' : isWin ? 'Ventana Central' : 'Pared Central (N)';
       faces.push(
-        { axis: 'y', pos: cyA, minX: x0, maxX: x1, type: isDoor ? 2 : 1, name: isDoor ? 'Puerta Central' : 'Tabique Central (N)' },
-        { axis: 'y', pos: cyB, minX: x0, maxX: x1, type: isDoor ? 2 : 1, name: isDoor ? 'Puerta Central' : 'Tabique Central (S)' },
+        { axis: 'y', pos: cyA, minX: x0, maxX: x1, type, name },
+        { axis: 'y', pos: cyB, minX: x0, maxX: x1, type, name },
         { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' },
         { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' }
       );
     }
 
-    if (has('CV') || has('DCV')) {
+    if (has('CV') || has('DCV') || has('WCV')) {
       const isDoor = has('DCV');
+      const isWin = has('WCV');
+      const type = isDoor ? 3 : isWin ? 6 : 1;
+      const name = isDoor ? 'Puerta Central' : isWin ? 'Ventana Central' : 'Pared Central (O)';
       faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: y1, type: isDoor ? 3 : 1, name: isDoor ? 'Puerta Central' : 'Tabique Central (O)' },
-        { axis: 'x', pos: cxB, minY: y0, maxY: y1, type: isDoor ? 3 : 1, name: isDoor ? 'Puerta Central' : 'Tabique Central (E)' },
+        { axis: 'x', pos: cxA, minY: y0, maxY: y1, type, name },
+        { axis: 'x', pos: cxB, minY: y0, maxY: y1, type, name },
         { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' },
         { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' }
       );
@@ -233,66 +250,102 @@ class RaycasterEngine {
 
     // 4. ESQUINAS EN BORDES (NW, NE, SW, SE)
     // -------------------------------------------------------------
-    if (has('N') && has('W')) {
+    if (has('N') && has('W') && !has('S') && !has('E')) {
       faces.push(
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NO (N)' },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina NO (O)' },
         { axis: 'y', pos: nyB, minX: wxB, maxX: x1, type: 1, name: 'Esquina NO (S)' },
-        { axis: 'x', pos: wxB, minY: nyB, maxY: y1, type: 1, name: 'Esquina NO (E)' }
+        { axis: 'x', pos: wxB, minY: nyB, maxY: y1, type: 1, name: 'Esquina NO (E)' },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este' },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur' }
       );
       return faces;
     }
-    if (has('N') && has('E')) {
+    if (has('N') && has('E') && !has('S') && !has('W')) {
       faces.push(
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NE (N)' },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina NE (E)' },
         { axis: 'y', pos: nyB, minX: x0, maxX: exA, type: 1, name: 'Esquina NE (S)' },
-        { axis: 'x', pos: exA, minY: nyB, maxY: y1, type: 1, name: 'Esquina NE (O)' }
+        { axis: 'x', pos: exA, minY: nyB, maxY: y1, type: 1, name: 'Esquina NE (O)' },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste' },
+        { axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur' }
       );
       return faces;
     }
-    if (has('S') && has('W')) {
+    if (has('S') && has('W') && !has('N') && !has('E')) {
       faces.push(
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SO (S)' },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina SO (O)' },
         { axis: 'y', pos: syA, minX: wxB, maxX: x1, type: 1, name: 'Esquina SO (N)' },
-        { axis: 'x', pos: wxB, minY: y0, maxY: syA, type: 1, name: 'Esquina SO (E)' }
+        { axis: 'x', pos: wxB, minY: y0, maxY: syA, type: 1, name: 'Esquina SO (E)' },
+        { axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este' },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte' }
       );
       return faces;
     }
-    if (has('S') && has('E')) {
+    if (has('S') && has('E') && !has('N') && !has('W')) {
       faces.push(
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SE (S)' },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina SE (E)' },
         { axis: 'y', pos: syA, minX: x0, maxX: exA, type: 1, name: 'Esquina SE (N)' },
-        { axis: 'x', pos: exA, minY: y0, maxY: syA, type: 1, name: 'Esquina SE (O)' }
+        { axis: 'x', pos: exA, minY: y0, maxY: syA, type: 1, name: 'Esquina SE (O)' },
+        { axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste' },
+        { axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte' }
       );
       return faces;
     }
 
-    // 5. MUROS Y PUERTAS EN BORDES SUELTOS
+    // 5. MUROS, PUERTAS Y VENTANAS EN BORDES SUELTOS
     // -------------------------------------------------------------
-    if (has('N') || has('DN')) {
+    if (has('N') || has('DN') || has('WN')) {
       const isDoor = has('DN');
+      const isWin = has('WN');
+      const type = isDoor ? 2 : isWin ? 6 : 1;
+      const name = isDoor ? 'Puerta Norte' : isWin ? 'Ventana Norte' : 'Pared Norte';
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type: isDoor ? 2 : 1, name: isDoor ? 'Puerta Norte [N]' : 'Pared Norte' },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: isDoor ? 2 : 1, name: isDoor ? 'Puerta Norte [N]' : 'Pared Norte' }
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste' },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este' }
       );
     }
 
-    if (has('S') || has('DS')) {
+    if (has('S') || has('DS') || has('WS')) {
       const isDoor = has('DS');
+      const isWin = has('WS');
+      const type = isDoor ? 4 : isWin ? 6 : 1;
+      const name = isDoor ? 'Puerta Sur' : isWin ? 'Ventana Sur' : 'Pared Sur';
       faces.push(
-        { axis: 'y', pos: syA, minX: x0, maxX: x1, type: isDoor ? 4 : 1, name: isDoor ? 'Puerta Sur [S]' : 'Pared Sur' },
-        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: isDoor ? 4 : 1, name: isDoor ? 'Puerta Sur [S]' : 'Pared Sur' }
+        { axis: 'y', pos: syA, minX: x0, maxX: x1, type, name },
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type, name },
+        { axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste' },
+        { axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este' }
       );
     }
 
-    if (has('W') || has('DW')) {
+    if (has('W') || has('DW') || has('WW')) {
       const isDoor = has('DW');
+      const isWin = has('WW');
+      const type = isDoor ? 5 : isWin ? 6 : 1;
+      const name = isDoor ? 'Puerta Oeste' : isWin ? 'Ventana Oeste' : 'Pared Oeste';
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type: isDoor ? 5 : 1, name: isDoor ? 'Puerta Oeste [O]' : 'Pared Oeste' },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: isDoor ? 5 : 1, name: isDoor ? 'Puerta Oeste [O]' : 'Pared Oeste' }
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte' },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur' }
       );
     }
 
-    if (has('E') || has('DE')) {
+    if (has('E') || has('DE') || has('WE')) {
       const isDoor = has('DE');
+      const isWin = has('WE');
+      const type = isDoor ? 3 : isWin ? 6 : 1;
+      const name = isDoor ? 'Puerta Este' : isWin ? 'Ventana Este' : 'Pared Este';
       faces.push(
-        { axis: 'x', pos: exA, minY: y0, maxY: y1, type: isDoor ? 3 : 1, name: isDoor ? 'Puerta Este [E]' : 'Pared Este' },
-        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: isDoor ? 3 : 1, name: isDoor ? 'Puerta Este [E]' : 'Pared Este' }
+        { axis: 'x', pos: exA, minY: y0, maxY: y1, type, name },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type, name },
+        { axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte' },
+        { axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur' }
       );
     }
 
@@ -312,8 +365,76 @@ class RaycasterEngine {
     this.textures[4] = this.createDoorTexture(this.doorInfo[4]);
     this.textures[5] = this.createDoorTexture(this.doorInfo[5]);
 
+    // Textura 6: Ventana medieval gótica de cristal biselado con cruceta de hierro
+    this.textures[6] = this.createWindowTexture();
+
     // Textura 10: Marco / Jamba de puerta metálica y piedra (profundidad fina 0.2)
     this.textures[10] = this.createDoorFrameTexture();
+  }
+
+  createWindowTexture() {
+    const size = this.textureSize;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Marco exterior de piedra oscura
+    ctx.fillStyle = '#1e222a';
+    ctx.fillRect(0, 0, size, size);
+
+    // Alféizar y bisel
+    ctx.fillStyle = '#2f3640';
+    ctx.fillRect(4, 4, size - 8, size - 8);
+
+    // Vidrio con degradado azul cielo translúcido
+    const grad = ctx.createLinearGradient(0, 0, size, size);
+    grad.addColorStop(0, '#54a0ff');
+    grad.addColorStop(0.35, '#70a1ff');
+    grad.addColorStop(0.7, '#2e86de');
+    grad.addColorStop(1, '#1e3799');
+    ctx.fillStyle = grad;
+    ctx.fillRect(7, 7, size - 14, size - 14);
+
+    // Destellos diagonales en el cristal
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.beginPath();
+    ctx.moveTo(12, 7);
+    ctx.lineTo(24, 7);
+    ctx.lineTo(7, 24);
+    ctx.lineTo(7, 12);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(30, 7);
+    ctx.lineTo(40, 7);
+    ctx.lineTo(7, 40);
+    ctx.lineTo(7, 30);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cruceta de herrería / madera oscura dividiendo la ventana en 4 vidrieras
+    const mid = Math.floor(size / 2);
+    ctx.fillStyle = '#151922';
+    ctx.fillRect(mid - 2, 6, 4, size - 12);
+    ctx.fillRect(6, mid - 2, size - 12, 4);
+
+    // Remache central
+    ctx.fillStyle = '#8395a7';
+    ctx.fillRect(mid - 1, mid - 1, 2, 2);
+
+    // Ruido granulado sutil
+    const img = ctx.getImageData(0, 0, size, size);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const noise = (Math.random() - 0.5) * 10;
+      img.data[i] = Math.min(255, Math.max(0, img.data[i] + noise));
+      img.data[i+1] = Math.min(255, Math.max(0, img.data[i+1] + noise));
+      img.data[i+2] = Math.min(255, Math.max(0, img.data[i+2] + noise));
+    }
+    ctx.putImageData(img, 0, 0);
+
+    return new Uint32Array(ctx.getImageData(0, 0, size, size).data.buffer);
   }
 
   createDoorFrameTexture() {
@@ -811,6 +932,7 @@ class RaycasterEngine {
         for (let s = 0; s < codes.length; s++) {
           const code = codes[s];
           const isDoor = code.startsWith('D');
+          const isWin = code.startsWith('W');
           let doorType = 2;
           if (code === 'DN') doorType = 2;
           else if (code === 'DE') doorType = 3;
@@ -820,33 +942,41 @@ class RaycasterEngine {
           else if (code === 'DCV') doorType = 3;
 
           const doorColor = this.doorInfo[doorType]?.color || '#e5a93b';
-          ctx.fillStyle = isDoor ? doorColor : '#636e72';
+          if (isDoor) ctx.fillStyle = doorColor;
+          else if (isWin) ctx.fillStyle = '#54a0ff';
+          else ctx.fillStyle = '#636e72';
 
           switch (code) {
             case 'N':
             case 'DN':
+            case 'WN':
               ctx.fillRect(px, py, cellSize, th);
               break;
             case 'S':
             case 'DS':
+            case 'WS':
               ctx.fillRect(px, py + cellSize - th, cellSize, th);
               break;
             case 'W':
             case 'DW':
+            case 'WW':
               ctx.fillRect(px, py, th, cellSize);
               break;
             case 'E':
             case 'DE':
+            case 'WE':
               ctx.fillRect(px + cellSize - th, py, th, cellSize);
               break;
             case 'CH':
-            case 'DCH': {
+            case 'DCH':
+            case 'WCH': {
               const cy0 = py + Math.floor((cellSize - th) / 2);
               ctx.fillRect(px, cy0, cellSize, th);
               break;
             }
             case 'CV':
-            case 'DCV': {
+            case 'DCV':
+            case 'WCV': {
               const cx0 = px + Math.floor((cellSize - th) / 2);
               ctx.fillRect(cx0, py, th, cellSize);
               break;
