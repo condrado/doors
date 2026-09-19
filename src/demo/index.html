@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laberinto 3D - Prototipo Primera Persona</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Press+Start+2P&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <header class="game-header">
+      <div class="title-wrap">
+        <span class="retro-badge">PROTOTIPO 2.5D</span>
+        <h1>LABERINTO: LA SALA DE LAS 4 PUERTAS</h1>
+      </div>
+      <div class="header-info">
+        <span class="info-pill" id="compassPill">🧭 Rumbo: <strong id="compassText">Norte (0°)</strong></span>
+        <span class="info-pill" id="targetPill">🎯 Frente a ti: <strong id="facingTargetText">Pared</strong></span>
+        <span class="info-pill" id="levelPill" style="display: none;">🗺️ <strong id="levelNameText">Nivel Personalizado</strong></span>
+        <a href="../../index.html" class="hub-nav-btn" id="btnOpenHub" title="Volver al Portal Principal">🏠 Inicio</a>
+        <a href="../editor/index.html" class="action-btn editor-nav-btn" id="btnOpenEditor" title="Abrir Editor de Niveles">🛠️ Editor</a>
+      </div>
+    </header>
+
+    <main class="game-area">
+      <!-- Contenedor del Viewport 3D -->
+      <div class="viewport-wrapper">
+        <canvas id="gameCanvas" width="640" height="400"></canvas>
+        
+        <!-- Crosshair / Punto de mira -->
+        <div class="crosshair"></div>
+
+        <!-- Indicador de brújula superior -->
+        <div class="compass-bar" id="compassBar">
+          <div class="compass-strip" id="compassStrip">
+            <span class="cardinal">N</span>
+            <span class="sub">·</span>
+            <span class="cardinal">E</span>
+            <span class="sub">·</span>
+            <span class="cardinal">S</span>
+            <span class="sub">·</span>
+            <span class="cardinal">O</span>
+            <span class="sub">·</span>
+            <span class="cardinal">N</span>
+            <span class="sub">·</span>
+            <span class="cardinal">E</span>
+          </div>
+          <div class="compass-pointer">▼</div>
+        </div>
+
+        <!-- Radar / Minimapa -->
+        <div class="minimap-container">
+          <canvas id="minimapCanvas" width="140" height="140"></canvas>
+          <div class="minimap-legend">
+            <span><i class="dot player-dot"></i> Tú</span>
+            <span><i class="dot door-dot"></i> Puertas</span>
+          </div>
+        </div>
+
+        <!-- Mensaje flotante de interacción / contexto -->
+        <div class="prompt-hud" id="promptHud">
+          Usa <strong>[A]</strong> y <strong>[D]</strong> para girar sobre ti mismo
+        </div>
+      </div>
+
+      <!-- Panel de Controles -->
+      <div class="controls-panel">
+        <div class="keyboard-guide">
+          <h3>🎮 Controles de Teclado</h3>
+          <div class="key-rows">
+            <div class="key-item"><kbd>A</kbd> o <kbd>◀</kbd> <span>Girar a la Izquierda</span></div>
+            <div class="key-item"><kbd>D</kbd> o <kbd>▶</kbd> <span>Girar a la Derecha</span></div>
+            <div class="key-item"><kbd>W</kbd> / <kbd>S</kbd> <span>(Opcional) Paso adelante / atrás</span></div>
+          </div>
+        </div>
+
+        <!-- Botones en pantalla (para táctil o ratón) -->
+        <div class="touch-controls">
+          <div class="control-row">
+            <button class="ctrl-btn forward" id="btnForward" title="Avanzar (W)">▲</button>
+          </div>
+          <div class="control-row horizontal">
+            <button class="ctrl-btn rotate-btn" id="btnTurnLeft" title="Girar Izquierda (A)">
+              <span class="btn-icon">↺</span>
+              <span class="btn-label">Giro Izq (A)</span>
+            </button>
+            <button class="ctrl-btn center-btn" id="btnCenter" title="Volver al centro">
+              🎯
+            </button>
+            <button class="ctrl-btn rotate-btn" id="btnTurnRight" title="Girar Derecha (D)">
+              <span class="btn-icon">↻</span>
+              <span class="btn-label">Giro Der (D)</span>
+            </button>
+          </div>
+          <div class="control-row">
+            <button class="ctrl-btn backward" id="btnBackward" title="Retroceder (S)">▼</button>
+          </div>
+        </div>
+
+        <!-- Ajustes rápidos -->
+        <div class="settings-box">
+          <h3>⚙️ Ajustes</h3>
+          <label class="setting-row">
+            <span>Velocidad de giro:</span>
+            <input type="range" id="turnSpeedRange" min="1" max="5" value="3" step="0.5">
+          </label>
+          <label class="setting-row">
+            <span>Modo Textura:</span>
+            <select id="textureModeSelect">
+              <option value="classic">Retro Pixel-Art (Wolfenstein 3D)</option>
+              <option value="flat">Líneas / Sólido Clásico</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </main>
+
+    <footer class="game-footer">
+      <span>Laberinto 3D • Raycaster puro en Canvas 2D (Sin bibliotecas 3D) • Diseñado para alto rendimiento</span>
+    </footer>
+  </div>
+
+  <script src="../engine/raycaster.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laberinto 2.5D Doors • Portal del Proyecto</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-card: rgba(18, 23, 34, 0.75);
+      --bg-card-hover: rgba(26, 33, 50, 0.9);
+      --border-card: rgba(79, 163, 227, 0.2);
+      --border-card-hover: rgba(79, 163, 227, 0.6);
+      --accent-gold: #e5a93b;
+      --accent-blue: #4fa3e3;
+      --accent-cyan: #00d2d3;
+      --accent-green: #2ecc71;
+      --text-main: #f0f4fc;
+      --text-muted: #8d9bb5;
+      --font-title: 'Cinzel', serif;
+      --font-retro: 'Press Start 2P', monospace;
+      --font-body: 'Rajdhani', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 50% 10%, rgba(30, 58, 110, 0.35) 0%, transparent 60%),
+        radial-gradient(circle at 80% 80%, rgba(229, 169, 59, 0.1) 0%, transparent 50%),
+        linear-gradient(to bottom, #06080c, #0d111a);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      overflow-x: hidden;
+    }
+
+    .portal-container {
+      width: 100%;
+      max-width: 1060px;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Header del Portal */
+    .portal-header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(229, 169, 59, 0.12);
+      border: 1px solid rgba(229, 169, 59, 0.4);
+      padding: 6px 16px;
+      border-radius: 24px;
+      font-family: var(--font-retro);
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+      box-shadow: 0 0 15px rgba(229, 169, 59, 0.2);
+    }
+
+    .portal-header h1 {
+      font-family: var(--font-title);
+      font-size: 2.5rem;
+      letter-spacing: 2px;
+      color: #fff;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 30px rgba(79, 163, 227, 0.25);
+    }
+
+    .portal-header p {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 640px;
+      line-height: 1.5;
+    }
+
+    /* Tarjetas de Selección */
+    .apps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .app-card {
+      background: var(--bg-card);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--border-card);
+      border-radius: 16px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 20px;
+      transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .app-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent-blue), transparent);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .app-card.editor-card::before {
+      background: linear-gradient(90deg, transparent, var(--accent-gold), transparent);
+    }
+
+    .app-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-card-hover);
+      transform: translateY(-4px);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(79, 163, 227, 0.2);
+    }
+
+    .app-card.editor-card:hover {
+      border-color: rgba(229, 169, 59, 0.6);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 25px rgba(229, 169, 59, 0.2);
+    }
+
+    .app-card:hover::before {
+      opacity: 1;
+    }
+
+    .card-top {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .card-icon-wrap {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: rgba(79, 163, 227, 0.12);
+      border: 1px solid rgba(79, 163, 227, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      box-shadow: 0 0 16px rgba(79, 163, 227, 0.2);
+    }
+
+    .editor-card .card-icon-wrap {
+      background: rgba(229, 169, 59, 0.12);
+      border-color: rgba(229, 169, 59, 0.3);
+      box-shadow: 0 0 16px rgba(229, 169, 59, 0.2);
+    }
+
+    .card-title {
+      font-family: var(--font-title);
+      font-size: 1.45rem;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+
+    .card-desc {
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .tag {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      color: #b5c2d9;
+    }
+
+    .card-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 14px 24px;
+      border-radius: 10px;
+      font-family: var(--font-body);
+      font-size: 1.05rem;
+      font-weight: 700;
+      text-decoration: none;
+      letter-spacing: 0.5px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .btn-demo {
+      background: linear-gradient(135deg, #1e3c72, #2a5298);
+      color: #fff;
+      border: 1px solid #4fa3e3;
+      box-shadow: 0 4px 16px rgba(79, 163, 227, 0.3);
+    }
+
+    .btn-demo:hover {
+      background: linear-gradient(135deg, #2a5298, #3b6fc2);
+      box-shadow: 0 6px 22px rgba(79, 163, 227, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .btn-editor {
+      background: linear-gradient(135deg, #b8621b, #d9822b);
+      color: #fff;
+      border: 1px solid var(--accent-gold);
+      box-shadow: 0 4px 16px rgba(229, 169, 59, 0.3);
+    }
+
+    .btn-editor:hover {
+      background: linear-gradient(135deg, #d9822b, #f39c12);
+      box-shadow: 0 6px 22px rgba(229, 169, 59, 0.5);
+      transform: translateY(-1px);
+    }
+
+    /* Footer Info */
+    .portal-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .tech-specs {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .spec-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .spec-item span {
+      color: var(--accent-cyan);
+    }
+  </style>
+</head>
+<body>
+  <div class="portal-container">
+    <!-- Encabezado -->
+    <header class="portal-header">
+      <div class="brand-pill">
+        <span>⚡</span> PROYECTO RAYCASTER 2.5D
+      </div>
+      <h1>LABERINTO: LA SALA DE LAS 4 PUERTAS</h1>
+      <p>
+        Arquitectura modular 2.5D con motor Raycaster puro en Canvas 2D (sin librerías 3D). Explora el prototipo en primera persona o diseña mapas en el editor visual.
+      </p>
+    </header>
+
+    <!-- Opciones de Entrada -->
+    <main class="apps-grid">
+      <!-- Tarjeta 1: Demo 3D -->
+      <article class="app-card demo-card">
+        <div class="card-top">
+          <div class="card-icon-wrap">🎮</div>
+          <h2 class="card-title">Demo Jugable 3D</h2>
+          <p class="card-desc">
+            Experiencia en primera persona estilo Wolfenstein 3D. Explora salas cerradas con tabiques finos, 4 puertas con runas elementales, minimapa de radar en vivo y brújula superior.
+          </p>
+          <div class="card-tags">
+            <span class="tag">Algoritmo DDA</span>
+            <span class="tag">Texturas Procedurales 64px</span>
+            <span class="tag">Radar Minimap</span>
+            <span class="tag">Controles [W][A][S][D]</span>
+          </div>
+        </div>
+        <a href="src/demo/index.html" class="card-btn btn-demo" id="linkLaunchDemo">
+          ▶ Lanzar Demo 3D
+        </a>
+      </article>
+
+      <!-- Tarjeta 2: Editor de Niveles -->
+      <article class="app-card editor-card">
+        <div class="card-top">
+          <div class="card-icon-wrap">🛠️</div>
+          <h2 class="card-title">Editor de Niveles & Salas</h2>
+          <p class="card-desc">
+            Crea laberintos y recintos con precisión 5x1. Coloca tabiques finos con rotación rápida [R], genera 12 tipos de esquinas y rincones, importa/exporta JSON y pruébalo en 3D al instante.
+          </p>
+          <div class="card-tags">
+            <span class="tag">Tabiques Finos 5x1</span>
+            <span class="tag">Rotación [R]</span>
+            <span class="tag">12 Esquinas & Rincones</span>
+            <span class="tag">JSON en Vivo</span>
+          </div>
+        </div>
+        <a href="src/editor/index.html" class="card-btn btn-editor" id="linkLaunchEditor">
+          🛠️ Abrir Editor de Niveles
+        </a>
+      </article>
+    </main>
+
+    <!-- Pie del Portal -->
+    <footer class="portal-footer">
+      <div>
+        Estructura Modular: <code>src/engine</code> • <code>src/demo</code> • <code>src/editor</code>
+      </div>
+      <div class="tech-specs">
+        <div class="spec-item">
+          <span>●</span> Canvas 2D Nativo
+        </div>
+        <div class="spec-item">
+          <span>●</span> 0 Dependencias Externas
+        </div>
+        <div class="spec-item">
+          <span>●</span> Alto Rendimiento
+        </div>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

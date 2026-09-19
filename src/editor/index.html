@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor de Niveles 2.5D - Creador de Laberintos</title>
+  <link rel="stylesheet" href="editor.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Press+Start+2P&family=Rajdhani:wght@500;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="editor-app">
+    <!-- Barra superior -->
+    <header class="editor-header">
+      <div class="header-brand">
+        <span class="badge-tag">HERRAMIENTA</span>
+        <h1>EDITOR DE LABERINTOS & SALAS</h1>
+      </div>
+      <div class="header-actions">
+        <a href="../../index.html" class="action-btn hub-btn" id="btnBackToHub" title="Volver al Portal Principal">
+          🏠 Inicio
+        </a>
+        <a href="../demo/index.html" class="action-btn back-btn" id="btnBackToGame" title="Ir a la Demo 3D">
+          🎮 Volver a la Demo
+        </a>
+        <button class="action-btn play-btn" id="btnPlayLevel" title="Probar este nivel en primera persona">
+          ▶ Probar en 3D
+        </button>
+      </div>
+    </header>
+
+    <!-- Área de Trabajo Principal -->
+    <main class="workspace">
+      <!-- Barra lateral de Herramientas y Paleta -->
+      <aside class="sidebar tools-sidebar">
+        <!-- Modo de Herramienta -->
+        <section class="tool-section">
+          <h2>🛠️ Modo de Dibujo</h2>
+          <div class="tool-grid">
+            <button class="tool-btn active" data-tool="brush" id="toolBrush">
+              <span class="tool-icon">✏️</span>
+              <span class="tool-name">Tabique Fino</span>
+            </button>
+            <button class="tool-btn" data-tool="room" id="toolRoom" title="Arrastra para dibujar una sala con muros">
+              <span class="tool-icon">⬚</span>
+              <span class="tool-name">Habitación</span>
+            </button>
+            <button class="tool-btn" data-tool="eraser" id="toolEraser">
+              <span class="tool-icon">🧹</span>
+              <span class="tool-name">Borrador</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Orientación y Posición de la Pared Fina (5x1) -->
+        <section class="tool-section">
+          <h2>📐 Colocación y Rotación (5x1)</h2>
+          <div class="placement-controls">
+            <div class="rotation-bar">
+              <button class="btn-rotate" id="btnRotateWall" title="Presiona [R] para rotar">
+                <span class="rot-icon">🔄</span>
+                <span>Girar: <strong id="rotLabel">Horizontal ━</strong> <kbd>R</kbd></span>
+              </button>
+            </div>
+            <div class="edge-selector-grid">
+              <button class="edge-btn active" data-pos="auto" id="posAuto" title="Colocar según el lado de la casilla por donde pases el ratón">🎯 Auto (Cursor)</button>
+              <button class="edge-btn" data-pos="N" id="posNorth" title="Borde Superior">⬆️ Norte</button>
+              <button class="edge-btn" data-pos="S" id="posSouth" title="Borde Inferior">⬇️ Sur</button>
+              <button class="edge-btn" data-pos="W" id="posWest" title="Borde Izquierdo">⬅️ Oeste</button>
+              <button class="edge-btn" data-pos="E" id="posEast" title="Borde Derecho">➡️ Este</button>
+              <button class="edge-btn" data-pos="center" id="posCenter" title="Centro de la casilla">✛ Centro</button>
+            </div>
+            <div class="quick-corners">
+              <span class="sub-heading">Esquinas en Bordes:</span>
+              <div class="corner-buttons">
+                <button class="corner-btn" data-corner="NW" title="Esquina Arriba-Izquierda (Norte + Oeste)">┌ NO</button>
+                <button class="corner-btn" data-corner="NE" title="Esquina Arriba-Derecha (Norte + Este)">┐ NE</button>
+                <button class="corner-btn" data-corner="SW" title="Esquina Abajo-Izquierda (Sur + Oeste)">└ SO</button>
+                <button class="corner-btn" data-corner="SE" title="Esquina Abajo-Derecha (Sur + Este)">┘ SE</button>
+              </div>
+
+              <span class="sub-heading" style="margin-top: 6px;">Esquinas Centradas (2 laterales enteros):</span>
+              <div class="corner-buttons">
+                <button class="corner-btn" data-corner="CH_W" title="Centro Horizontal + Lateral Oeste">⊢ Cent. Oeste</button>
+                <button class="corner-btn" data-corner="CH_E" title="Centro Horizontal + Lateral Este">⊣ Cent. Este</button>
+                <button class="corner-btn" data-corner="CV_N" title="Centro Vertical + Lateral Norte">⊤ Cent. Norte</button>
+                <button class="corner-btn" data-corner="CV_S" title="Centro Vertical + Lateral Sur">⊥ Cent. Sur</button>
+              </div>
+
+              <span class="sub-heading" style="margin-top: 6px;">Rincones en el Centro (en L):</span>
+              <div class="corner-buttons">
+                <button class="corner-btn" data-corner="CENTER_NW" title="Rincón en L centrado hacia Noroeste (Arriba + Izquierda)">┌ Centro NO</button>
+                <button class="corner-btn" data-corner="CENTER_NE" title="Rincón en L centrado hacia Noreste (Arriba + Derecha)">┐ Centro NE</button>
+                <button class="corner-btn" data-corner="CENTER_SW" title="Rincón en L centrado hacia Suroeste (Abajo + Izquierda)">└ Centro SO</button>
+                <button class="corner-btn" data-corner="CENTER_SE" title="Rincón en L centrado hacia Sureste (Abajo + Derecha)">┘ Centro SE</button>
+              </div>
+
+              <span class="sub-heading" style="margin-top: 6px;">Cruce Central Completo:</span>
+              <div class="corner-buttons">
+                <button class="corner-btn wide" data-corner="CENTER_CROSS" title="Centro Horizontal + Centro Vertical cruzados">✛ Cruce Central (H + V)</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Paleta de Elementos -->
+        <section class="tool-section">
+          <h2>🎨 Elemento a Colocar</h2>
+          <div class="palette-list">
+            <label class="palette-item active">
+              <input type="radio" name="tileSelect" value="1" checked>
+              <span class="tile-sample stone-sample"></span>
+              <div class="tile-info">
+                <strong>Muro de Piedra</strong>
+                <small>Valor: 1</small>
+              </div>
+            </label>
+
+            <label class="palette-item">
+              <input type="radio" name="tileSelect" value="0">
+              <span class="tile-sample floor-sample"></span>
+              <div class="tile-info">
+                <strong>Suelo Vacío / Pasillo</strong>
+                <small>Valor: 0</small>
+              </div>
+            </label>
+
+            <label class="palette-item">
+              <input type="radio" name="tileSelect" value="player">
+              <span class="tile-sample player-sample">🧍</span>
+              <div class="tile-info">
+                <strong>Inicio del Jugador</strong>
+                <small>Spawn inicial</small>
+              </div>
+            </label>
+
+            <div class="doors-category">
+              <span class="sub-heading">🚪 Puertas con Runa:</span>
+              <div class="door-options">
+                <label class="palette-item mini">
+                  <input type="radio" name="tileSelect" value="2">
+                  <span class="door-tag door-n">N</span>
+                  <span>Norte</span>
+                </label>
+                <label class="palette-item mini">
+                  <input type="radio" name="tileSelect" value="3">
+                  <span class="door-tag door-e">E</span>
+                  <span>Este</span>
+                </label>
+                <label class="palette-item mini">
+                  <input type="radio" name="tileSelect" value="4">
+                  <span class="door-tag door-s">S</span>
+                  <span>Sur</span>
+                </label>
+                <label class="palette-item mini">
+                  <input type="radio" name="tileSelect" value="5">
+                  <span class="door-tag door-w">O</span>
+                  <span>Oeste</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Configuración de Cuadrícula -->
+        <section class="tool-section">
+          <h2>📐 Tamaño del Mapa</h2>
+          <div class="dimension-controls">
+            <div class="quick-sizes">
+              <button class="btn-chip" data-cols="8" data-rows="8">8x8</button>
+              <button class="btn-chip" data-cols="12" data-rows="12">12x12</button>
+              <button class="btn-chip" data-cols="16" data-rows="16">16x16</button>
+              <button class="btn-chip" data-cols="20" data-rows="20">20x20</button>
+            </div>
+            <div class="input-group">
+              <label>Columnas (X):</label>
+              <input type="number" id="inputCols" min="5" max="50" value="12">
+            </div>
+            <div class="input-group">
+              <label>Filas (Y):</label>
+              <input type="number" id="inputRows" min="5" max="50" value="12">
+            </div>
+            <div class="resize-actions">
+              <button class="btn-subtle primary-btn" id="btnResizeMap">Redimensionar</button>
+              <button class="btn-subtle" id="btnNewRoomOfSize" title="Crear una sala limpia de este tamaño con muros alrededor">Nueva Sala Limpia</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Plantillas rápidas -->
+        <section class="tool-section">
+          <h2>⚡ Plantillas Rápidas</h2>
+          <div class="presets-list">
+            <button class="btn-preset" id="preset4Doors">Sala 4 Puertas (Original 7x7)</button>
+            <button class="btn-preset" id="presetTwoRooms">2 Habitaciones Conectadas (14x8)</button>
+            <button class="btn-preset" id="presetMaze">Mini Laberinto (11x11)</button>
+            <button class="btn-subtle danger" id="btnClearMap">Limpiar / Vaciar Todo</button>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Lienzo Central de la Cuadrícula -->
+      <section class="canvas-viewport">
+        <div class="viewport-toolbar">
+          <div class="cursor-coords" id="cursorCoords">Celda: (X: -, Y: -)</div>
+          <div class="map-stats" id="mapStats">12x12 • Jugador: (3.5, 3.5)</div>
+          <div class="zoom-controls">
+            <span>Zoom:</span>
+            <button class="zoom-btn" id="btnZoomOut" title="Reducir tamaño de celdas">🔍−</button>
+            <span class="zoom-label" id="zoomLabel">32px</span>
+            <button class="zoom-btn" id="btnZoomIn" title="Aumentar tamaño de celdas">🔍+</button>
+            <button class="zoom-btn auto" id="btnZoomAuto" title="Ajustar automáticamente a la pantalla">Auto</button>
+          </div>
+        </div>
+
+        <div class="canvas-scroll-wrap" id="canvasContainer">
+          <canvas id="editorCanvas"></canvas>
+        </div>
+      </section>
+
+      <!-- Panel Lateral Derecho: Código JSON y Exportación -->
+      <aside class="sidebar json-sidebar">
+        <div class="json-header">
+          <h2>📄 JSON del Nivel</h2>
+          <span class="live-dot" title="Actualizado en tiempo real">● En vivo</span>
+        </div>
+
+        <div class="json-actions">
+          <button class="action-btn-sm" id="btnCopyJson">📋 Copiar JSON</button>
+          <button class="action-btn-sm" id="btnDownloadJson">💾 Descargar .json</button>
+          <button class="action-btn-sm" id="btnImportJson">📂 Cargar JSON</button>
+          <input type="file" id="fileInput" accept=".json" style="display: none;">
+        </div>
+
+        <div class="json-code-wrapper">
+          <textarea id="jsonOutput" spellcheck="false"></textarea>
+        </div>
+
+        <div class="json-footer-help">
+          <small>Puedes editar el JSON directamente aquí y pulsar "Aplicar Cambios del JSON".</small>
+          <button class="btn-subtle" id="btnApplyManualJson">Aplicar Cambios del JSON</button>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Toast de notificación -->
+    <div class="toast" id="toastMessage">Nivel guardado correctamente</div>
+  </div>
+
+  <script src="editor.js"></script>
+</body>
+</html>

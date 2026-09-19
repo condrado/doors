@@ -1,0 +1,20 @@
+{
+  "name": "laberinto-doors-3d",
+  "version": "1.1.0",
+  "description": "Laberinto en primera persona estilo Wolfenstein 3D y Editor de Niveles modular",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "game",
+    "raycasting",
+    "wolfenstein",
+    "canvas",
+    "level-editor",
+    "modular"
+  ],
+  "author": "",
+  "license": "MIT"
+}
