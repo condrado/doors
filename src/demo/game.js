@@ -88,8 +88,11 @@ window.addEventListener('DOMContentLoaded', () => {
   const btnCenter = document.getElementById('btnCenter');
 
   // ==========================================
-  // CAPTURA DE RATÓN (POINTER LOCK API)
+  // PANTALLA COMPLETA & CAPTURA DE RATÓN
   // ==========================================
+  const btnFullscreen = document.getElementById('btnFullscreen');
+  const viewportWrapper = document.querySelector('.viewport-wrapper');
+
   function requestLock() {
     canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
     if (canvas.requestPointerLock) {
@@ -97,13 +100,89 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  async function toggleFullscreen() {
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+    if (!isFs) {
+      try {
+        if (viewportWrapper.requestFullscreen) {
+          await viewportWrapper.requestFullscreen();
+        } else if (viewportWrapper.webkitRequestFullscreen) {
+          await viewportWrapper.webkitRequestFullscreen();
+        } else if (viewportWrapper.mozRequestFullScreen) {
+          await viewportWrapper.mozRequestFullScreen();
+        }
+        // Al entrar en pantalla completa, capturar y bloquear el cursor de inmediato
+        requestLock();
+      } catch (err) {
+        console.warn('Error al activar pantalla completa:', err);
+      }
+    } else {
+      try {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          await document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+          await document.mozCancelFullScreen();
+        }
+      } catch (err) {
+        console.warn('Error al salir de pantalla completa:', err);
+      }
+    }
+  }
+
+  if (btnFullscreen) {
+    btnFullscreen.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFullscreen();
+    });
+  }
+
+  function onFullscreenChange() {
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+
+    if (btnFullscreen) {
+      btnFullscreen.innerHTML = isFs
+        ? '<span class="fs-icon">🗗</span><span class="fs-label">Salir</span>'
+        : '<span class="fs-icon">⛶</span><span class="fs-label">Pantalla Completa</span>';
+      btnFullscreen.title = isFs ? 'Salir de pantalla completa (ESC / F)' : 'Pantalla Completa (F)';
+    }
+
+    if (isFs) {
+      // Ratón atrapado y bloqueado dentro de pantalla completa
+      requestLock();
+    } else {
+      // Al restaurarse la visión al estado normal y original, liberar el ratón
+      if (document.exitPointerLock) {
+        document.exitPointerLock();
+      }
+    }
+    onPointerLockChange();
+  }
+
+  document.addEventListener('fullscreenchange', onFullscreenChange);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+  document.addEventListener('mozfullscreenchange', onFullscreenChange);
+
   if (pointerLockOverlay) {
     pointerLockOverlay.addEventListener('click', requestLock);
   }
   canvas.addEventListener('click', requestLock);
 
+  // En pantalla completa, cualquier clic en el contenedor bloquea el ratón de nuevo
+  if (viewportWrapper) {
+    viewportWrapper.addEventListener('click', () => {
+      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+      if (isFs && document.pointerLockElement !== canvas) {
+        requestLock();
+      }
+    });
+  }
+
   function onPointerLockChange() {
     const isLocked = (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas);
+    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+
     if (pointerLockOverlay) {
       if (isLocked) {
         pointerLockOverlay.classList.add('hidden');
@@ -111,10 +190,17 @@ window.addEventListener('DOMContentLoaded', () => {
         pointerLockOverlay.classList.remove('hidden');
       }
     }
+
     if (promptHud) {
-      promptHud.innerHTML = isLocked
-        ? `Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> movimiento lateral • [ESC] liberar ratón`
-        : `Haz clic en la pantalla para <strong>apuntar con el ratón</strong> • <strong>[A][D]</strong> movimiento lateral`;
+      if (isFs) {
+        promptHud.innerHTML = isLocked
+          ? `Pantalla Completa • Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> strafe • [ESC] o [F] salir`
+          : `Haz clic para <strong>bloquear el ratón</strong> de nuevo • [ESC] o [F] salir de pantalla completa`;
+      } else {
+        promptHud.innerHTML = isLocked
+          ? `Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> movimiento lateral • [ESC] liberar ratón`
+          : `Haz clic en la pantalla para <strong>apuntar con el ratón</strong> • <strong>[A][D]</strong> movimiento lateral • <strong>[F]</strong> pantalla completa`;
+      }
     }
   }
 
@@ -178,6 +264,10 @@ window.addEventListener('DOMContentLoaded', () => {
       case 'arrowdown':
         keys.moveBackward = true;
         if (btnBackward) btnBackward.classList.add('active');
+        e.preventDefault();
+        break;
+      case 'f':
+        toggleFullscreen();
         e.preventDefault();
         break;
     }
