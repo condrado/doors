@@ -42,12 +42,48 @@ class LevelEditor {
     this.zoomLabel = document.getElementById('zoomLabel');
     this.inputCols = document.getElementById('inputCols');
     this.inputRows = document.getElementById('inputRows');
+    this.inputMapName = document.getElementById('inputMapName');
 
-    this.initDefaultMap();
+    const hasSavedMap = this.loadSavedMapIfExists();
+    if (!hasSavedMap) {
+      this.initDefaultMap();
+    }
     this.setupEventListeners();
+    this.restoreUIState();
     this.resizeCanvas();
     this.render();
     this.updateJSON();
+  }
+
+  /**
+   * Intenta recuperar y restaurar un mapa guardado previamente en localStorage
+   */
+  loadSavedMapIfExists() {
+    try {
+      const savedMap = localStorage.getItem('customRaycasterMap');
+      if (savedMap) {
+        const data = JSON.parse(savedMap);
+        if (data && data.map && Array.isArray(data.map) && data.map.length > 0) {
+          this.rows = data.map.length;
+          this.cols = data.map[0].length;
+          this.grid = data.map;
+          if (data.playerStart) {
+            this.player.x = (typeof data.playerStart.x === 'number') ? data.playerStart.x : (this.cols / 2);
+            this.player.y = (typeof data.playerStart.y === 'number') ? data.playerStart.y : (this.rows / 2);
+            this.player.angle = (typeof data.playerStart.angle === 'number') ? data.playerStart.angle : -Math.PI / 2;
+          }
+          if (this.inputCols) this.inputCols.value = this.cols;
+          if (this.inputRows) this.inputRows.value = this.rows;
+          if (data.name && this.inputMapName) {
+            this.inputMapName.value = data.name;
+          }
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('Error al cargar mapa guardado de localStorage:', e);
+    }
+    return false;
   }
 
   /**
@@ -109,6 +145,7 @@ class LevelEditor {
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentTool = btn.dataset.tool;
+        this.saveUIState();
       });
     });
 
@@ -118,6 +155,7 @@ class LevelEditor {
       if (header) {
         header.addEventListener('click', () => {
           section.classList.toggle('collapsed');
+          this.saveUIState();
         });
       }
     });
@@ -140,6 +178,8 @@ class LevelEditor {
         if (target === 'laterales' && pLaterales) pLaterales.classList.remove('hidden');
         else if (target === 'centro' && pCentro) pCentro.classList.remove('hidden');
         else if (target === 'uniones-t' && pUnionesT) pUnionesT.classList.remove('hidden');
+
+        this.saveUIState();
       });
     });
 
@@ -152,6 +192,7 @@ class LevelEditor {
           this.placementMode = 'empty';
           this.showToast('Modo: Suelo libre / Borrar muros de casilla');
           this.render();
+          this.saveUIState();
           return;
         }
 
@@ -163,6 +204,7 @@ class LevelEditor {
         this.placementMode = mode;
         this.showToast(`Modo: ${btn.title}`);
         this.render();
+        this.saveUIState();
       });
     });
 
@@ -198,6 +240,7 @@ class LevelEditor {
         }
 
         this.render();
+        this.saveUIState();
       });
     });
 
@@ -210,6 +253,7 @@ class LevelEditor {
         const name = this.selectedAccessory === 'door' ? 'Puerta' : 'Ventana';
         this.showToast(`Accesorio activo: ${name}`);
         this.render();
+        this.saveUIState();
       });
     });
 
@@ -259,12 +303,20 @@ class LevelEditor {
       });
     });
 
+    // Campo de nombre del mapa
+    if (this.inputMapName) {
+      this.inputMapName.addEventListener('input', () => {
+        this.updateJSON();
+      });
+    }
+
     // Controles de Zoom
     document.getElementById('btnZoomIn').addEventListener('click', () => {
       this.zoomMode = 'manual';
       this.cellSize = Math.min(60, this.cellSize + 4);
       this.resizeCanvas();
       this.render();
+      this.saveUIState();
     });
 
     document.getElementById('btnZoomOut').addEventListener('click', () => {
@@ -272,6 +324,7 @@ class LevelEditor {
       this.cellSize = Math.max(16, this.cellSize - 4);
       this.resizeCanvas();
       this.render();
+      this.saveUIState();
     });
 
     document.getElementById('btnZoomAuto').addEventListener('click', () => {
@@ -279,6 +332,7 @@ class LevelEditor {
       this.resizeCanvas();
       this.render();
       this.showToast('🔍 Zoom automático ajustado');
+      this.saveUIState();
     });
 
     // Plantillas
@@ -339,19 +393,12 @@ class LevelEditor {
     const workspace = document.querySelector('.workspace');
     const jsonSidebar = document.getElementById('jsonSidebar');
     const btnToggleJsonSidebar = document.getElementById('btnToggleJsonSidebar');
-    const iconToggleJson = document.getElementById('iconToggleJson');
 
     const toggleJsonSidebar = () => {
       if (!workspace || !jsonSidebar) return;
-      const isCollapsed = workspace.classList.toggle('json-collapsed');
-      jsonSidebar.classList.toggle('collapsed', isCollapsed);
-
-      if (iconToggleJson) {
-        iconToggleJson.className = isCollapsed ? 'ri-arrow-left-s-line' : 'ri-arrow-right-s-line';
-      }
-      if (btnToggleJsonSidebar) {
-        btnToggleJsonSidebar.title = isCollapsed ? 'Descolapsar panel JSON' : 'Colapsar panel JSON (40px)';
-      }
+      const isCollapsed = !workspace.classList.contains('json-collapsed');
+      this.setJsonSidebarCollapsed(isCollapsed);
+      this.saveUIState();
 
       // Reajustar tamaño del canvas cuando se termine la animación
       setTimeout(() => {
@@ -785,12 +832,14 @@ class LevelEditor {
       this.rows = 7;
       this.inputCols.value = 7;
       this.inputRows.value = 7;
+      if (this.inputMapName) this.inputMapName.value = 'Sala 4 Puertas (7x7)';
       this.initDefaultMap();
     } else if (presetName === 'twoRooms') {
       this.cols = 14;
       this.rows = 8;
       this.inputCols.value = 14;
       this.inputRows.value = 8;
+      if (this.inputMapName) this.inputMapName.value = '2 Habitaciones Conectadas (14x8)';
       this.grid = [];
       for (let y = 0; y < this.rows; y++) {
         const row = [];
@@ -814,6 +863,7 @@ class LevelEditor {
       this.rows = 11;
       this.inputCols.value = 11;
       this.inputRows.value = 11;
+      if (this.inputMapName) this.inputMapName.value = 'Mini Laberinto (11x11)';
       this.grid = [];
       for (let y = 0; y < this.rows; y++) {
         const row = [];
@@ -1187,8 +1237,9 @@ class LevelEditor {
    * Genera el objeto JSON del nivel
    */
   getLevelObject() {
+    const mapName = (this.inputMapName && this.inputMapName.value.trim()) ? this.inputMapName.value.trim() : 'Laberinto Personalizado';
     return {
-      name: 'Laberinto Personalizado',
+      name: mapName,
       width: this.cols,
       height: this.rows,
       playerStart: {
@@ -1209,6 +1260,175 @@ class LevelEditor {
   updateJSON() {
     const data = this.getLevelObject();
     this.jsonOutput.value = JSON.stringify(data, null, 2);
+    try {
+      localStorage.setItem('customRaycasterMap', JSON.stringify(data));
+    } catch (e) {
+      console.warn('Error al guardar el mapa en localStorage:', e);
+    }
+  }
+
+  /**
+   * Ajusta visualmente el estado colapsado o expandido de la barra lateral JSON
+   */
+  setJsonSidebarCollapsed(collapsed) {
+    const workspace = document.querySelector('.workspace');
+    const jsonSidebar = document.getElementById('jsonSidebar');
+    const iconToggleJson = document.getElementById('iconToggleJson');
+    const btnToggleJsonSidebar = document.getElementById('btnToggleJsonSidebar');
+    if (!workspace || !jsonSidebar) return;
+
+    if (collapsed) {
+      workspace.classList.add('json-collapsed');
+      jsonSidebar.classList.add('collapsed');
+      if (iconToggleJson) iconToggleJson.className = 'ri-arrow-left-s-line';
+      if (btnToggleJsonSidebar) btnToggleJsonSidebar.title = 'Descolapsar panel JSON';
+    } else {
+      workspace.classList.remove('json-collapsed');
+      jsonSidebar.classList.remove('collapsed');
+      if (iconToggleJson) iconToggleJson.className = 'ri-arrow-right-s-line';
+      if (btnToggleJsonSidebar) btnToggleJsonSidebar.title = 'Colapsar panel JSON (40px)';
+    }
+  }
+
+  /**
+   * Guarda el estado de la UI (acordeones colapsados, panel json, herramienta activa, paleta, zoom)
+   */
+  saveUIState() {
+    try {
+      const collapsedSections = [];
+      document.querySelectorAll('.tool-section').forEach(sec => {
+        if (sec.id && sec.classList.contains('collapsed')) {
+          collapsedSections.push(sec.id);
+        }
+      });
+
+      const workspace = document.querySelector('.workspace');
+      const isJsonCollapsed = workspace ? workspace.classList.contains('json-collapsed') : false;
+
+      const activeTabEl = document.querySelector('.wall-cat-tab.active');
+      const activeWallTab = activeTabEl ? activeTabEl.dataset.tab : 'laterales';
+
+      const state = {
+        collapsedSections,
+        jsonSidebarCollapsed: isJsonCollapsed,
+        currentTool: this.currentTool,
+        selectedTile: this.selectedTile,
+        selectedAccessory: this.selectedAccessory,
+        placementMode: this.placementMode,
+        activeWallTab,
+        zoomMode: this.zoomMode,
+        cellSize: this.cellSize
+      };
+
+      localStorage.setItem('levelEditor_uiState', JSON.stringify(state));
+    } catch (e) {
+      console.warn('Error al guardar estado de UI en localStorage:', e);
+    }
+  }
+
+  /**
+   * Restaura el estado de la UI desde localStorage
+   */
+  restoreUIState() {
+    try {
+      const saved = localStorage.getItem('levelEditor_uiState');
+      if (!saved) return;
+      const state = JSON.parse(saved);
+
+      // 1. Restaurar secciones colapsadas del menú
+      if (Array.isArray(state.collapsedSections)) {
+        document.querySelectorAll('.tool-section').forEach(sec => {
+          if (sec.id) {
+            sec.classList.toggle('collapsed', state.collapsedSections.includes(sec.id));
+          }
+        });
+      }
+
+      // 2. Restaurar estado de JSON sidebar
+      if (typeof state.jsonSidebarCollapsed === 'boolean') {
+        this.setJsonSidebarCollapsed(state.jsonSidebarCollapsed);
+      }
+
+      // 3. Restaurar herramienta actual (brush, room, eraser)
+      if (state.currentTool) {
+        this.currentTool = state.currentTool;
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.tool === state.currentTool);
+        });
+      }
+
+      // 4. Restaurar elemento seleccionado (Pared, Accesorios, Suelo, Jugador)
+      if (state.selectedTile !== undefined) {
+        const radio = document.querySelector(`input[name="tileSelect"][value="${state.selectedTile}"]`);
+        if (radio) {
+          radio.checked = true;
+          document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
+          radio.closest('.palette-item')?.classList.add('active');
+          this.selectedTile = (state.selectedTile === 'player' || state.selectedTile === 'accessories')
+            ? state.selectedTile
+            : parseInt(state.selectedTile, 10);
+
+          const sectionWallPlacement = document.getElementById('sectionWallPlacement');
+          const sectionAccessoryPlacement = document.getElementById('sectionAccessoryPlacement');
+
+          if (sectionWallPlacement) {
+            sectionWallPlacement.style.display = (state.selectedTile === '1' || state.selectedTile === 1) ? '' : 'none';
+          }
+          if (sectionAccessoryPlacement) {
+            sectionAccessoryPlacement.style.display = (state.selectedTile === 'accessories') ? '' : 'none';
+          }
+        }
+      }
+
+      // 5. Restaurar pestaña activa de colocación de paredes (laterales, centro, uniones-t)
+      if (state.activeWallTab) {
+        const tabBtn = document.querySelector(`.wall-cat-tab[data-tab="${state.activeWallTab}"]`);
+        if (tabBtn) {
+          document.querySelectorAll('.wall-cat-tab').forEach(t => t.classList.remove('active'));
+          tabBtn.classList.add('active');
+          ['panelLaterales', 'panelCentro', 'panelUnionesT'].forEach(id => {
+            const p = document.getElementById(id);
+            if (p) p.classList.add('hidden');
+          });
+          const targetId = state.activeWallTab === 'laterales' ? 'panelLaterales'
+                         : state.activeWallTab === 'centro' ? 'panelCentro' : 'panelUnionesT';
+          const targetEl = document.getElementById(targetId);
+          if (targetEl) targetEl.classList.remove('hidden');
+        }
+      }
+
+      // 6. Restaurar modo específico de pared (placementMode)
+      if (state.placementMode) {
+        this.placementMode = state.placementMode;
+        document.querySelectorAll('.wall-tile-btn, .wall-aux-btn').forEach(b => {
+          if (state.placementMode === 'empty' && b.dataset.action === 'select-floor') {
+            b.classList.add('active');
+          } else if (b.dataset.mode === state.placementMode) {
+            b.classList.add('active');
+          } else {
+            b.classList.remove('active');
+          }
+        });
+      }
+
+      // 7. Restaurar accesorio seleccionado
+      if (state.selectedAccessory) {
+        this.selectedAccessory = state.selectedAccessory;
+        document.querySelectorAll('.accessory-tile-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.accessory === state.selectedAccessory);
+        });
+      }
+
+      // 8. Restaurar Zoom
+      if (state.zoomMode) {
+        this.zoomMode = state.zoomMode;
+        if (state.cellSize && state.zoomMode === 'manual') {
+          this.cellSize = state.cellSize;
+        }
+      }
+    } catch (e) {
+      console.warn('Error al restaurar estado de UI:', e);
+    }
   }
 
   copyJson() {
@@ -1269,12 +1489,23 @@ class LevelEditor {
     this.grid = data.map;
 
     if (data.playerStart) {
-      this.player.x = data.playerStart.x || 1.5;
-      this.player.y = data.playerStart.y || 1.5;
+      this.player.x = (typeof data.playerStart.x === 'number') ? data.playerStart.x : 1.5;
+      this.player.y = (typeof data.playerStart.y === 'number') ? data.playerStart.y : 1.5;
+      this.player.angle = (typeof data.playerStart.angle === 'number') ? data.playerStart.angle : -Math.PI / 2;
     }
 
-    document.getElementById('inputCols').value = this.cols;
-    document.getElementById('inputRows').value = this.rows;
+    if (this.inputCols) this.inputCols.value = this.cols;
+    if (this.inputRows) this.inputRows.value = this.rows;
+    if (data.name && this.inputMapName) {
+      this.inputMapName.value = data.name;
+    }
+
+    // Actualizar botones de chips de dimensiones rápidas
+    document.querySelectorAll('.btn-chip').forEach(chip => {
+      const c = parseInt(chip.dataset.cols, 10);
+      const r = parseInt(chip.dataset.rows, 10);
+      chip.classList.toggle('active', c === this.cols && r === this.rows);
+    });
 
     this.resizeCanvas();
     this.render();
@@ -1287,6 +1518,7 @@ class LevelEditor {
   playCurrentLevel() {
     const levelData = this.getLevelObject();
     localStorage.setItem('customRaycasterMap', JSON.stringify(levelData));
+    this.saveUIState();
     this.showToast('Cargando nivel en el motor 3D...');
     setTimeout(() => {
       window.location.href = '../demo/index.html?custom=1';

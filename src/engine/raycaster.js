@@ -54,6 +54,9 @@ class RaycasterEngine {
 
     // Objeto frente al jugador (actualizado en cada frame)
     this.facingTarget = { name: 'Pared de piedra', type: 'wall', distance: 0 };
+
+    // Caché de segmentos/caras 3D por celda para máximo rendimiento
+    this._cellSegmentsCache = null;
   }
 
   /**
@@ -73,16 +76,318 @@ class RaycasterEngine {
   }
 
   /**
-   * Obtiene la lista de caras 3D de volumen sólido (espesor 5x1 = 0.20) y puertas en una celda
+   * Invalida la caché de caras/segmentos 3D generados por celda
    */
-  getCellSegments(mapX, mapY) {
-    const codes = this.getCellCodes(mapX, mapY);
-    return this.generateCellFaces(codes, mapX, mapY);
+  clearSegmentsCache() {
+    this._cellSegmentsCache = null;
   }
 
   /**
-   * Genera las caras 3D de volumen sólido (con grosor 5x1 = 0.20 de profundidad)
-   * para tabiques, esquinas, rincones en L y puertas.
+   * Abre la puerta en (mapX, mapY) dejándola visible en posición abatida (OD*)
+   * y transitable para el jugador.
+   */
+  openDoor(mapX, mapY) {
+    if (mapY < 0 || mapY >= this.mapHeight || mapX < 0 || mapX >= this.mapWidth) return null;
+    const cell = this.map[mapY][mapX];
+    if (cell === undefined || cell === null || cell === 0) return null;
+
+    if (!this.openedDoorsOriginalType) {
+      this.openedDoorsOriginalType = new Map();
+    }
+
+    let doorOpened = false;
+    let doorName = 'Puerta';
+    const key = `${mapX},${mapY}`;
+
+    if (typeof cell === 'number') {
+      if (cell >= 2 && cell <= 5) {
+        const typeLetter = (cell === 2) ? 'N' : (cell === 3) ? 'E' : (cell === 4) ? 'S' : 'W';
+        doorName = this.doorInfo[cell]?.name || 'Puerta';
+        this.openedDoorsOriginalType.set(key, cell);
+        this.map[mapY][mapX] = ['OD' + typeLetter];
+        doorOpened = true;
+      }
+    } else if (Array.isArray(cell)) {
+      const doorCodes = ['DN', 'DE', 'DS', 'DW', 'DCH', 'DCV'];
+      const foundDoor = cell.find(code => doorCodes.includes(code));
+      if (foundDoor) {
+        doorOpened = true;
+        const typeLetter = foundDoor.replace('D', '');
+        const doorNum = (typeLetter === 'N' ? 2 : typeLetter === 'E' ? 3 : typeLetter === 'S' ? 4 : typeLetter === 'W' ? 5 : 2);
+        doorName = this.doorInfo[doorNum]?.name || 'Puerta';
+        this.openedDoorsOriginalType.set(key, JSON.parse(JSON.stringify(cell)));
+        this.map[mapY][mapX] = cell.map(c => c === foundDoor ? ('OD' + typeLetter) : c);
+      }
+    }
+
+    if (doorOpened) {
+      this.clearSegmentsCache();
+      return { success: true, action: 'open', name: doorName, mapX, mapY };
+    }
+    return null;
+  }
+
+  /**
+   * Cierra una puerta abierta devolviéndola al estado sólido original.
+   */
+  closeDoor(mapX, mapY, player) {
+    if (mapY < 0 || mapY >= this.mapHeight || mapX < 0 || mapX >= this.mapWidth) return null;
+    const cell = this.map[mapY][mapX];
+    if (!cell) return null;
+
+    const key = `${mapX},${mapY}`;
+    let openCode = null;
+    if (Array.isArray(cell)) {
+      openCode = cell.find(c => typeof c === 'string' && c.startsWith('OD'));
+    }
+    if (!openCode) return null;
+
+    // Verificar si el jugador está obstruyendo el vano
+    if (player && this.isPlayerBlockingDoor(mapX, mapY, player, openCode)) {
+      return { blocked: true, message: '¡Despeja el vano para poder cerrar la puerta!' };
+    }
+
+    let doorName = 'Puerta';
+    if (this.openedDoorsOriginalType && this.openedDoorsOriginalType.has(key)) {
+      const original = this.openedDoorsOriginalType.get(key);
+      this.map[mapY][mapX] = original;
+      this.openedDoorsOriginalType.delete(key);
+      if (typeof original === 'number') {
+        doorName = this.doorInfo[original]?.name || 'Puerta';
+      } else if (Array.isArray(original)) {
+        const dCode = original.find(c => ['DN', 'DE', 'DS', 'DW', 'DCH', 'DCV'].includes(c));
+        const num = dCode === 'DN' ? 2 : dCode === 'DE' ? 3 : dCode === 'DS' ? 4 : dCode === 'DW' ? 5 : 2;
+        doorName = this.doorInfo[num]?.name || 'Puerta';
+      }
+    } else {
+      const closedCode = openCode.replace('OD', 'D');
+      this.map[mapY][mapX] = cell.map(c => c === openCode ? closedCode : c);
+      doorName = 'Puerta';
+    }
+
+    this.clearSegmentsCache();
+    return { success: true, action: 'close', name: doorName, mapX, mapY };
+  }
+
+  /**
+   * Comprueba si el jugador se encuentra dentro del vano cerrado de la puerta
+   */
+  isPlayerBlockingDoor(mapX, mapY, player, openCode) {
+    const px = player.posX;
+    const py = player.posY;
+    const pRad = 0.22;
+    const x0 = mapX, x1 = mapX + 1.0;
+    const y0 = mapY, y1 = mapY + 1.0;
+
+    switch (openCode) {
+      case 'ODN':
+        return (py + pRad >= y0 && py - pRad <= y0 + 0.25 && px >= x0 - 0.1 && px <= x1 + 0.1);
+      case 'ODS':
+        return (py + pRad >= y1 - 0.25 && py - pRad <= y1 && px >= x0 - 0.1 && px <= x1 + 0.1);
+      case 'ODW':
+        return (px + pRad >= x0 && px - pRad <= x0 + 0.25 && py >= y0 - 0.1 && py <= y1 + 0.1);
+      case 'ODE':
+        return (px + pRad >= x1 - 0.25 && px - pRad <= x1 && py >= y0 - 0.1 && py <= y1 + 0.1);
+      case 'ODCH':
+        return (py + pRad >= y0 + 0.35 && py - pRad <= y0 + 0.65 && px >= x0 - 0.1 && px <= x1 + 0.1);
+      case 'ODCV':
+        return (px + pRad >= x0 + 0.35 && px - pRad <= x0 + 0.65 && py >= y0 - 0.1 && py <= y1 + 0.1);
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Alterna (abre o cierra) una puerta en el rango de interacción (≤ maxDist).
+   * Prioriza el objetivo enfocado en la mirilla central y luego las celdas frontales inmediatas.
+   */
+  interactDoor(player, maxDistance = 2.8) {
+    // 1. Probar primero si el rayo central apunta a una puerta (cerrada o abierta)
+    if (this.facingTarget && (this.facingTarget.type === 'door' || this.facingTarget.type === 'door-open')) {
+      const dist = (this.facingTarget.rawDist !== undefined)
+        ? this.facingTarget.rawDist
+        : parseFloat(this.facingTarget.distance);
+      if (dist <= maxDistance && this.facingTarget.mapX !== undefined && this.facingTarget.mapY !== undefined) {
+        const mX = this.facingTarget.mapX;
+        const mY = this.facingTarget.mapY;
+        const cell = this.map[mY][mX];
+        const isAlreadyOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
+        if (isAlreadyOpen) {
+          return this.closeDoor(mX, mY, player);
+        } else {
+          return this.openDoor(mX, mY);
+        }
+      }
+    }
+
+    // 2. Probar celdas directamente en frente de la mirada del jugador (por cercanía o ángulo)
+    const checkDists = [0.6, 1.1, 1.6, 2.2, maxDistance];
+    for (let i = 0; i < checkDists.length; i++) {
+      const d = checkDists[i];
+      const frontX = Math.floor(player.posX + player.dirX * d);
+      const frontY = Math.floor(player.posY + player.dirY * d);
+      if (frontX >= 0 && frontX < this.mapWidth && frontY >= 0 && frontY < this.mapHeight) {
+        const cell = this.map[frontY][frontX];
+        const isNumDoor = typeof cell === 'number' && cell >= 2 && cell <= 5;
+        const isArrClosed = Array.isArray(cell) && cell.some(c => ['DN', 'DE', 'DS', 'DW', 'DCH', 'DCV'].includes(c));
+        const isArrOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
+
+        if (isArrOpen) {
+          return this.closeDoor(frontX, frontY, player);
+        } else if (isNumDoor || isArrClosed) {
+          return this.openDoor(frontX, frontY);
+        }
+      }
+    }
+
+    // 3. Probar la celda actual donde se encuentra el jugador (por si acaba de cruzar y se gira)
+    const curX = Math.floor(player.posX);
+    const curY = Math.floor(player.posY);
+    if (curX >= 0 && curX < this.mapWidth && curY >= 0 && curY < this.mapHeight) {
+      const curCell = this.map[curY][curX];
+      if (Array.isArray(curCell) && curCell.some(c => typeof c === 'string' && c.startsWith('OD'))) {
+        return this.closeDoor(curX, curY, player);
+      }
+    }
+
+    return null;
+  }
+
+  isSolidCell(codes) {
+    if (!codes || codes.length === 0) return false;
+    return codes.includes('N') && codes.includes('S') && codes.includes('E') && codes.includes('W');
+  }
+
+  isCenterWestConnected(mapX, mapY, currentCodes) {
+    if (currentCodes.includes('W') || currentCodes.includes('DW') || currentCodes.includes('WW')) return true;
+    if (mapX - 1 < 0) return false;
+    const wCodes = this.getCellCodes(mapX - 1, mapY);
+    if (this.isSolidCell(wCodes)) return true;
+    return wCodes.some(c => ['CH', 'DCH', 'WCH', 'CE', 'E', 'DE', 'WE'].includes(c));
+  }
+
+  isCenterEastConnected(mapX, mapY, currentCodes) {
+    if (currentCodes.includes('E') || currentCodes.includes('DE') || currentCodes.includes('WE')) return true;
+    if (mapX + 1 >= this.mapWidth) return false;
+    const eCodes = this.getCellCodes(mapX + 1, mapY);
+    if (this.isSolidCell(eCodes)) return true;
+    return eCodes.some(c => ['CH', 'DCH', 'WCH', 'CW', 'W', 'DW', 'WW'].includes(c));
+  }
+
+  isCenterNorthConnected(mapX, mapY, currentCodes) {
+    if (currentCodes.includes('N') || currentCodes.includes('DN') || currentCodes.includes('WN')) return true;
+    if (mapY - 1 < 0) return false;
+    const nCodes = this.getCellCodes(mapX, mapY - 1);
+    if (this.isSolidCell(nCodes)) return true;
+    return nCodes.some(c => ['CV', 'DCV', 'WCV', 'CS', 'S', 'DS', 'WS'].includes(c));
+  }
+
+  isCenterSouthConnected(mapX, mapY, currentCodes) {
+    if (currentCodes.includes('S') || currentCodes.includes('DS') || currentCodes.includes('WS')) return true;
+    if (mapY + 1 >= this.mapHeight) return false;
+    const sCodes = this.getCellCodes(mapX, mapY + 1);
+    if (this.isSolidCell(sCodes)) return true;
+    return sCodes.some(c => ['CV', 'DCV', 'WCV', 'CN', 'N', 'DN', 'WN'].includes(c));
+  }
+
+  isPerimeterWestConnected(whichEdge, mapX, mapY, currentCodes) {
+    if (currentCodes.includes('W') || currentCodes.includes('DW') || currentCodes.includes('WW')) return true;
+    if (mapX - 1 >= 0) {
+      const wCodes = this.getCellCodes(mapX - 1, mapY);
+      if (this.isSolidCell(wCodes)) return true;
+      if (whichEdge === 'N' && wCodes.some(c => ['N', 'DN', 'WN', 'E', 'DE', 'WE'].includes(c))) return true;
+      if (whichEdge === 'S' && wCodes.some(c => ['S', 'DS', 'WS', 'E', 'DE', 'WE'].includes(c))) return true;
+    }
+    if (whichEdge === 'N' && mapY - 1 >= 0) {
+      const nCodes = this.getCellCodes(mapX, mapY - 1);
+      if (this.isSolidCell(nCodes) || nCodes.some(c => ['W', 'DW', 'WW'].includes(c))) return true;
+    }
+    if (whichEdge === 'S' && mapY + 1 < this.mapHeight) {
+      const sCodes = this.getCellCodes(mapX, mapY + 1);
+      if (this.isSolidCell(sCodes) || sCodes.some(c => ['W', 'DW', 'WW'].includes(c))) return true;
+    }
+    return false;
+  }
+
+  isPerimeterEastConnected(whichEdge, mapX, mapY, currentCodes) {
+    if (currentCodes.includes('E') || currentCodes.includes('DE') || currentCodes.includes('WE')) return true;
+    if (mapX + 1 < this.mapWidth) {
+      const eCodes = this.getCellCodes(mapX + 1, mapY);
+      if (this.isSolidCell(eCodes)) return true;
+      if (whichEdge === 'N' && eCodes.some(c => ['N', 'DN', 'WN', 'W', 'DW', 'WW'].includes(c))) return true;
+      if (whichEdge === 'S' && eCodes.some(c => ['S', 'DS', 'WS', 'W', 'DW', 'WW'].includes(c))) return true;
+    }
+    if (whichEdge === 'N' && mapY - 1 >= 0) {
+      const nCodes = this.getCellCodes(mapX, mapY - 1);
+      if (this.isSolidCell(nCodes) || nCodes.some(c => ['E', 'DE', 'WE'].includes(c))) return true;
+    }
+    if (whichEdge === 'S' && mapY + 1 < this.mapHeight) {
+      const sCodes = this.getCellCodes(mapX, mapY + 1);
+      if (this.isSolidCell(sCodes) || sCodes.some(c => ['E', 'DE', 'WE'].includes(c))) return true;
+    }
+    return false;
+  }
+
+  isPerimeterNorthConnected(whichEdge, mapX, mapY, currentCodes) {
+    if (currentCodes.includes('N') || currentCodes.includes('DN') || currentCodes.includes('WN')) return true;
+    if (mapY - 1 >= 0) {
+      const nCodes = this.getCellCodes(mapX, mapY - 1);
+      if (this.isSolidCell(nCodes)) return true;
+      if (whichEdge === 'W' && nCodes.some(c => ['W', 'DW', 'WW', 'S', 'DS', 'WS'].includes(c))) return true;
+      if (whichEdge === 'E' && nCodes.some(c => ['E', 'DE', 'WE', 'S', 'DS', 'WS'].includes(c))) return true;
+    }
+    if (whichEdge === 'W' && mapX - 1 >= 0) {
+      const wCodes = this.getCellCodes(mapX - 1, mapY);
+      if (this.isSolidCell(wCodes) || wCodes.some(c => ['N', 'DN', 'WN'].includes(c))) return true;
+    }
+    if (whichEdge === 'E' && mapX + 1 < this.mapWidth) {
+      const eCodes = this.getCellCodes(mapX + 1, mapY);
+      if (this.isSolidCell(eCodes) || eCodes.some(c => ['N', 'DN', 'WN'].includes(c))) return true;
+    }
+    return false;
+  }
+
+  isPerimeterSouthConnected(whichEdge, mapX, mapY, currentCodes) {
+    if (currentCodes.includes('S') || currentCodes.includes('DS') || currentCodes.includes('WS')) return true;
+    if (mapY + 1 < this.mapHeight) {
+      const sCodes = this.getCellCodes(mapX, mapY + 1);
+      if (this.isSolidCell(sCodes)) return true;
+      if (whichEdge === 'W' && sCodes.some(c => ['W', 'DW', 'WW', 'N', 'DN', 'WN'].includes(c))) return true;
+      if (whichEdge === 'E' && sCodes.some(c => ['E', 'DE', 'WE', 'N', 'DN', 'WN'].includes(c))) return true;
+    }
+    if (whichEdge === 'W' && mapX - 1 >= 0) {
+      const wCodes = this.getCellCodes(mapX - 1, mapY);
+      if (this.isSolidCell(wCodes) || wCodes.some(c => ['S', 'DS', 'WS'].includes(c))) return true;
+    }
+    if (whichEdge === 'E' && mapX + 1 < this.mapWidth) {
+      const eCodes = this.getCellCodes(mapX + 1, mapY);
+      if (this.isSolidCell(eCodes) || eCodes.some(c => ['S', 'DS', 'WS'].includes(c))) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Obtiene la lista de caras 3D de volumen sólido y puertas en una celda
+   * con caché acelerada para no recalcular en cada rayo de cada fotograma.
+   */
+  getCellSegments(mapX, mapY) {
+    if (mapY < 0 || mapY >= this.mapHeight || mapX < 0 || mapX >= this.mapWidth) return [];
+    if (!this._cellSegmentsCache || this._cellSegmentsCache.length !== this.mapHeight) {
+      this._cellSegmentsCache = Array.from({ length: this.mapHeight }, () => new Array(this.mapWidth).fill(null));
+    }
+    const cached = this._cellSegmentsCache[mapY][mapX];
+    if (cached !== null && cached !== undefined) return cached;
+
+    const codes = this.getCellCodes(mapX, mapY);
+    const segments = this.generateCellFaces(codes, mapX, mapY);
+    this._cellSegmentsCache[mapY][mapX] = segments;
+    return segments;
+  }
+
+  /**
+   * Genera las caras 3D de volumen sólido (espesor 0.20) para tabiques, esquinas y puertas.
+   * Los cantos (textures[10]) solo se colocan en extremos abiertos/vistos al aire;
+   * si la pared se une con otra pared o esquina, el canto se suprime para aligerar la carga y evitar ralentizaciones.
    */
   generateCellFaces(codes, mapX, mapY) {
     if (!codes || codes.length === 0) return [];
@@ -127,10 +432,14 @@ class RaycasterEngine {
         { axis: 'x', pos: cxB, minY: y0, maxY: cyB, type: 1, name: 'Rincón (Exterior Este)' },
         { axis: 'y', pos: cyB, minX: x0, maxX: cxB, type: 1, name: 'Rincón (Exterior Sur)' },
         { axis: 'x', pos: cxA, minY: y0, maxY: cyA, type: 1, name: 'Rincón (Interior Oeste)' },
-        { axis: 'y', pos: cyA, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Norte)' },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' }
+        { axis: 'y', pos: cyA, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Norte)' }
       );
+      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
+      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
       return faces;
     }
 
@@ -139,10 +448,14 @@ class RaycasterEngine {
         { axis: 'x', pos: cxA, minY: y0, maxY: cyB, type: 1, name: 'Rincón (Exterior Oeste)' },
         { axis: 'y', pos: cyB, minX: cxA, maxX: x1, type: 1, name: 'Rincón (Exterior Sur)' },
         { axis: 'x', pos: cxB, minY: y0, maxY: cyA, type: 1, name: 'Rincón (Interior Este)' },
-        { axis: 'y', pos: cyA, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Norte)' },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' }
+        { axis: 'y', pos: cyA, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Norte)' }
       );
+      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
+      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
+      }
       return faces;
     }
 
@@ -151,10 +464,14 @@ class RaycasterEngine {
         { axis: 'x', pos: cxB, minY: cyA, maxY: y1, type: 1, name: 'Rincón (Exterior Este)' },
         { axis: 'y', pos: cyA, minX: x0, maxX: cxB, type: 1, name: 'Rincón (Exterior Norte)' },
         { axis: 'x', pos: cxA, minY: cyB, maxY: y1, type: 1, name: 'Rincón (Interior Oeste)' },
-        { axis: 'y', pos: cyB, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Sur)' },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' }
+        { axis: 'y', pos: cyB, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Sur)' }
       );
+      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
+      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
       return faces;
     }
 
@@ -163,10 +480,14 @@ class RaycasterEngine {
         { axis: 'x', pos: cxA, minY: cyA, maxY: y1, type: 1, name: 'Rincón (Exterior Oeste)' },
         { axis: 'y', pos: cyA, minX: cxA, maxX: x1, type: 1, name: 'Rincón (Exterior Norte)' },
         { axis: 'x', pos: cxB, minY: cyB, maxY: y1, type: 1, name: 'Rincón (Interior Este)' },
-        { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Sur)' },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' }
+        { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Sur)' }
       );
+      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
+      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
+      }
       return faces;
     }
 
@@ -183,6 +504,18 @@ class RaycasterEngine {
         { axis: 'x', pos: cxB, minY: cyB, maxY: y1, type: 1, name: 'Cruce (SE-V)' },
         { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Cruce (SE-H)' }
       );
+      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
+      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
+      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
+      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
+      }
       return faces;
     }
 
@@ -195,10 +528,14 @@ class RaycasterEngine {
       const name = isDoor ? 'Puerta Central' : isWin ? 'Ventana Central' : 'Pared Central (N)';
       faces.push(
         { axis: 'y', pos: cyA, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: cyB, minX: x0, maxX: x1, type, name },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' }
+        { axis: 'y', pos: cyB, minX: x0, maxX: x1, type, name }
       );
+      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
+      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
+      }
     }
 
     if (has('CV') || has('DCV') || has('WCV')) {
@@ -208,44 +545,68 @@ class RaycasterEngine {
       const name = isDoor ? 'Puerta Central' : isWin ? 'Ventana Central' : 'Pared Central (O)';
       faces.push(
         { axis: 'x', pos: cxA, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: cxB, minY: y0, maxY: y1, type, name },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' }
+        { axis: 'x', pos: cxB, minY: y0, maxY: y1, type, name }
       );
+      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
+      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
     }
 
-    // Semiramas aisladas
+    // Semiramas aisladas o conectadas en T
     if (has('CN') && !has('CW') && !has('CE')) {
+      const endY = has('CH') ? cyA : cyB;
       faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: cyB, type: 1, name: 'Muro CN (O)' },
-        { axis: 'x', pos: cxB, minY: y0, maxY: cyB, type: 1, name: 'Muro CN (E)' },
-        { axis: 'y', pos: cyB, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' }
+        { axis: 'x', pos: cxA, minY: y0, maxY: endY, type: 1, name: 'Muro CN (O)' },
+        { axis: 'x', pos: cxB, minY: y0, maxY: endY, type: 1, name: 'Muro CN (E)' }
       );
+      if (!this.isCenterNorthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
+      if (!has('CH') && !has('CS')) {
+        faces.push({ axis: 'y', pos: cyB, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
     }
     if (has('CS') && !has('CW') && !has('CE')) {
+      const startY = has('CH') ? cyB : cyA;
       faces.push(
-        { axis: 'x', pos: cxA, minY: cyA, maxY: y1, type: 1, name: 'Muro CS (O)' },
-        { axis: 'x', pos: cxB, minY: cyA, maxY: y1, type: 1, name: 'Muro CS (E)' },
-        { axis: 'y', pos: cyA, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' }
+        { axis: 'x', pos: cxA, minY: startY, maxY: y1, type: 1, name: 'Muro CS (O)' },
+        { axis: 'x', pos: cxB, minY: startY, maxY: y1, type: 1, name: 'Muro CS (E)' }
       );
+      if (!this.isCenterSouthConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
+      if (!has('CH') && !has('CN')) {
+        faces.push({ axis: 'y', pos: cyA, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
     }
     if (has('CW') && !has('CN') && !has('CS')) {
+      const endX = has('CV') ? cxA : cxB;
       faces.push(
-        { axis: 'y', pos: cyA, minX: x0, maxX: cxB, type: 1, name: 'Muro CW (N)' },
-        { axis: 'y', pos: cyB, minX: x0, maxX: cxB, type: 1, name: 'Muro CW (S)' },
-        { axis: 'x', pos: cxB, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' }
+        { axis: 'y', pos: cyA, minX: x0, maxX: endX, type: 1, name: 'Muro CW (N)' },
+        { axis: 'y', pos: cyB, minX: x0, maxX: endX, type: 1, name: 'Muro CW (S)' }
       );
+      if (!this.isCenterWestConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
+      if (!has('CV') && !has('CE')) {
+        faces.push({ axis: 'x', pos: cxB, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
+      }
     }
     if (has('CE') && !has('CN') && !has('CS')) {
+      const startX = has('CV') ? cxB : cxA;
       faces.push(
-        { axis: 'y', pos: cyA, minX: cxA, maxX: x1, type: 1, name: 'Muro CE (N)' },
-        { axis: 'y', pos: cyB, minX: cxA, maxX: x1, type: 1, name: 'Muro CE (S)' },
-        { axis: 'x', pos: cxA, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' }
+        { axis: 'y', pos: cyA, minX: startX, maxX: x1, type: 1, name: 'Muro CE (N)' },
+        { axis: 'y', pos: cyB, minX: startX, maxX: x1, type: 1, name: 'Muro CE (S)' }
       );
+      if (!this.isCenterEastConnected(mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este' });
+      }
+      if (!has('CV') && !has('CW')) {
+        faces.push({ axis: 'x', pos: cxA, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
     }
 
     // 4. ESQUINAS EN BORDES (NW, NE, SW, SE)
@@ -255,10 +616,14 @@ class RaycasterEngine {
         { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NO (N)' },
         { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina NO (O)' },
         { axis: 'y', pos: nyB, minX: wxB, maxX: x1, type: 1, name: 'Esquina NO (S)' },
-        { axis: 'x', pos: wxB, minY: nyB, maxY: y1, type: 1, name: 'Esquina NO (E)' },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este' },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur' }
+        { axis: 'x', pos: wxB, minY: nyB, maxY: y1, type: 1, name: 'Esquina NO (E)' }
       );
+      if (!this.isPerimeterEastConnected('N', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este' });
+      }
+      if (!this.isPerimeterSouthConnected('W', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
       return faces;
     }
     if (has('N') && has('E') && !has('S') && !has('W')) {
@@ -266,10 +631,14 @@ class RaycasterEngine {
         { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NE (N)' },
         { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina NE (E)' },
         { axis: 'y', pos: nyB, minX: x0, maxX: exA, type: 1, name: 'Esquina NE (S)' },
-        { axis: 'x', pos: exA, minY: nyB, maxY: y1, type: 1, name: 'Esquina NE (O)' },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste' },
-        { axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur' }
+        { axis: 'x', pos: exA, minY: nyB, maxY: y1, type: 1, name: 'Esquina NE (O)' }
       );
+      if (!this.isPerimeterWestConnected('N', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
+      if (!this.isPerimeterSouthConnected('E', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
       return faces;
     }
     if (has('S') && has('W') && !has('N') && !has('E')) {
@@ -277,10 +646,14 @@ class RaycasterEngine {
         { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SO (S)' },
         { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina SO (O)' },
         { axis: 'y', pos: syA, minX: wxB, maxX: x1, type: 1, name: 'Esquina SO (N)' },
-        { axis: 'x', pos: wxB, minY: y0, maxY: syA, type: 1, name: 'Esquina SO (E)' },
-        { axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este' },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte' }
+        { axis: 'x', pos: wxB, minY: y0, maxY: syA, type: 1, name: 'Esquina SO (E)' }
       );
+      if (!this.isPerimeterEastConnected('S', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este' });
+      }
+      if (!this.isPerimeterNorthConnected('W', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
       return faces;
     }
     if (has('S') && has('E') && !has('N') && !has('W')) {
@@ -288,14 +661,18 @@ class RaycasterEngine {
         { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SE (S)' },
         { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina SE (E)' },
         { axis: 'y', pos: syA, minX: x0, maxX: exA, type: 1, name: 'Esquina SE (N)' },
-        { axis: 'x', pos: exA, minY: y0, maxY: syA, type: 1, name: 'Esquina SE (O)' },
-        { axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste' },
-        { axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte' }
+        { axis: 'x', pos: exA, minY: y0, maxY: syA, type: 1, name: 'Esquina SE (O)' }
       );
+      if (!this.isPerimeterWestConnected('S', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
+      if (!this.isPerimeterNorthConnected('E', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
       return faces;
     }
 
-    // 5. MUROS, PUERTAS Y VENTANAS EN BORDES SUELTOS
+    // 5. MUROS, PUERTAS Y VENTANAS EN BORDES SUELTOS O COMBINADOS
     // -------------------------------------------------------------
     if (has('N') || has('DN') || has('WN')) {
       const isDoor = has('DN');
@@ -304,10 +681,14 @@ class RaycasterEngine {
       const name = isDoor ? 'Puerta Norte' : isWin ? 'Ventana Norte' : 'Pared Norte';
       faces.push(
         { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste' },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este' }
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name }
       );
+      if (!this.isPerimeterWestConnected('N', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
+      if (!this.isPerimeterEastConnected('N', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este' });
+      }
     }
 
     if (has('S') || has('DS') || has('WS')) {
@@ -317,10 +698,14 @@ class RaycasterEngine {
       const name = isDoor ? 'Puerta Sur' : isWin ? 'Ventana Sur' : 'Pared Sur';
       faces.push(
         { axis: 'y', pos: syA, minX: x0, maxX: x1, type, name },
-        { axis: 'y', pos: syB, minX: x0, maxX: x1, type, name },
-        { axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste' },
-        { axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este' }
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type, name }
       );
+      if (!this.isPerimeterWestConnected('S', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste' });
+      }
+      if (!this.isPerimeterEastConnected('S', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este' });
+      }
     }
 
     if (has('W') || has('DW') || has('WW')) {
@@ -330,10 +715,14 @@ class RaycasterEngine {
       const name = isDoor ? 'Puerta Oeste' : isWin ? 'Ventana Oeste' : 'Pared Oeste';
       faces.push(
         { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte' },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur' }
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name }
       );
+      if (!this.isPerimeterNorthConnected('W', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
+      if (!this.isPerimeterSouthConnected('W', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
     }
 
     if (has('E') || has('DE') || has('WE')) {
@@ -343,9 +732,89 @@ class RaycasterEngine {
       const name = isDoor ? 'Puerta Este' : isWin ? 'Ventana Este' : 'Pared Este';
       faces.push(
         { axis: 'x', pos: exA, minY: y0, maxY: y1, type, name },
-        { axis: 'x', pos: exB, minY: y0, maxY: y1, type, name },
-        { axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte' },
-        { axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur' }
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type, name }
+      );
+      if (!this.isPerimeterNorthConnected('E', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte' });
+      }
+      if (!this.isPerimeterSouthConnected('E', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur' });
+      }
+    }
+
+    // 6. PUERTAS ABIERTAS (HOJA ABATIDA A 90° CON DIMENSIONES IDÉNTICAS A CERRADA: 1.0x0.20)
+    // --------------------------------------------------------------------------------------
+    if (has('ODN')) {
+      const type = 2;
+      const name = 'Puerta Norte [N] (Abierta)';
+      faces.push(
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' }
+      );
+      if (!this.isPerimeterNorthConnected('W', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' });
+      }
+    }
+
+    if (has('ODS')) {
+      const type = 4;
+      const name = 'Puerta Sur [S] (Abierta)';
+      faces.push(
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' }
+      );
+      if (!this.isPerimeterSouthConnected('W', mapX, mapY, codes)) {
+        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' });
+      }
+    }
+
+    if (has('ODW')) {
+      const type = 5;
+      const name = 'Puerta Oeste [O] (Abierta)';
+      faces.push(
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' }
+      );
+      if (!this.isPerimeterWestConnected('N', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' });
+      }
+    }
+
+    if (has('ODE')) {
+      const type = 3;
+      const name = 'Puerta Este [E] (Abierta)';
+      faces.push(
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' }
+      );
+      if (!this.isPerimeterEastConnected('N', mapX, mapY, codes)) {
+        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' });
+      }
+    }
+
+    if (has('ODCH')) {
+      const type = 2;
+      const name = 'Puerta Central (Abierta)';
+      faces.push(
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Puerta' }
+      );
+    }
+
+    if (has('ODCV')) {
+      const type = 3;
+      const name = 'Puerta Central (Abierta)';
+      faces.push(
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Puerta' }
       );
     }
 
@@ -832,10 +1301,16 @@ class RaycasterEngine {
 
       // Guardar información del objeto en el centro de la pantalla
       if (x === centerRayX) {
+        const isDoor = (hit >= 2 && hit <= 5);
+        const isOpenDoor = hitTargetName && hitTargetName.includes('(Abierta)');
         this.facingTarget = {
           name: hitTargetName,
-          type: (hit >= 2) ? 'door' : 'wall',
-          distance: perpWallDist.toFixed(1)
+          type: isDoor ? (isOpenDoor ? 'door-open' : 'door') : (hit === 6 ? 'window' : 'wall'),
+          distance: perpWallDist.toFixed(1),
+          rawDist: perpWallDist,
+          hit,
+          mapX,
+          mapY
         };
       }
 
@@ -1003,6 +1478,37 @@ class RaycasterEngine {
               const cx0 = px + Math.floor((cellSize - th) / 2);
               const cy0 = py + Math.floor((cellSize - th) / 2);
               ctx.fillRect(cx0, cy0, (px + cellSize) - cx0, th);
+              break;
+            }
+            // Puertas Abiertas en Minimapa (Abatidas 90° con dimensiones idénticas a cerrada)
+            case 'ODN': {
+              ctx.fillStyle = this.doorInfo[2]?.color || '#e74c3c';
+              ctx.fillRect(px, py, th, cellSize);
+              break;
+            }
+            case 'ODS': {
+              ctx.fillStyle = this.doorInfo[4]?.color || '#3498db';
+              ctx.fillRect(px, py, th, cellSize);
+              break;
+            }
+            case 'ODW': {
+              ctx.fillStyle = this.doorInfo[5]?.color || '#f39c12';
+              ctx.fillRect(px, py, cellSize, th);
+              break;
+            }
+            case 'ODE': {
+              ctx.fillStyle = this.doorInfo[3]?.color || '#2ecc71';
+              ctx.fillRect(px, py, cellSize, th);
+              break;
+            }
+            case 'ODCH': {
+              ctx.fillStyle = this.doorInfo[2]?.color || '#e74c3c';
+              ctx.fillRect(px, py, th, cellSize);
+              break;
+            }
+            case 'ODCV': {
+              ctx.fillStyle = this.doorInfo[3]?.color || '#2ecc71';
+              ctx.fillRect(px, py, cellSize, th);
               break;
             }
           }

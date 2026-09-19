@@ -23,7 +23,7 @@
         <a href="../../index.html" class="action-btn hub-btn" id="btnBackToHub" title="Volver al Portal Principal">
           <i class="ri-home-4-line"></i> Inicio
         </a>
-        <a href="../demo/index.html" class="action-btn back-btn" id="btnBackToGame" title="Ir a la Demo 3D">
+        <a href="../demo/index.html?custom=1" class="action-btn back-btn" id="btnBackToGame" title="Ir a la Demo 3D">
           <i class="ri-gamepad-line"></i> Volver a la Demo
         </a>
         <button class="action-btn play-btn" id="btnPlayLevel" title="Probar este nivel en primera persona">
@@ -36,74 +36,101 @@
     <main class="workspace">
       <!-- Barra lateral de Herramientas y Paleta -->
       <aside class="sidebar tools-sidebar">
-        <!-- 1. Modo de Dibujo -->
-        <section class="tool-section">
+        <!-- 1. Configuración del Mapa (Nombre, Dimensiones y Opciones) -->
+        <section class="tool-section" id="sectionMapConfig">
+          <h2>
+            <span><i class="ri-settings-3-line"></i> Configuración de Mapa</span>
+            <span class="collapse-icon">▾</span>
+          </h2>
+          <div class="dimension-controls">
+            <div class="input-group full-width">
+              <label for="inputMapName"><i class="ri-edit-line"></i> Nombre:</label>
+              <input type="text" id="inputMapName" value="Laberinto Personalizado" placeholder="Nombre del mapa...">
+            </div>
+            <div class="dim-row">
+              <div class="input-group compact">
+                <label for="inputCols">Cols (X):</label>
+                <input type="number" id="inputCols" min="5" max="50" value="12">
+              </div>
+              <div class="input-group compact">
+                <label for="inputRows">Filas (Y):</label>
+                <input type="number" id="inputRows" min="5" max="50" value="12">
+              </div>
+            </div>
+            <div class="quick-sizes compact">
+              <button class="btn-chip" data-cols="8" data-rows="8">8x8</button>
+              <button class="btn-chip" data-cols="12" data-rows="12">12x12</button>
+              <button class="btn-chip" data-cols="16" data-rows="16">16x16</button>
+              <button class="btn-chip" data-cols="20" data-rows="20">20x20</button>
+            </div>
+            <div class="resize-actions compact">
+              <button class="btn-subtle primary-btn" id="btnResizeMap" title="Aplicar nuevas dimensiones a la cuadrícula"><i class="ri-refresh-line"></i> Redimensionar</button>
+              <button class="btn-subtle" id="btnNewRoomOfSize" title="Crear sala limpia con muros alrededor"><i class="ri-add-box-line"></i> Sala Limpia</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- 2. Modo de Dibujo (Solo Iconos con Tooltip) -->
+        <section class="tool-section" id="sectionDrawingMode">
           <h2>
             <span><i class="ri-tools-line"></i> Modo de Dibujo</span>
             <span class="collapse-icon">▾</span>
           </h2>
-          <div class="tool-grid">
-            <button class="tool-btn active" data-tool="brush" id="toolBrush" title="Dibujar de 1 en 1 (casilla a casilla)">
-              <span class="tool-icon"><i class="ri-pencil-fill"></i></span>
-              <span class="tool-name">Individual</span>
+          <div class="tool-icon-grid">
+            <button class="tool-btn tool-icon-only active" data-tool="brush" id="toolBrush" title="Individual: Dibujar de 1 en 1 (casilla a casilla)">
+              <i class="ri-pencil-fill"></i>
             </button>
-            <button class="tool-btn" data-tool="room" id="toolRoom" title="Arrastra para dibujar una sala con muros">
-              <span class="tool-icon"><i class="ri-shape-line"></i></span>
-              <span class="tool-name">Habitación</span>
+            <button class="tool-btn tool-icon-only" data-tool="room" id="toolRoom" title="Habitación: Arrastra sobre el mapa para dibujar una sala con muros">
+              <i class="ri-shape-line"></i>
             </button>
-            <button class="tool-btn" data-tool="eraser" id="toolEraser" title="Borrar elementos">
-              <span class="tool-icon"><i class="ri-eraser-line"></i></span>
-              <span class="tool-name">Borrador</span>
+            <button class="tool-btn tool-icon-only" data-tool="eraser" id="toolEraser" title="Borrador: Borrar muros y elementos">
+              <i class="ri-eraser-line"></i>
             </button>
           </div>
         </section>
 
-        <!-- 2. Elemento a Colocar -->
+        <!-- 3. Elemento a Colocar (Compacto) -->
         <section class="tool-section" id="sectionElementPalette">
           <h2>
             <span><i class="ri-palette-line"></i> Elemento a Colocar</span>
             <span class="collapse-icon">▾</span>
           </h2>
-          <div class="palette-list">
-            <label class="palette-item active">
+          <div class="palette-list compact">
+            <label class="palette-item active" title="Pared o muro de piedra">
               <input type="radio" name="tileSelect" value="1" checked>
               <span class="tile-sample stone-sample"></span>
               <div class="tile-info">
                 <strong>Pared</strong>
-                <small>Pared o muro</small>
               </div>
             </label>
 
-            <label class="palette-item">
+            <label class="palette-item" title="Accesorios: Puertas, ventanas, etc.">
               <input type="radio" name="tileSelect" value="accessories">
               <span class="tile-sample accessory-sample"><i class="ri-sparkling-2-line"></i></span>
               <div class="tile-info">
                 <strong>Accesorios</strong>
-                <small>Puertas, ventanas, cuadros...</small>
               </div>
             </label>
 
-            <label class="palette-item">
+            <label class="palette-item" title="Suelo libre / Pasillo vacío (0)">
               <input type="radio" name="tileSelect" value="0">
               <span class="tile-sample floor-sample"><i class="ri-layout-grid-line"></i></span>
               <div class="tile-info">
-                <strong>Suelo Vacío / Pasillo</strong>
-                <small>Valor: 0</small>
+                <strong>Suelo Vacío</strong>
               </div>
             </label>
 
-            <label class="palette-item">
+            <label class="palette-item" title="Posición inicial del jugador en el mapa">
               <input type="radio" name="tileSelect" value="player">
               <span class="tile-sample player-sample"><i class="ri-user-3-line"></i></span>
               <div class="tile-info">
-                <strong>Inicio del Jugador</strong>
-                <small>Spawn inicial</small>
+                <strong>Jugador</strong>
               </div>
             </label>
           </div>
         </section>
 
-        <!-- 3. Selector y Cuadrículas de Colocación de Tabiques (Laterales / Centro / T) -->
+        <!-- 4. Selector y Cuadrículas de Colocación de Tabiques (Laterales / Centro / T) -->
         <section class="tool-section" id="sectionWallPlacement">
           <div class="section-title-row">
             <h2>
@@ -112,159 +139,153 @@
             </h2>
           </div>
 
-          <!-- Selector de Categoría (Pestañas) -->
-          <div class="wall-category-tabs" id="wallCategoryTabs">
-            <button class="wall-cat-tab active" data-tab="laterales" title="Paredes perimetrales y esquinas exteriores">
-              <span><i class="ri-checkbox-blank-line"></i></span> Laterales
-            </button>
-            <button class="wall-cat-tab" data-tab="centro" title="Ejes que cruzan por el medio de la casilla y cruces">
-              <span><i class="ri-add-line"></i></span> Centro
-            </button>
-            <button class="wall-cat-tab" data-tab="uniones-t" title="Uniones e intersecciones en forma de T">
-              <span><i class="ri-git-merge-line"></i></span> Uniones T
-            </button>
+          <div class="wall-placement-row">
+            <!-- Paneles 3x3 (Laterales, Centro, Uniones T) a la izquierda -->
+            <div class="wall-panels-wrapper">
+              <!-- PANEL 1: LATERALES (BORDES Y ESQUINAS EXTERIORES 3x3) -->
+              <div class="wall-cat-panel" id="panelLaterales">
+                <div class="wall-matrix-grid-3x3">
+                  <!-- Fila 1 -->
+                  <button class="wall-tile-btn" data-mode="corner_NW" title="Esquina Noroeste (┌)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="N" title="Borde Norte (━)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_NE" title="Esquina Noreste (┐)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
+                  </button>
+
+                  <!-- Fila 2 -->
+                  <button class="wall-tile-btn" data-mode="W" title="Borde Oeste (┃)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn active" data-mode="corner_CENTER_CROSS" title="Cruce Central de Paredes (✛)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="E" title="Borde Este (┃)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
+                  </button>
+
+                  <!-- Fila 3 -->
+                  <button class="wall-tile-btn" data-mode="corner_SW" title="Esquina Suroeste (└)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="S" title="Borde Sur (━)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_SE" title="Esquina Sureste (┘)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- PANEL 2: CENTRO (EJES Y CODOS CENTRALES 3x3) -->
+              <div class="wall-cat-panel hidden" id="panelCentro">
+                <div class="wall-matrix-grid-3x3">
+                  <!-- Fila 1 -->
+                  <button class="wall-tile-btn" data-mode="corner_CENTER_NW" title="Codo Central Noroeste (┌)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="21.5"/><rect class="tile-wall" x="0" y="14.5" width="21.5" height="7"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="CV" title="Eje Central Vertical (┃)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_CENTER_NE" title="Codo Central Noreste (┐)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="21.5"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
+                  </button>
+
+                  <!-- Fila 2 -->
+                  <button class="wall-tile-btn" data-mode="CH" title="Eje Central Horizontal (━)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="CH" title="Eje Central Horizontal (━)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="CH" title="Eje Central Horizontal (━)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
+                  </button>
+
+                  <!-- Fila 3 -->
+                  <button class="wall-tile-btn" data-mode="corner_CENTER_SW" title="Codo Central Suroeste (└)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/><rect class="tile-wall" x="0" y="14.5" width="21.5" height="7"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="CV" title="Eje Central Vertical (┃)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_CENTER_SE" title="Codo Central Sureste (┘)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <!-- PANEL 3: UNIONES EN T (3x3 - T centrales junto a sus T laterales equivalentes) -->
+              <div class="wall-cat-panel hidden" id="panelUnionesT">
+                <div class="wall-matrix-grid-3x3">
+                  <!-- Fila 1 -->
+                  <button class="wall-tile-btn" data-mode="corner_T_INT_E" title="T Interior Este: Vertical con rama al Este (⊢)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_CV_N" title="T Borde Norte: Eje Vertical a Borde Norte (┳)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_T_INT_S" title="T Interior Sur: Horizontal con rama al Sur (⊥)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/></svg>
+                  </button>
+
+                  <!-- Fila 2 -->
+                  <button class="wall-tile-btn" data-mode="corner_CH_W" title="T Borde Oeste: Eje Horizontal a Borde Oeste (┣)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_CENTER_CROSS" title="Cruce de 4 vías (✛)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_CH_E" title="T Borde Este: Eje Horizontal a Borde Este (┫)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
+                  </button>
+
+                  <!-- Fila 3 -->
+                  <button class="wall-tile-btn" data-mode="corner_T_INT_N" title="T Interior Norte: Horizontal con rama al Norte (⊤)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="18"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_CV_S" title="T Borde Sur: Eje Vertical a Borde Sur (┻)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
+                  </button>
+                  <button class="wall-tile-btn" data-mode="corner_T_INT_W" title="T Interior Oeste: Vertical con rama al Oeste (⊣)">
+                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/><rect class="tile-wall" x="0" y="14.5" width="18" height="7"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botones de Categoría (Pestañas) a la DERECHA -->
+            <div class="wall-category-tabs vertical" id="wallCategoryTabs">
+              <button class="wall-cat-tab active" data-tab="laterales" title="Paredes perimetrales y esquinas exteriores">
+                <span class="tab-icon"><i class="ri-checkbox-blank-line"></i></span>
+                <span>Laterales</span>
+              </button>
+              <button class="wall-cat-tab" data-tab="centro" title="Ejes centrales y cruce">
+                <span class="tab-icon"><i class="ri-add-line"></i></span>
+                <span>Centro</span>
+              </button>
+              <button class="wall-cat-tab" data-tab="uniones-t" title="Uniones e intersecciones en T">
+                <span class="tab-icon"><i class="ri-git-merge-line"></i></span>
+                <span>Uniones T</span>
+              </button>
+            </div>
           </div>
 
-          <div class="wall-panels-wrapper">
-            <!-- PANEL 1: LATERALES (BORDES Y ESQUINAS EXTERIORES 3x3) -->
-            <div class="wall-cat-panel" id="panelLaterales">
-              <div class="wall-matrix-grid-3x3">
-                <!-- Fila 1 -->
-                <button class="wall-tile-btn" data-mode="corner_NW" title="Esquina Noroeste (┌)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="N" title="Borde Norte (━)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_NE" title="Esquina Noreste (┐)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
-                </button>
-
-                <!-- Fila 2 -->
-                <button class="wall-tile-btn" data-mode="W" title="Borde Oeste (┃)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn active" data-mode="corner_CENTER_CROSS" title="Cruce de Paredes (✛)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="E" title="Borde Este (┃)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
-                </button>
-
-                <!-- Fila 3 -->
-                <button class="wall-tile-btn" data-mode="corner_SW" title="Esquina Suroeste (└)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="S" title="Borde Sur (━)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_SE" title="Esquina Sureste (┘)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
-                </button>
-              </div>
-
-              <div class="wall-aux-actions">
-                <button class="wall-aux-btn" data-mode="corner_FULL_BOX" title="Cuarto cerrado: 4 paredes de contorno">
-                  <span class="aux-icon"><i class="ri-layout-grid-fill"></i></span> Cuarto 1x1
-                </button>
-                <button class="wall-aux-btn clear-btn" data-action="select-floor" title="Suelo Libre: Borra las paredes de la celda">
-                  <span class="aux-icon"><i class="ri-delete-bin-7-line"></i></span> Vaciar
-                </button>
-              </div>
-            </div>
-
-            <!-- PANEL 2: CENTRO (EJES Y CODOS CENTRALES 3x3) -->
-            <div class="wall-cat-panel hidden" id="panelCentro">
-              <div class="wall-matrix-grid-3x3">
-                <!-- Fila 1 -->
-                <button class="wall-tile-btn" data-mode="corner_CENTER_NW" title="Codo Central Noroeste (┌)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="21.5"/><rect class="tile-wall" x="0" y="14.5" width="21.5" height="7"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="CV" title="Eje Central Vertical (┃)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_CENTER_NE" title="Codo Central Noreste (┐)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="21.5"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
-                </button>
-
-                <!-- Fila 2 -->
-                <button class="wall-tile-btn" data-mode="CH" title="Eje Central Horizontal (━)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="center" title="Eje Central Dinámico (━ ó ┃ según rotación [R])">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="7"/><circle cx="18" cy="18" r="4" class="tile-dot"/></svg>
-                  <span class="tile-dir-badge">Eje [R]</span>
-                </button>
-                <button class="wall-tile-btn" data-mode="CH" title="Eje Central Horizontal (━)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
-                </button>
-
-                <!-- Fila 3 -->
-                <button class="wall-tile-btn" data-mode="corner_CENTER_SW" title="Codo Central Suroeste (└)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/><rect class="tile-wall" x="0" y="14.5" width="21.5" height="7"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="CV" title="Eje Central Vertical (┃)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_CENTER_SE" title="Codo Central Sureste (┘)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
-                </button>
-              </div>
-
-              <div class="wall-aux-actions">
-                <button class="wall-aux-btn clear-btn" data-action="select-floor" title="Suelo Libre: Borra las paredes de la celda">
-                  <span class="aux-icon"><i class="ri-delete-bin-7-line"></i></span> Vaciar
-                </button>
-              </div>
-            </div>
-
-            <!-- PANEL 3: UNIONES EN T (3x3) -->
-            <div class="wall-cat-panel hidden" id="panelUnionesT">
-              <div class="wall-matrix-grid-3x3">
-                <!-- Fila 1 -->
-                <button class="wall-tile-btn" data-mode="corner_T_INT_E" title="T Interior Este: Vertical con rama al Este (⊢)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_CV_N" title="T Borde Norte: Eje Vertical a Borde Norte (┳)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_T_INT_S" title="T Interior Sur: Horizontal con rama al Sur (⊥)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/></svg>
-                </button>
-
-                <!-- Fila 2 -->
-                <button class="wall-tile-btn" data-mode="corner_CH_W" title="T Borde Oeste: Eje Horizontal a Borde Oeste (┣)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_CENTER_CROSS" title="Cruce de 4 vías (✛)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_CH_E" title="T Borde Este: Eje Horizontal a Borde Este (┫)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
-                </button>
-
-                <!-- Fila 3 -->
-                <button class="wall-tile-btn" data-mode="corner_T_INT_N" title="T Interior Norte: Horizontal con rama al Norte (⊤)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="18"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_CV_S" title="T Borde Sur: Eje Vertical a Borde Sur (┻)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
-                </button>
-                <button class="wall-tile-btn" data-mode="corner_T_INT_W" title="T Interior Oeste: Vertical con rama al Oeste (⊣)">
-                  <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/><rect class="tile-wall" x="0" y="14.5" width="18" height="7"/></svg>
-                </button>
-              </div>
-
-              <div class="wall-aux-actions">
-                <button class="wall-aux-btn clear-btn" data-action="select-floor" title="Suelo Libre: Borra las paredes de la celda">
-                  <span class="aux-icon"><i class="ri-delete-bin-7-line"></i></span> Vaciar
-                </button>
-              </div>
-            </div>
+          <!-- Acciones Auxiliares (Vaciar celda y Cuarto 1x1) -->
+          <div class="wall-aux-actions">
+            <button class="wall-aux-btn" data-mode="corner_FULL_BOX" title="Cuarto cerrado: 4 paredes de contorno">
+              <span class="aux-icon"><i class="ri-layout-grid-fill"></i></span> Cuarto 1x1
+            </button>
+            <button class="wall-aux-btn clear-btn" data-action="select-floor" title="Suelo Libre: Borra las paredes de la celda">
+              <span class="aux-icon"><i class="ri-delete-bin-7-line"></i></span> Vaciar
+            </button>
           </div>
         </section>
 
-        <!-- 4. Colocación de Accesorios (Solo visible al seleccionar Accesorios) -->
+        <!-- 5. Colocación de Accesorios (Solo visible al seleccionar Accesorios) -->
         <section class="tool-section" id="sectionAccessoryPlacement" style="display: none;">
           <div class="section-title-row">
             <h2>
@@ -273,62 +294,33 @@
             </h2>
           </div>
 
-          <p class="section-desc">Selecciona el tipo de accesorio que deseas colocar:</p>
+          <p class="section-desc">Selecciona el tipo de accesorio a colocar:</p>
 
           <div class="accessory-grid">
             <button class="accessory-tile-btn active" data-accessory="door" title="Puerta de madera con herrajes dorados">
               <span class="acc-tile-icon"><i class="ri-door-open-line"></i></span>
               <div class="acc-tile-meta">
                 <strong>Puerta</strong>
-                <small>Paso / Acceso</small>
+                <small>Madera y herrajes</small>
               </div>
             </button>
-
-            <button class="accessory-tile-btn" data-accessory="window" title="Ventana gótica con cristal y cruceta de hierro">
-              <span class="acc-tile-icon"><i class="ri-window-line"></i></span>
+            <button class="accessory-tile-btn" data-accessory="window" title="Ventana medieval de cristal biselado">
+              <span class="acc-tile-icon"><i class="ri-layout-masonry-line"></i></span>
               <div class="acc-tile-meta">
                 <strong>Ventana</strong>
-                <small>Cristal biselado</small>
+                <small>Cristal gótico</small>
               </div>
             </button>
           </div>
 
           <div class="accessory-help-note">
             <span class="acc-note-icon"><i class="ri-lightbulb-line"></i></span>
-            <span>Haz clic en el lateral (N, S, E, O) o centro de una casilla en el mapa para colocar el accesorio activo.</span>
+            <span>Haz clic en el borde o centro de una casilla para colocar el accesorio.</span>
           </div>
         </section>
 
-        <!-- Configuración de Cuadrícula -->
-        <section class="tool-section">
-          <h2>
-            <span><i class="ri-aspect-ratio-line"></i> Tamaño del Mapa</span>
-            <span class="collapse-icon">▾</span>
-          </h2>
-          <div class="dimension-controls">
-            <div class="quick-sizes">
-              <button class="btn-chip" data-cols="8" data-rows="8">8x8</button>
-              <button class="btn-chip" data-cols="12" data-rows="12">12x12</button>
-              <button class="btn-chip" data-cols="16" data-rows="16">16x16</button>
-              <button class="btn-chip" data-cols="20" data-rows="20">20x20</button>
-            </div>
-            <div class="input-group">
-              <label>Columnas (X):</label>
-              <input type="number" id="inputCols" min="5" max="50" value="12">
-            </div>
-            <div class="input-group">
-              <label>Filas (Y):</label>
-              <input type="number" id="inputRows" min="5" max="50" value="12">
-            </div>
-            <div class="resize-actions">
-              <button class="btn-subtle primary-btn" id="btnResizeMap"><i class="ri-refresh-line"></i> Redimensionar</button>
-              <button class="btn-subtle" id="btnNewRoomOfSize" title="Crear una sala limpia de este tamaño con muros alrededor"><i class="ri-add-box-line"></i> Nueva Sala Limpia</button>
-            </div>
-          </div>
-        </section>
-
-        <!-- Plantillas rápidas -->
-        <section class="tool-section">
+        <!-- 6. Plantillas rápidas (Plegadas por defecto para optimizar espacio) -->
+        <section class="tool-section collapsed" id="sectionPresets">
           <h2>
             <span><i class="ri-flashlight-line"></i> Plantillas Rápidas</span>
             <span class="collapse-icon">▾</span>

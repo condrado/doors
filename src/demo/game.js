@@ -62,6 +62,7 @@ window.addEventListener('DOMContentLoaded', () => {
         engine.map = customData.map;
         engine.mapWidth = customData.map[0].length;
         engine.mapHeight = customData.map.length;
+        engine.clearSegmentsCache?.();
 
         if (customData.playerStart) {
           player.posX = customData.playerStart.x;
@@ -179,6 +180,160 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ==========================================
+  // APERTURA Y CIERRE DE PUERTAS (Ratón Izquierdo o Enter)
+  // ==========================================
+  let feedbackTimeout = null;
+
+  function getAudioContext() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!window._doorAudioCtx) {
+      window._doorAudioCtx = new AudioCtx();
+    }
+    const ctx = window._doorAudioCtx;
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+    return ctx;
+  }
+
+  function playDoorOpenSound() {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      // Sonido de mecanismo abriendo puerta y chirrido de bisagra
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.exponentialRampToValueAtTime(190, now + 0.24);
+
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.3);
+
+      // Armónico metálico de pestillo
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(260, now + 0.03);
+      osc2.frequency.exponentialRampToValueAtTime(460, now + 0.18);
+
+      gain2.gain.setValueAtTime(0.14, now + 0.03);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.03);
+      osc2.stop(now + 0.24);
+    } catch (e) {
+      // Ignorar si audio está restringido
+    }
+  }
+
+  function playDoorCloseSound() {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      // Golpe seco de madera contra marco (thump)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(45, now + 0.18);
+
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.24);
+
+      // Pestillo metálico encajando (clack)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(480, now + 0.08);
+      osc2.frequency.exponentialRampToValueAtTime(220, now + 0.18);
+
+      gain2.gain.setValueAtTime(0.18, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.22);
+    } catch (e) {
+      // Ignorar si audio está restringido
+    }
+  }
+
+  function playBlockedSound() {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(110, now);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    } catch (e) {
+      // Ignorar si audio está restringido
+    }
+  }
+
+  function showDoorFeedback(message, color = '#f1c40f') {
+    if (!promptHud) return;
+    promptHud.innerHTML = `<span style="color: ${color}; font-weight: 700;">🚪 ${message}</span>`;
+    if (feedbackTimeout) clearTimeout(feedbackTimeout);
+    feedbackTimeout = setTimeout(() => {
+      onPointerLockChange();
+    }, 2400);
+  }
+
+  function tryInteractDoor() {
+    const res = engine.interactDoor(player, 2.6);
+    if (!res) return;
+
+    if (res.blocked) {
+      playBlockedSound();
+      showDoorFeedback(res.message, '#ff6b6b');
+    } else if (res.success) {
+      if (res.action === 'close') {
+        playDoorCloseSound();
+        showDoorFeedback(`¡${res.name} cerrada!`, '#54a0ff');
+      } else {
+        playDoorOpenSound();
+        showDoorFeedback(`¡${res.name} abierta!`, '#f1c40f');
+      }
+    }
+  }
+
+  // Interacción con botón izquierdo del ratón (botón 0)
+  canvas.addEventListener('mousedown', (e) => {
+    if (e.button === 0) {
+      tryInteractDoor();
+    }
+  });
+
   function onPointerLockChange() {
     const isLocked = (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas);
     const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
@@ -194,12 +349,12 @@ window.addEventListener('DOMContentLoaded', () => {
     if (promptHud) {
       if (isFs) {
         promptHud.innerHTML = isLocked
-          ? `Pantalla Completa • Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> strafe • [ESC] o [F] salir`
+          ? `Pantalla Completa • Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> strafe • <strong>[Clic Izq / Enter]</strong> abrir/cerrar puerta • [ESC] o [F] salir`
           : `Haz clic para <strong>bloquear el ratón</strong> de nuevo • [ESC] o [F] salir de pantalla completa`;
       } else {
         promptHud.innerHTML = isLocked
-          ? `Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> movimiento lateral • [ESC] liberar ratón`
-          : `Haz clic en la pantalla para <strong>apuntar con el ratón</strong> • <strong>[A][D]</strong> movimiento lateral • <strong>[F]</strong> pantalla completa`;
+          ? `Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> movimiento lateral • <strong>[Clic Izq / Enter]</strong> abrir/cerrar puerta • [ESC] liberar ratón`
+          : `Haz clic en la pantalla para <strong>apuntar con el ratón</strong> • <strong>[Clic Izq / Enter]</strong> abrir/cerrar puerta • <strong>[F]</strong> pantalla completa`;
       }
     }
   }
@@ -242,6 +397,10 @@ window.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   window.addEventListener('keydown', (e) => {
     switch (e.key.toLowerCase()) {
+      case 'enter':
+        tryInteractDoor();
+        e.preventDefault();
+        break;
       case 'a':
       case 'arrowleft':
         keys.strafeLeft = true;

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,21 +8,25 @@
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap"
+    rel="stylesheet">
 </head>
+
 <body>
   <div class="app-container">
     <header class="game-header">
       <div class="title-wrap">
         <span class="retro-badge">PROTOTIPO 2.5D</span>
         <h1>LABERINTO: LA SALA DE LAS 4 PUERTAS</h1>
+        <div class="title-meta">
+          <span class="info-pill" id="compassPill">🧭 Rumbo: <strong id="compassText">Norte (0°)</strong></span>
+          <span class="info-pill" id="targetPill">🎯 Frente a ti: <strong id="facingTargetText">Pared</strong></span>
+        </div>
       </div>
       <div class="header-info">
-        <span class="info-pill" id="compassPill">🧭 Rumbo: <strong id="compassText">Norte (0°)</strong></span>
-        <span class="info-pill" id="targetPill">🎯 Frente a ti: <strong id="facingTargetText">Pared</strong></span>
-        <span class="info-pill" id="levelPill" style="display: none;">🗺️ <strong id="levelNameText">Nivel Personalizado</strong></span>
         <a href="../../index.html" class="hub-nav-btn" id="btnOpenHub" title="Volver al Portal Principal">🏠 Inicio</a>
-        <a href="../editor/index.html" class="action-btn editor-nav-btn" id="btnOpenEditor" title="Abrir Editor de Niveles">🛠️ Editor</a>
+        <a href="../editor/index.html" class="action-btn editor-nav-btn" id="btnOpenEditor"
+          title="Abrir Editor de Niveles">🛠️ Editor</a>
       </div>
     </header>
 
@@ -29,7 +34,7 @@
       <!-- Contenedor del Viewport 3D -->
       <div class="viewport-wrapper">
         <canvas id="gameCanvas" width="640" height="400"></canvas>
-        
+
         <!-- Crosshair / Punto de mira -->
         <div class="crosshair"></div>
 
@@ -77,7 +82,7 @@
 
         <!-- Mensaje flotante de interacción / contexto -->
         <div class="prompt-hud" id="promptHud">
-          Haz clic en la pantalla para <strong>apuntar con el ratón</strong> • <strong>[A][D]</strong> movimiento lateral • <strong>[F]</strong> pantalla completa
+          Haz clic en la pantalla para <strong>apuntar</strong> • <strong>[Clic Izq / Enter]</strong> abrir/cerrar puerta • <strong>[F]</strong> pantalla completa
         </div>
       </div>
 
@@ -86,6 +91,7 @@
         <div class="keyboard-guide">
           <h3>🎮 Controles de Teclado & Ratón</h3>
           <div class="key-rows">
+            <div class="key-item"><kbd>🖱️ Clic Izq</kbd> / <kbd>Enter</kbd> <span>Abrir / Cerrar Puerta</span></div>
             <div class="key-item"><kbd>🖱️ Ratón</kbd> <span>Mirar y apuntar en 360°</span></div>
             <div class="key-item"><kbd>W</kbd> / <kbd>S</kbd> <span>Avanzar / Retroceder</span></div>
             <div class="key-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Desplazamiento Lateral (Strafe)</span></div>
@@ -142,4 +148,5 @@
   <script src="../engine/raycaster.js"></script>
   <script src="game.js"></script>
 </body>
+
 </html>
