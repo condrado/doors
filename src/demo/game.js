@@ -1,5 +1,6 @@
 /**
  * Controlador Principal del Juego (Bucle, Entradas y Estado)
+ * Incluye soporte de Mouse Look (Pointer Lock API) y Desplazamiento Lateral (Strafe).
  */
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -21,29 +22,31 @@ window.addEventListener('DOMContentLoaded', () => {
     planeX: 0.66,
     planeY: 0,
     // Velocidades
-    rotSpeedBase: 2.2, // radianes por segundo
-    moveSpeedBase: 3.0 // bloques por segundo
+    rotSpeedBase: 2.2, // radianes por segundo (para giros con botones táctiles)
+    moveSpeedBase: 3.0 // bloques por segundo (avance, retroceso y strafe)
   };
 
   // Estado de las teclas / botones pulsados
   const keys = {
-    turnLeft: false,  // A o Flecha Izq
-    turnRight: false, // D o Flecha Der
-    moveForward: false, // W o Flecha Arriba
-    moveBackward: false // S o Flecha Abajo
+    strafeLeft: false,   // A o Flecha Izq (Desplazamiento lateral izquierdo)
+    strafeRight: false,  // D o Flecha Der (Desplazamiento lateral derecho)
+    moveForward: false,  // W o Flecha Arriba
+    moveBackward: false  // S o Flecha Abajo
   };
 
-  // Multiplicador de velocidad de rotación (controlado por slider)
-  let turnSpeedMultiplier = 1.0;
+  // Sensibilidad de ratón (ajustable desde UI)
+  let mouseSensitivity = 0.0024; // radianes por píxel
 
-  // Elementos del DOM para el HUD
+  // Elementos del DOM para el HUD y Controles
   const compassText = document.getElementById('compassText');
   const facingTargetText = document.getElementById('facingTargetText');
   const compassStrip = document.getElementById('compassStrip');
-  const turnSpeedRange = document.getElementById('turnSpeedRange');
+  const mouseSensRange = document.getElementById('mouseSensRange');
   const textureModeSelect = document.getElementById('textureModeSelect');
   const levelPill = document.getElementById('levelPill');
   const levelNameText = document.getElementById('levelNameText');
+  const pointerLockOverlay = document.getElementById('pointerLockOverlay');
+  const promptHud = document.getElementById('promptHud');
 
   // Guardar punto de spawn original para el botón de centrar
   let spawnX = player.posX;
@@ -78,11 +81,75 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // Botones táctiles / UI
-  const btnTurnLeft = document.getElementById('btnTurnLeft');
-  const btnTurnRight = document.getElementById('btnTurnRight');
+  const btnStrafeLeft = document.getElementById('btnStrafeLeft');
+  const btnStrafeRight = document.getElementById('btnStrafeRight');
   const btnForward = document.getElementById('btnForward');
   const btnBackward = document.getElementById('btnBackward');
   const btnCenter = document.getElementById('btnCenter');
+
+  // ==========================================
+  // CAPTURA DE RATÓN (POINTER LOCK API)
+  // ==========================================
+  function requestLock() {
+    canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
+    if (canvas.requestPointerLock) {
+      canvas.requestPointerLock();
+    }
+  }
+
+  if (pointerLockOverlay) {
+    pointerLockOverlay.addEventListener('click', requestLock);
+  }
+  canvas.addEventListener('click', requestLock);
+
+  function onPointerLockChange() {
+    const isLocked = (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas);
+    if (pointerLockOverlay) {
+      if (isLocked) {
+        pointerLockOverlay.classList.add('hidden');
+      } else {
+        pointerLockOverlay.classList.remove('hidden');
+      }
+    }
+    if (promptHud) {
+      promptHud.innerHTML = isLocked
+        ? `Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> movimiento lateral • [ESC] liberar ratón`
+        : `Haz clic en la pantalla para <strong>apuntar con el ratón</strong> • <strong>[A][D]</strong> movimiento lateral`;
+    }
+  }
+
+  document.addEventListener('pointerlockchange', onPointerLockChange);
+  document.addEventListener('mozpointerlockchange', onPointerLockChange);
+
+  // Girar la cámara al mover el ratón cuando está bloqueado
+  window.addEventListener('mousemove', (e) => {
+    if (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas) {
+      const movementX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+      if (movementX !== 0) {
+        rotatePlayer(movementX * mouseSensitivity);
+      }
+    }
+  });
+
+  // Soporte táctil / arrastre opcional en canvas cuando no hay pointer lock
+  let touchStartX = null;
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (touchStartX !== null && e.touches.length === 1) {
+      const deltaX = e.touches[0].clientX - touchStartX;
+      touchStartX = e.touches[0].clientX;
+      rotatePlayer(deltaX * mouseSensitivity * 1.6);
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', () => {
+    touchStartX = null;
+  });
 
   // ==========================================
   // MANEJO DE TECLADO
@@ -91,26 +158,26 @@ window.addEventListener('DOMContentLoaded', () => {
     switch (e.key.toLowerCase()) {
       case 'a':
       case 'arrowleft':
-        keys.turnLeft = true;
-        btnTurnLeft.classList.add('active');
+        keys.strafeLeft = true;
+        if (btnStrafeLeft) btnStrafeLeft.classList.add('active');
         e.preventDefault();
         break;
       case 'd':
       case 'arrowright':
-        keys.turnRight = true;
-        btnTurnRight.classList.add('active');
+        keys.strafeRight = true;
+        if (btnStrafeRight) btnStrafeRight.classList.add('active');
         e.preventDefault();
         break;
       case 'w':
       case 'arrowup':
         keys.moveForward = true;
-        btnForward.classList.add('active');
+        if (btnForward) btnForward.classList.add('active');
         e.preventDefault();
         break;
       case 's':
       case 'arrowdown':
         keys.moveBackward = true;
-        btnBackward.classList.add('active');
+        if (btnBackward) btnBackward.classList.add('active');
         e.preventDefault();
         break;
     }
@@ -120,23 +187,23 @@ window.addEventListener('DOMContentLoaded', () => {
     switch (e.key.toLowerCase()) {
       case 'a':
       case 'arrowleft':
-        keys.turnLeft = false;
-        btnTurnLeft.classList.remove('active');
+        keys.strafeLeft = false;
+        if (btnStrafeLeft) btnStrafeLeft.classList.remove('active');
         break;
       case 'd':
       case 'arrowright':
-        keys.turnRight = false;
-        btnTurnRight.classList.remove('active');
+        keys.strafeRight = false;
+        if (btnStrafeRight) btnStrafeRight.classList.remove('active');
         break;
       case 'w':
       case 'arrowup':
         keys.moveForward = false;
-        btnForward.classList.remove('active');
+        if (btnForward) btnForward.classList.remove('active');
         break;
       case 's':
       case 'arrowdown':
         keys.moveBackward = false;
-        btnBackward.classList.remove('active');
+        if (btnBackward) btnBackward.classList.remove('active');
         break;
     }
   });
@@ -145,6 +212,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // MANEJO DE BOTONES EN PANTALLA (RATÓN Y TÁCTIL)
   // ==========================================
   function bindButton(btn, keyName) {
+    if (!btn) return;
     const startAction = (e) => {
       e.preventDefault();
       keys[keyName] = true;
@@ -165,23 +233,27 @@ window.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('touchcancel', endAction, { passive: false });
   }
 
-  bindButton(btnTurnLeft, 'turnLeft');
-  bindButton(btnTurnRight, 'turnRight');
+  bindButton(btnStrafeLeft, 'strafeLeft');
+  bindButton(btnStrafeRight, 'strafeRight');
   bindButton(btnForward, 'moveForward');
   bindButton(btnBackward, 'moveBackward');
 
   // Botón para volver a colocar al jugador en el centro / spawn del mapa
-  btnCenter.addEventListener('click', () => {
-    player.posX = spawnX;
-    player.posY = spawnY;
-  });
+  if (btnCenter) {
+    btnCenter.addEventListener('click', () => {
+      player.posX = spawnX;
+      player.posY = spawnY;
+    });
+  }
 
   // ==========================================
   // AJUSTES
   // ==========================================
-  if (turnSpeedRange) {
-    turnSpeedRange.addEventListener('input', (e) => {
-      turnSpeedMultiplier = parseFloat(e.target.value) / 3;
+  if (mouseSensRange) {
+    mouseSensRange.addEventListener('input', (e) => {
+      // De 1 a 5 -> mapear a rango [0.0010 - 0.0045]
+      const val = parseFloat(e.target.value);
+      mouseSensitivity = 0.0008 + (val / 5) * 0.0035;
     });
   }
 
@@ -204,43 +276,71 @@ window.addEventListener('DOMContentLoaded', () => {
     player.planeY = oldPlaneX * Math.sin(angle) + player.planeY * Math.cos(angle);
   }
 
+  /**
+   * Comprobación de colisiones con muros y puertas sólidas
+   */
+  function canStepTo(targetX, targetY) {
+    const mX = Math.floor(targetX);
+    const mY = Math.floor(targetY);
+    if (mY < 0 || mY >= engine.mapHeight || mX < 0 || mX >= engine.mapWidth) return false;
+
+    const segments = engine.getCellSegments(mX, mY);
+    if (!segments || segments.length === 0) return true;
+
+    // Comprobar colisión con cada cara sólida (margen fino de 0.10 unidades)
+    for (let s = 0; s < segments.length; s++) {
+      const seg = segments[s];
+      if (seg.axis === 'y') {
+        const minX = seg.minX !== undefined ? seg.minX : mX;
+        const maxX = seg.maxX !== undefined ? seg.maxX : (mX + 1.0);
+        if (Math.abs(targetY - seg.pos) < 0.10 && targetX >= minX - 0.08 && targetX <= maxX + 0.08) {
+          return false;
+        }
+      } else if (seg.axis === 'x') {
+        const minY = seg.minY !== undefined ? seg.minY : mY;
+        const maxY = seg.maxY !== undefined ? seg.maxY : (mY + 1.0);
+        if (Math.abs(targetX - seg.pos) < 0.10 && targetY >= minY - 0.08 && targetY <= maxY + 0.08) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Movimiento de avance / retroceso en la dirección de la mirada (dirX, dirY)
+   */
   function movePlayer(dist) {
     const nextX = player.posX + player.dirX * dist;
     const nextY = player.posY + player.dirY * dist;
 
-    // Margen de colisión contra paredes (0.18 unidades)
     const padding = 0.18;
     const checkX = dist > 0 ? (player.dirX > 0 ? nextX + padding : nextX - padding) : (player.dirX > 0 ? nextX - padding : nextX + padding);
     const checkY = dist > 0 ? (player.dirY > 0 ? nextY + padding : nextY - padding) : (player.dirY > 0 ? nextY - padding : nextY + padding);
 
-    function canStepTo(targetX, targetY) {
-      const mX = Math.floor(targetX);
-      const mY = Math.floor(targetY);
-      if (mY < 0 || mY >= engine.mapHeight || mX < 0 || mX >= engine.mapWidth) return false;
-
-      const segments = engine.getCellSegments(mX, mY);
-      if (!segments || segments.length === 0) return true;
-
-      // Comprobar colisión con cada cara sólida (margen fino de 0.10 unidades)
-      for (let s = 0; s < segments.length; s++) {
-        const seg = segments[s];
-        if (seg.axis === 'y') {
-          const minX = seg.minX !== undefined ? seg.minX : mX;
-          const maxX = seg.maxX !== undefined ? seg.maxX : (mX + 1.0);
-          if (Math.abs(targetY - seg.pos) < 0.10 && targetX >= minX - 0.08 && targetX <= maxX + 0.08) {
-            return false;
-          }
-        } else if (seg.axis === 'x') {
-          const minY = seg.minY !== undefined ? seg.minY : mY;
-          const maxY = seg.maxY !== undefined ? seg.maxY : (mY + 1.0);
-          if (Math.abs(targetX - seg.pos) < 0.10 && targetY >= minY - 0.08 && targetY <= maxY + 0.08) {
-            return false;
-          }
-        }
-      }
-
-      return true;
+    if (canStepTo(checkX, player.posY)) {
+      player.posX = nextX;
     }
+    if (canStepTo(player.posX, checkY)) {
+      player.posY = nextY;
+    }
+  }
+
+  /**
+   * Desplazamiento lateral (Strafe) perpendicular a la dirección de la mirada
+   * Vector normal a la derecha: (-dirY, dirX)
+   */
+  function strafePlayer(dist) {
+    const strafeDirX = -player.dirY;
+    const strafeDirY = player.dirX;
+
+    const nextX = player.posX + strafeDirX * dist;
+    const nextY = player.posY + strafeDirY * dist;
+
+    const padding = 0.18;
+    const checkX = dist > 0 ? (strafeDirX > 0 ? nextX + padding : nextX - padding) : (strafeDirX > 0 ? nextX - padding : nextX + padding);
+    const checkY = dist > 0 ? (strafeDirY > 0 ? nextY + padding : nextY - padding) : (strafeDirY > 0 ? nextY - padding : nextY + padding);
 
     if (canStepTo(checkX, player.posY)) {
       player.posX = nextX;
@@ -268,7 +368,7 @@ window.addEventListener('DOMContentLoaded', () => {
     else if (deg >= 247.5 && deg < 292.5) cardinal = 'Oeste (270°)';
     else if (deg >= 292.5 && deg < 337.5) cardinal = 'Noroeste (315°)';
 
-    compassText.textContent = cardinal;
+    if (compassText) compassText.textContent = cardinal;
 
     // Desplazar cinta superior de la brújula
     if (compassStrip) {
@@ -278,7 +378,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Objetivo al que mira de frente
     const target = engine.facingTarget;
-    if (target) {
+    if (target && facingTargetText) {
       facingTargetText.textContent = `${target.name} (${target.distance} m)`;
     }
   }
@@ -292,16 +392,12 @@ window.addEventListener('DOMContentLoaded', () => {
     const dt = Math.min((currentTime - lastTime) / 1000, 0.1); // delta time en segundos
     lastTime = currentTime;
 
-    // Girar a la izquierda (A / ◀)
-    if (keys.turnLeft) {
-      const rot = -player.rotSpeedBase * turnSpeedMultiplier * dt;
-      rotatePlayer(rot);
+    // Desplazamiento lateral (A / D)
+    if (keys.strafeLeft) {
+      strafePlayer(-player.moveSpeedBase * dt);
     }
-
-    // Girar a la derecha (D / ▶)
-    if (keys.turnRight) {
-      const rot = player.rotSpeedBase * turnSpeedMultiplier * dt;
-      rotatePlayer(rot);
+    if (keys.strafeRight) {
+      strafePlayer(player.moveSpeedBase * dt);
     }
 
     // Avanzar (W / ▲)

@@ -60,20 +60,29 @@
           </div>
         </div>
 
+        <!-- Overlay de aviso para captura de ratón (Pointer Lock) -->
+        <div class="pointer-lock-overlay" id="pointerLockOverlay">
+          <div class="lock-notice">
+            <span class="lock-icon">🖱️</span>
+            <strong>Haz clic para mirar con el ratón</strong>
+            <small>Usa el ratón para apuntar en 360° • [ESC] para liberar el cursor</small>
+          </div>
+        </div>
+
         <!-- Mensaje flotante de interacción / contexto -->
         <div class="prompt-hud" id="promptHud">
-          Usa <strong>[A]</strong> y <strong>[D]</strong> para girar sobre ti mismo
+          Haz clic en la pantalla para <strong>apuntar con el ratón</strong> • <strong>[A][D]</strong> movimiento lateral
         </div>
       </div>
 
       <!-- Panel de Controles -->
       <div class="controls-panel">
         <div class="keyboard-guide">
-          <h3>🎮 Controles de Teclado</h3>
+          <h3>🎮 Controles de Teclado & Ratón</h3>
           <div class="key-rows">
-            <div class="key-item"><kbd>A</kbd> o <kbd>◀</kbd> <span>Girar a la Izquierda</span></div>
-            <div class="key-item"><kbd>D</kbd> o <kbd>▶</kbd> <span>Girar a la Derecha</span></div>
-            <div class="key-item"><kbd>W</kbd> / <kbd>S</kbd> <span>(Opcional) Paso adelante / atrás</span></div>
+            <div class="key-item"><kbd>🖱️ Ratón</kbd> <span>Mirar y apuntar en 360°</span></div>
+            <div class="key-item"><kbd>W</kbd> / <kbd>S</kbd> <span>Avanzar / Retroceder</span></div>
+            <div class="key-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Desplazamiento Lateral (Strafe)</span></div>
           </div>
         </div>
 
@@ -83,16 +92,16 @@
             <button class="ctrl-btn forward" id="btnForward" title="Avanzar (W)">▲</button>
           </div>
           <div class="control-row horizontal">
-            <button class="ctrl-btn rotate-btn" id="btnTurnLeft" title="Girar Izquierda (A)">
-              <span class="btn-icon">↺</span>
-              <span class="btn-label">Giro Izq (A)</span>
+            <button class="ctrl-btn strafe-btn" id="btnStrafeLeft" title="Desplazamiento Lateral Izquierda (A)">
+              <span class="btn-icon">◄</span>
+              <span class="btn-label">Paso Izq (A)</span>
             </button>
             <button class="ctrl-btn center-btn" id="btnCenter" title="Volver al centro">
               🎯
             </button>
-            <button class="ctrl-btn rotate-btn" id="btnTurnRight" title="Girar Derecha (D)">
-              <span class="btn-icon">↻</span>
-              <span class="btn-label">Giro Der (D)</span>
+            <button class="ctrl-btn strafe-btn" id="btnStrafeRight" title="Desplazamiento Lateral Derecha (D)">
+              <span class="btn-icon">►</span>
+              <span class="btn-label">Paso Der (D)</span>
             </button>
           </div>
           <div class="control-row">
@@ -104,8 +113,8 @@
         <div class="settings-box">
           <h3>⚙️ Ajustes</h3>
           <label class="setting-row">
-            <span>Velocidad de giro:</span>
-            <input type="range" id="turnSpeedRange" min="1" max="5" value="3" step="0.5">
+            <span>Sensibilidad de Ratón:</span>
+            <input type="range" id="mouseSensRange" min="1" max="5" value="3" step="0.5">
           </label>
           <label class="setting-row">
             <span>Modo Textura:</span>
