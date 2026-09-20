@@ -10,6 +10,65 @@ window.addEventListener('DOMContentLoaded', () => {
   // Inicializar motor Raycaster
   const engine = new RaycasterEngine(canvas, minimapCanvas);
 
+  // Control de Zoom para el Minimapa / Radar (-1, 0, 1)
+  const btnMinimapZoomOut = document.getElementById('btnMinimapZoomOut');
+  const btnMinimapZoomIn = document.getElementById('btnMinimapZoomIn');
+  const minimapZoomBadge = document.getElementById('minimapZoomBadge');
+
+  function updateMinimapZoomUI() {
+    if (minimapZoomBadge) {
+      const z = engine.minimapZoomLevel;
+      minimapZoomBadge.textContent = z > 0 ? `+${z}` : `${z}`;
+    }
+    // Con + amplías hacia -1 (cercano). Si ya estás en -1, no se puede ampliar más
+    if (btnMinimapZoomIn) {
+      btnMinimapZoomIn.disabled = (engine.minimapZoomLevel <= -1);
+      btnMinimapZoomIn.style.opacity = (engine.minimapZoomLevel <= -1) ? '0.35' : '1';
+    }
+    // Con - te alejas hacia +1 (alejado). Si ya estás en +1, no se puede alejar más
+    if (btnMinimapZoomOut) {
+      btnMinimapZoomOut.disabled = (engine.minimapZoomLevel >= 1);
+      btnMinimapZoomOut.style.opacity = (engine.minimapZoomLevel >= 1) ? '0.35' : '1';
+    }
+  }
+
+  function cycleMinimapZoom() {
+    engine.cycleMinimapZoom();
+    updateMinimapZoomUI();
+  }
+
+  // Botón [ - ]: Alejar (0 -> +1, o -1 -> 0)
+  if (btnMinimapZoomOut) {
+    btnMinimapZoomOut.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (engine.minimapZoomLevel < 1) {
+        engine.setMinimapZoom(engine.minimapZoomLevel + 1);
+        updateMinimapZoomUI();
+      }
+    });
+  }
+
+  // Botón [ + ]: Ampliar (0 -> -1, o +1 -> 0)
+  if (btnMinimapZoomIn) {
+    btnMinimapZoomIn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (engine.minimapZoomLevel > -1) {
+        engine.setMinimapZoom(engine.minimapZoomLevel - 1);
+        updateMinimapZoomUI();
+      }
+    });
+  }
+
+  if (minimapCanvas) {
+    minimapCanvas.style.cursor = 'pointer';
+    minimapCanvas.addEventListener('click', (e) => {
+      e.stopPropagation();
+      cycleMinimapZoom();
+    });
+  }
+
+  updateMinimapZoomUI();
+
   // Estado del Jugador (Inicialmente en el centro exacto de la sala 7x7: x=3.5, y=3.5)
   // Mirando hacia el Norte (hacia la Puerta Norte: dirX=0, dirY=-1)
   const player = {
@@ -40,7 +99,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // Elementos del DOM para el HUD y Controles
   const compassText = document.getElementById('compassText');
   const facingTargetText = document.getElementById('facingTargetText');
-  const compassStrip = document.getElementById('compassStrip');
+  const compassCanvas = document.getElementById('compassCanvas');
+  const compassCtx = compassCanvas ? compassCanvas.getContext('2d') : null;
   const mouseSensRange = document.getElementById('mouseSensRange');
   const textureModeSelect = document.getElementById('textureModeSelect');
   const levelPill = document.getElementById('levelPill');
@@ -229,8 +289,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (btnFullscreen) {
       btnFullscreen.innerHTML = isFs
-        ? '<span class="fs-icon">🗗</span><span class="fs-label">Salir</span>'
-        : '<span class="fs-icon">⛶</span><span class="fs-label">Pantalla Completa</span>';
+        ? '<span class="fs-icon"><i class="ri-fullscreen-exit-line"></i></span><span class="fs-label">Salir</span>'
+        : '<span class="fs-icon"><i class="ri-fullscreen-line"></i></span><span class="fs-label">Pantalla Completa</span>';
       btnFullscreen.title = isFs ? 'Salir de pantalla completa (ESC / F)' : 'Pantalla Completa (F)';
     }
 
@@ -387,7 +447,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   function showDoorFeedback(message, color = '#f1c40f') {
     if (!promptHud) return;
-    promptHud.innerHTML = `<span style="color: ${color}; font-weight: 700;">🚪 ${message}</span>`;
+    promptHud.innerHTML = `<span style="color: ${color}; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><i class="ri-door-open-line"></i> ${message}</span>`;
     if (feedbackTimeout) clearTimeout(feedbackTimeout);
     feedbackTimeout = setTimeout(() => {
       onPointerLockChange();
@@ -563,6 +623,25 @@ window.addEventListener('DOMContentLoaded', () => {
   // MANEJO DE TECLADO
   // ==========================================
   window.addEventListener('keydown', (e) => {
+    // Zoom de minimapa con teclas '+' (ampliar a -1) y '-' (alejar a +1)
+    if (e.key === '+' || e.code === 'NumpadAdd' || e.key === 'Add') {
+      if (engine.minimapZoomLevel > -1) {
+        engine.setMinimapZoom(engine.minimapZoomLevel - 1);
+        updateMinimapZoomUI();
+      }
+      e.preventDefault();
+      return;
+    }
+
+    if (e.key === '-' || e.code === 'NumpadSubtract' || e.key === 'Subtract') {
+      if (engine.minimapZoomLevel < 1) {
+        engine.setMinimapZoom(engine.minimapZoomLevel + 1);
+        updateMinimapZoomUI();
+      }
+      e.preventDefault();
+      return;
+    }
+
     switch (e.key.toLowerCase()) {
       case 'enter':
         tryInteractDoor();
@@ -665,11 +744,57 @@ window.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   // AJUSTES
   // ==========================================
+  const mouseSensValLabel = document.getElementById('mouseSensValLabel');
+
+  /**
+   * Mapeo de sensibilidad de ratón con curva exponencial:
+   * - val = 1.0 (mínimo): 0.00030 rad/px (8x más lenta que por defecto, movimiento quirúrgico y muy pausado)
+   * - val = 3.0 (defecto): 0.00240 rad/px (velocidad estándar cómoda)
+   * - val = 5.0 (máximo): 0.00680 rad/px (giro rápido)
+   */
+  function calculateMouseSensitivity(val) {
+    const t = Math.max(0, Math.min(1, (val - 1) / 4));
+    return 0.0003 + Math.pow(t, 1.63) * 0.0065;
+  }
+
+  function getMouseSensLabel(val) {
+    if (val <= 1.0) return 'Mínima (0.1x)';
+    if (val <= 1.5) return 'Muy lenta (0.3x)';
+    if (val <= 2.0) return 'Lenta (0.5x)';
+    if (val <= 2.5) return 'Media-baja (0.7x)';
+    if (val <= 3.0) return 'Normal (1.0x)';
+    if (val <= 3.5) return 'Media-alta (1.4x)';
+    if (val <= 4.0) return 'Rápida (1.8x)';
+    if (val <= 4.5) return 'Muy rápida (2.3x)';
+    return 'Máxima (2.8x)';
+  }
+
+  function applyMouseSensitivity(val) {
+    mouseSensitivity = calculateMouseSensitivity(val);
+    if (mouseSensValLabel) {
+      mouseSensValLabel.textContent = getMouseSensLabel(val);
+    }
+    try {
+      localStorage.setItem('maze3d_mouse_sens', val.toString());
+    } catch (e) {}
+  }
+
   if (mouseSensRange) {
+    try {
+      const savedSens = localStorage.getItem('maze3d_mouse_sens');
+      if (savedSens !== null) {
+        const parsed = parseFloat(savedSens);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) {
+          mouseSensRange.value = parsed;
+        }
+      }
+    } catch (e) {}
+
+    applyMouseSensitivity(parseFloat(mouseSensRange.value));
+
     mouseSensRange.addEventListener('input', (e) => {
-      // De 1 a 5 -> mapear a rango [0.0010 - 0.0045]
       const val = parseFloat(e.target.value);
-      mouseSensitivity = 0.0008 + (val / 5) * 0.0035;
+      applyMouseSensitivity(val);
     });
   }
 
@@ -770,30 +895,100 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   // ==========================================
-  // ACTUALIZACIÓN DEL HUD Y BRÚJULA
+  // ACTUALIZACIÓN DEL HUD Y BRÚJULA 360° CONTINUA
   // ==========================================
+  function renderCompassBar(deg) {
+    if (!compassCtx || !compassCanvas) return;
+    const ctx = compassCtx;
+    const w = compassCanvas.width;
+    const h = compassCanvas.height;
+    const centerX = w / 2;
+    const pxPerDegree = 1.1; // Cobertura de ~180° dentro de la ventana de 220px
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Definición de rumbos cardinales e intercardinales
+    const marks = [
+      { angle: 0,   label: 'N',  isCardinal: true,  color: '#ff4757' },
+      { angle: 45,  label: 'NE', isCardinal: false, color: '#8d98af' },
+      { angle: 90,  label: 'E',  isCardinal: true,  color: '#e5a93b' },
+      { angle: 135, label: 'SE', isCardinal: false, color: '#8d98af' },
+      { angle: 180, label: 'S',  isCardinal: true,  color: '#e5a93b' },
+      { angle: 225, label: 'SO', isCardinal: false, color: '#8d98af' },
+      { angle: 270, label: 'O',  isCardinal: true,  color: '#e5a93b' },
+      { angle: 315, label: 'NO', isCardinal: false, color: '#8d98af' }
+    ];
+
+    // Marcas de división secundarias cada 15°
+    for (let a = 0; a < 360; a += 15) {
+      if (a % 45 === 0) continue;
+      let diff = ((a - deg + 540) % 360) - 180;
+      let x = centerX + diff * pxPerDegree;
+      if (x >= 0 && x <= w) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+        ctx.fillRect(Math.round(x), h - 7, 1, 4);
+      }
+    }
+
+    // Dibujar etiquetas de texto y marcas cardinales
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    for (let i = 0; i < marks.length; i++) {
+      const m = marks[i];
+      let diff = ((m.angle - deg + 540) % 360) - 180;
+      let x = centerX + diff * pxPerDegree;
+
+      if (x >= -25 && x <= w + 25) {
+        // Marca vertical inferior
+        ctx.fillStyle = m.color;
+        const tickH = m.isCardinal ? 6 : 4;
+        ctx.fillRect(Math.round(x) - 0.5, h - tickH - 2, m.isCardinal ? 2 : 1, tickH);
+
+        // Rótulo del rumbo
+        if (m.isCardinal) {
+          ctx.font = "bold 10px 'Press Start 2P', monospace";
+          ctx.fillText(m.label, x, 11);
+        } else {
+          ctx.font = "bold 11px 'Rajdhani', sans-serif";
+          ctx.fillText(m.label, x, 12);
+        }
+      }
+    }
+
+    // Difuminado suave en los extremos izquierdo y derecho
+    const gradL = ctx.createLinearGradient(0, 0, 30, 0);
+    gradL.addColorStop(0, 'rgba(10, 12, 18, 0.95)');
+    gradL.addColorStop(1, 'rgba(10, 12, 18, 0)');
+    ctx.fillStyle = gradL;
+    ctx.fillRect(0, 0, 30, h);
+
+    const gradR = ctx.createLinearGradient(w - 30, 0, w, 0);
+    gradR.addColorStop(0, 'rgba(10, 12, 18, 0)');
+    gradR.addColorStop(1, 'rgba(10, 12, 18, 0.95)');
+    ctx.fillStyle = gradR;
+    ctx.fillRect(w - 30, 0, 30, h);
+  }
+
   function updateHUD() {
     // Calcular ángulo en grados (0° = Norte, 90° = Este, 180° = Sur, 270° = Oeste)
     let rad = Math.atan2(player.dirX, -player.dirY);
     let deg = Math.round((rad * 180 / Math.PI + 360) % 360);
 
     let cardinal = 'Norte';
-    if (deg >= 337.5 || deg < 22.5) cardinal = 'Norte (0°)';
-    else if (deg >= 22.5 && deg < 67.5) cardinal = 'Noreste (45°)';
-    else if (deg >= 67.5 && deg < 112.5) cardinal = 'Este (90°)';
-    else if (deg >= 112.5 && deg < 157.5) cardinal = 'Sureste (135°)';
-    else if (deg >= 157.5 && deg < 202.5) cardinal = 'Sur (180°)';
-    else if (deg >= 202.5 && deg < 247.5) cardinal = 'Suroeste (225°)';
-    else if (deg >= 247.5 && deg < 292.5) cardinal = 'Oeste (270°)';
-    else if (deg >= 292.5 && deg < 337.5) cardinal = 'Noroeste (315°)';
+    if (deg >= 337.5 || deg < 22.5) cardinal = `Norte (${deg}°)`;
+    else if (deg >= 22.5 && deg < 67.5) cardinal = `Noreste (${deg}°)`;
+    else if (deg >= 67.5 && deg < 112.5) cardinal = `Este (${deg}°)`;
+    else if (deg >= 112.5 && deg < 157.5) cardinal = `Sureste (${deg}°)`;
+    else if (deg >= 157.5 && deg < 202.5) cardinal = `Sur (${deg}°)`;
+    else if (deg >= 202.5 && deg < 247.5) cardinal = `Suroeste (${deg}°)`;
+    else if (deg >= 247.5 && deg < 292.5) cardinal = `Oeste (${deg}°)`;
+    else if (deg >= 292.5 && deg < 337.5) cardinal = `Noroeste (${deg}°)`;
 
     if (compassText) compassText.textContent = cardinal;
 
-    // Desplazar cinta superior de la brújula
-    if (compassStrip) {
-      const offset = (deg % 360) * 0.55;
-      compassStrip.style.transform = `translateX(${-offset}px)`;
-    }
+    // Renderizar cinta continua 360° en canvas
+    renderCompassBar(deg);
 
     // Objetivo al que mira de frente
     const target = engine.facingTarget;

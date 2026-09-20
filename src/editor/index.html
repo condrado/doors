@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,10 +8,13 @@
   <link rel="stylesheet" href="editor.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&family=Fira+Code:wght@400;600&display=swap"
+    rel="stylesheet">
   <!-- Librería de iconos gratuita y de código abierto (Apache 2.0) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css">
 </head>
+
 <body>
   <div class="editor-app">
     <!-- Barra superior -->
@@ -46,14 +50,17 @@
           </div>
           <div class="dimension-controls">
             <!-- Barra Compacta de Proyecto -->
-            <div class="sidebar-project-bar">
-              <div class="sidebar-project-info">
-                <span class="sidebar-project-label"><i class="ri-folder-3-fill"></i> Proyecto:</span>
-                <span class="sidebar-project-name" id="sidebarProjectName">Mi Proyecto</span>
+            <div class="sidebar-map-bar">
+              <div class="sidebar-map-header">
+                <label for="selectActiveProject"><i class="ri-folder-3-fill"></i> Proyecto:</label>
               </div>
-              <button class="btn-icon-chip" id="btnOpenProjectsFromSidebar" title="Abrir Centro de Proyectos y Generador de Juego">
-                <i class="ri-settings-3-line"></i>
-              </button>
+              <div class="sidebar-map-controls">
+                <select id="selectActiveProject" class="active-map-dropdown"></select>
+                <button class="btn-icon-chip" id="btnQuickNewProject" title="Nuevo proyecto"><i
+                    class="ri-add-line"></i></button>
+                <button class="btn-icon-chip" id="btnOpenProjectsFromSidebar"
+                  title="Abrir Centro de Proyectos y Generador de Juego"><i class="ri-settings-3-line"></i></button>
+              </div>
             </div>
 
             <!-- Selector Compacto de Sala / Mapa -->
@@ -61,12 +68,14 @@
             <div class="sidebar-map-bar">
               <div class="sidebar-map-header">
                 <label for="selectActiveMap"><i class="ri-map-2-line"></i> Sala Activa:</label>
-                <span class="starting-map-pill" id="badgeStartingMap" title="Esta sala es el punto de inicio del juego"><i class="ri-flag-fill"></i> Inicial</span>
               </div>
               <div class="sidebar-map-controls">
                 <select id="selectActiveMap" class="active-map-dropdown"></select>
-                <button class="btn-icon-chip" id="btnQuickNewMap" title="Añadir nueva sala"><i class="ri-add-line"></i></button>
-                <button class="btn-icon-chip" id="btnManageMapsInModal" title="Configuración de dimensiones, plantillas y salas en la modal"><i class="ri-settings-4-line"></i></button>
+                <button class="btn-icon-chip" id="btnQuickNewMap" title="Añadir nueva sala"><i
+                    class="ri-add-line"></i></button>
+                <button class="btn-icon-chip" id="btnManageMapsInModal"
+                  title="Configuración de dimensiones, plantillas y salas en la modal"><i
+                    class="ri-settings-4-line"></i></button>
               </div>
             </div>
           </div>
@@ -80,16 +89,21 @@
               <span class="collapse-icon">▾</span>
             </h2>
           </div>
-          <div class="tool-icon-grid">
-            <button class="tool-btn tool-icon-only active" data-tool="brush" id="toolBrush" title="Individual: Dibujar de 1 en 1 (casilla a casilla)">
-              <i class="ri-pencil-fill"></i>
-            </button>
-            <button class="tool-btn tool-icon-only" data-tool="room" id="toolRoom" title="Habitación: Arrastra sobre el mapa para dibujar una sala con muros">
-              <i class="ri-shape-line"></i>
-            </button>
-            <button class="tool-btn tool-icon-only" data-tool="eraser" id="toolEraser" title="Borrador: Borrar muros y elementos">
-              <i class="ri-eraser-line"></i>
-            </button>
+          <div class="dimension-controls">
+            <div class="tool-icon-grid">
+              <button class="tool-btn tool-icon-only active" data-tool="brush" id="toolBrush"
+                title="Individual: Dibujar de 1 en 1 (casilla a casilla)">
+                <i class="ri-pencil-fill"></i>
+              </button>
+              <button class="tool-btn tool-icon-only" data-tool="room" id="toolRoom"
+                title="Habitación: Arrastra sobre el mapa para dibujar una sala con muros">
+                <i class="ri-shape-line"></i>
+              </button>
+              <button class="tool-btn tool-icon-only" data-tool="eraser" id="toolEraser"
+                title="Borrador: Borrar muros y elementos">
+                <i class="ri-eraser-line"></i>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -100,10 +114,13 @@
               <span><i class="ri-eraser-line"></i> Modo Borrador</span>
             </h2>
           </div>
-          <div class="eraser-help-box">
-            <span class="eraser-help-icon"><i class="ri-delete-bin-line"></i></span>
-            <p><strong>Borrador activo</strong></p>
-            <p class="section-desc">Haz clic o arrastra sobre cualquier pared, puerta o accesorio en el mapa para eliminarlo.</p>
+          <div class="dimension-controls">
+            <div class="eraser-help-box">
+              <span class="eraser-help-icon"><i class="ri-delete-bin-line"></i></span>
+              <p><strong>Borrador activo</strong></p>
+              <p class="section-desc">Haz clic o arrastra sobre cualquier pared, puerta o accesorio en el mapa para
+                eliminarlo.</p>
+            </div>
           </div>
         </section>
 
@@ -115,38 +132,40 @@
               <span class="collapse-icon">▾</span>
             </h2>
           </div>
-          <div class="palette-list compact">
-            <label class="palette-item active" title="Pared o muro de piedra">
-              <input type="radio" name="tileSelect" value="1" checked>
-              <span class="tile-sample stone-sample"></span>
-              <div class="tile-info">
-                <strong>Pared</strong>
-              </div>
-            </label>
+          <div class="dimension-controls">
+            <div class="palette-list compact">
+              <label class="palette-item active" title="Pared o muro de piedra">
+                <input type="radio" name="tileSelect" value="1" checked>
+                <span class="tile-sample stone-sample"></span>
+                <div class="tile-info">
+                  <strong>Pared</strong>
+                </div>
+              </label>
 
-            <label class="palette-item" title="Accesorios: Puertas, ventanas, etc.">
-              <input type="radio" name="tileSelect" value="accessories">
-              <span class="tile-sample accessory-sample"><i class="ri-sparkling-2-line"></i></span>
-              <div class="tile-info">
-                <strong>Accesorios</strong>
-              </div>
-            </label>
+              <label class="palette-item" title="Accesorios: Puertas, ventanas, etc.">
+                <input type="radio" name="tileSelect" value="accessories">
+                <span class="tile-sample accessory-sample"><i class="ri-sparkling-2-line"></i></span>
+                <div class="tile-info">
+                  <strong>Accesorios</strong>
+                </div>
+              </label>
 
-            <label class="palette-item" title="Suelo libre / Pasillo vacío (0)">
-              <input type="radio" name="tileSelect" value="0">
-              <span class="tile-sample floor-sample"><i class="ri-layout-grid-line"></i></span>
-              <div class="tile-info">
-                <strong>Suelo Vacío</strong>
-              </div>
-            </label>
+              <label class="palette-item" title="Suelo libre / Pasillo vacío (0)">
+                <input type="radio" name="tileSelect" value="0">
+                <span class="tile-sample floor-sample"><i class="ri-layout-grid-line"></i></span>
+                <div class="tile-info">
+                  <strong>Suelo Vacío</strong>
+                </div>
+              </label>
 
-            <label class="palette-item" title="Posición inicial del jugador en el mapa">
-              <input type="radio" name="tileSelect" value="player">
-              <span class="tile-sample player-sample"><i class="ri-user-3-line"></i></span>
-              <div class="tile-info">
-                <strong>Jugador</strong>
-              </div>
-            </label>
+              <label class="palette-item" title="Posición inicial del jugador en el mapa">
+                <input type="radio" name="tileSelect" value="player">
+                <span class="tile-sample player-sample"><i class="ri-user-3-line"></i></span>
+                <div class="tile-info">
+                  <strong>Jugador</strong>
+                </div>
+              </label>
+            </div>
           </div>
         </section>
 
@@ -159,107 +178,159 @@
             </h2>
           </div>
 
-          <div class="wall-placement-row">
-            <!-- Paneles 3x3 (Laterales y Centro) a la izquierda -->
-            <div class="wall-panels-wrapper">
-              <!-- PANEL 1: LATERALES (BORDES Y RINCONES 1x1) -->
-              <div class="wall-cat-panel" id="panelLaterales">
-                <div class="wall-matrix-grid-3x3">
-                  <!-- Fila 1 -->
-                  <button class="wall-tile-btn" data-mode="RNW" title="Rincón 1x1 Noroeste">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="7" height="7"/></svg>
-                  </button>
-                  <button class="wall-tile-btn active" data-mode="N" title="Pared Norte (━)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="36" height="7"/></svg>
-                  </button>
-                  <button class="wall-tile-btn" data-mode="RNE" title="Rincón 1x1 Noreste">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="29" y="0" width="7" height="7"/></svg>
-                  </button>
-
-                  <!-- Fila 2 -->
-                  <button class="wall-tile-btn" data-mode="W" title="Pared Oeste (┃)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="0" width="7" height="36"/></svg>
-                  </button>
-                  <div class="wall-matrix-empty-slot" title="Centro de celda">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><circle cx="18" cy="18" r="2" fill="#2d3748"/></svg>
-                  </div>
-                  <button class="wall-tile-btn" data-mode="E" title="Pared Este (┃)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="29" y="0" width="7" height="36"/></svg>
-                  </button>
-
-                  <!-- Fila 3 -->
-                  <button class="wall-tile-btn" data-mode="RSW" title="Rincón 1x1 Suroeste">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="7" height="7"/></svg>
-                  </button>
-                  <button class="wall-tile-btn" data-mode="S" title="Pared Sur (━)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="29" width="36" height="7"/></svg>
-                  </button>
-                  <button class="wall-tile-btn" data-mode="RSE" title="Rincón 1x1 Sureste">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="29" y="29" width="7" height="7"/></svg>
-                  </button>
-                </div>
-              </div>
-
-              <!-- PANEL 2: CENTRO (EJES COMPLETOS Y SEMIEJES 3x3) -->
-              <div class="wall-cat-panel hidden" id="panelCentro">
-                <div class="wall-matrix-grid-3x3">
-                  <!-- Fila 1 -->
-                  <button class="wall-tile-btn" data-mode="CV" title="Eje Central Vertical (┃)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="36"/></svg>
-                  </button>
-                  <button class="wall-tile-btn" data-mode="CN" title="Media Pared Norte (╵)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="0" width="7" height="21.5"/></svg>
-                  </button>
-                  <button class="wall-tile-btn" data-mode="CH" title="Eje Central Horizontal (━)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="36" height="7"/></svg>
-                  </button>
-
-                  <!-- Fila 2 -->
-                  <button class="wall-tile-btn" data-mode="CW" title="Media Pared Oeste (╴)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="0" y="14.5" width="21.5" height="7"/></svg>
-                  </button>
-                  <div class="wall-matrix-empty-slot" title="Centro de celda">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><circle cx="18" cy="18" r="2" fill="#2d3748"/></svg>
-                  </div>
-                  <button class="wall-tile-btn" data-mode="CE" title="Media Pared Este (╶)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7"/></svg>
-                  </button>
-
-                  <!-- Fila 3 -->
-                  <div class="wall-matrix-empty-slot"></div>
-                  <button class="wall-tile-btn" data-mode="CS" title="Media Pared Sur (╷)">
-                    <svg viewBox="0 0 36 36"><rect class="tile-bg" x="0" y="0" width="36" height="36"/><rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5"/></svg>
-                  </button>
-                  <div class="wall-matrix-empty-slot"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Botones de Categoría (Pestañas) a la DERECHA -->
-            <div class="wall-category-tabs vertical" id="wallCategoryTabs">
-              <button class="wall-cat-tab active" data-tab="laterales" title="Paredes perimetrales y rincones 1x1">
-                <span class="tab-icon"><i class="ri-checkbox-blank-line"></i></span>
-                <span>Laterales</span>
-              </button>
-              <button class="wall-cat-tab" data-tab="centro" title="Ejes centrales y semiejes">
-                <span class="tab-icon"><i class="ri-add-line"></i></span>
-                <span>Centro</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Acciones Auxiliares (Vaciar celda) -->
-          <div class="wall-aux-actions">
-            <button class="wall-aux-btn clear-btn" data-action="select-floor" title="Suelo Libre: Borra las paredes de la celda" style="width: 100%;">
-              <span class="aux-icon"><i class="ri-delete-bin-7-line"></i></span> Vaciar Celda
+          <div class="dimension-controls">
+            <button class="style-picker-btn" id="btnWallStyle"
+              title="Elegir el diseño con el que se dibujarán las PRÓXIMAS paredes que coloques">
+              <span class="aux-icon"><i class="ri-palette-line"></i></span>
+              <span>Pincel de Pared: <strong id="wallStyleLabel">Castillo</strong></span>
+              <i class="ri-arrow-right-s-line style-picker-chevron"></i>
             </button>
-          </div>
 
-          <button class="style-picker-btn" id="btnWallStyle" title="Elegir el diseño con el que se dibujarán las PRÓXIMAS paredes que coloques">
-            <span class="aux-icon"><i class="ri-palette-line"></i></span>
-            <span>Pincel de Pared: <strong id="wallStyleLabel">Castillo</strong></span>
-            <i class="ri-arrow-right-s-line style-picker-chevron"></i>
-          </button>
+            <div class="wall-placement-row">
+              <!-- Paneles 3x3 (Laterales y Centro) a la izquierda -->
+              <div class="wall-panels-wrapper">
+                <!-- PANEL 1: LATERALES (BORDES Y RINCONES 1x1) -->
+                <div class="wall-cat-panel" id="panelLaterales">
+                  <div class="wall-matrix-grid-3x3">
+                    <!-- Fila 1 -->
+                    <button class="wall-tile-btn" data-mode="RNW" title="Rincón 1x1 Noroeste">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="0" y="0" width="7" height="7" />
+                      </svg>
+                    </button>
+                    <button class="wall-tile-btn active" data-mode="N" title="Pared Norte (━)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="0" y="0" width="36" height="7" />
+                      </svg>
+                    </button>
+                    <button class="wall-tile-btn" data-mode="RNE" title="Rincón 1x1 Noreste">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="29" y="0" width="7" height="7" />
+                      </svg>
+                    </button>
+
+                    <!-- Fila 2 -->
+                    <button class="wall-tile-btn" data-mode="W" title="Pared Oeste (┃)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="0" y="0" width="7" height="36" />
+                      </svg>
+                    </button>
+                    <div class="wall-matrix-empty-slot" title="Centro de celda">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <circle cx="18" cy="18" r="2" fill="#2d3748" />
+                      </svg>
+                    </div>
+                    <button class="wall-tile-btn" data-mode="E" title="Pared Este (┃)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="29" y="0" width="7" height="36" />
+                      </svg>
+                    </button>
+
+                    <!-- Fila 3 -->
+                    <button class="wall-tile-btn" data-mode="RSW" title="Rincón 1x1 Suroeste">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="0" y="29" width="7" height="7" />
+                      </svg>
+                    </button>
+                    <button class="wall-tile-btn" data-mode="S" title="Pared Sur (━)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="0" y="29" width="36" height="7" />
+                      </svg>
+                    </button>
+                    <button class="wall-tile-btn" data-mode="RSE" title="Rincón 1x1 Sureste">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="29" y="29" width="7" height="7" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- PANEL 2: CENTRO (EJES COMPLETOS Y SEMIEJES 3x3) -->
+                <div class="wall-cat-panel hidden" id="panelCentro">
+                  <div class="wall-matrix-grid-3x3">
+                    <!-- Fila 1 -->
+                    <button class="wall-tile-btn" data-mode="CV" title="Eje Central Vertical (┃)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="14.5" y="0" width="7" height="36" />
+                      </svg>
+                    </button>
+                    <button class="wall-tile-btn" data-mode="CN" title="Media Pared Norte (╵)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="14.5" y="0" width="7" height="21.5" />
+                      </svg>
+                    </button>
+                    <button class="wall-tile-btn" data-mode="CH" title="Eje Central Horizontal (━)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="0" y="14.5" width="36" height="7" />
+                      </svg>
+                    </button>
+
+                    <!-- Fila 2 -->
+                    <button class="wall-tile-btn" data-mode="CW" title="Media Pared Oeste (╴)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="0" y="14.5" width="21.5" height="7" />
+                      </svg>
+                    </button>
+                    <div class="wall-matrix-empty-slot" title="Centro de celda">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <circle cx="18" cy="18" r="2" fill="#2d3748" />
+                      </svg>
+                    </div>
+                    <button class="wall-tile-btn" data-mode="CE" title="Media Pared Este (╶)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="14.5" y="14.5" width="21.5" height="7" />
+                      </svg>
+                    </button>
+
+                    <!-- Fila 3 -->
+                    <div class="wall-matrix-empty-slot"></div>
+                    <button class="wall-tile-btn" data-mode="CS" title="Media Pared Sur (╷)">
+                      <svg viewBox="0 0 36 36">
+                        <rect class="tile-bg" x="0" y="0" width="36" height="36" />
+                        <rect class="tile-wall" x="14.5" y="14.5" width="7" height="21.5" />
+                      </svg>
+                    </button>
+                    <div class="wall-matrix-empty-slot"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Botones de Categoría (Pestañas) a la DERECHA -->
+              <div class="wall-category-tabs vertical" id="wallCategoryTabs">
+                <button class="wall-cat-tab active" data-tab="laterales" title="Paredes perimetrales y rincones 1x1">
+                  <span class="tab-icon"><i class="ri-checkbox-blank-line"></i></span>
+                  <span>Laterales</span>
+                </button>
+                <button class="wall-cat-tab" data-tab="centro" title="Ejes centrales y semiejes">
+                  <span class="tab-icon"><i class="ri-add-line"></i></span>
+                  <span>Centro</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Acciones Auxiliares (Vaciar celda) -->
+            <div class="wall-aux-actions">
+              <button class="wall-aux-btn clear-btn" data-action="select-floor"
+                title="Suelo Libre: Borra las paredes de la celda" style="width: 100%;">
+                <span class="aux-icon"><i class="ri-delete-bin-7-line"></i></span> Vaciar Celda
+              </button>
+            </div>
+          </div>
         </section>
 
         <!-- 5. Colocación de Accesorios (Solo visible al seleccionar Accesorios) -->
@@ -271,60 +342,50 @@
             </h2>
           </div>
 
-          <p class="section-desc">Selecciona el tipo de accesorio a colocar:</p>
+          <div class="dimension-controls">
+            <p class="section-desc">Selecciona el tipo de accesorio a colocar:</p>
 
-          <div class="accessory-grid">
-            <button class="accessory-tile-btn active" data-accessory="door" title="Puerta de madera con herrajes dorados">
-              <span class="acc-tile-icon"><i class="ri-door-open-line"></i></span>
-              <div class="acc-tile-meta">
-                <strong>Puerta</strong>
-                <small>Madera y herrajes</small>
-              </div>
+            <div class="accessory-grid">
+              <button class="accessory-tile-btn active" data-accessory="door"
+                title="Puerta de madera con herrajes dorados">
+                <span class="acc-tile-icon"><i class="ri-door-open-line"></i></span>
+                <div class="acc-tile-meta">
+                  <strong>Puerta</strong>
+                  <small>Madera y herrajes</small>
+                </div>
+              </button>
+              <button class="accessory-tile-btn" data-accessory="window" title="Ventana medieval de cristal biselado">
+                <span class="acc-tile-icon"><i class="ri-layout-masonry-line"></i></span>
+                <div class="acc-tile-meta">
+                  <strong>Ventana</strong>
+                  <small>Cristal gótico</small>
+                </div>
+              </button>
+            </div>
+
+            <button class="style-picker-btn" id="btnDoorStyle"
+              title="Elegir el diseño con el que se dibujarán las PRÓXIMAS puertas que coloques">
+              <span class="aux-icon"><i class="ri-palette-line"></i></span>
+              <span>Pincel de Puerta: <strong id="doorStyleLabel">Castillo</strong></span>
+              <i class="ri-arrow-right-s-line style-picker-chevron"></i>
             </button>
-            <button class="accessory-tile-btn" data-accessory="window" title="Ventana medieval de cristal biselado">
-              <span class="acc-tile-icon"><i class="ri-layout-masonry-line"></i></span>
-              <div class="acc-tile-meta">
-                <strong>Ventana</strong>
-                <small>Cristal gótico</small>
-              </div>
+
+            <button class="style-picker-btn" id="btnLintelStyle"
+              title="Elegir el diseño de pared para el dintel (hueco fijo sobre la puerta) de las PRÓXIMAS puertas que coloques">
+              <span class="aux-icon"><i class="ri-palette-line"></i></span>
+              <span>Pincel de Dintel: <strong id="lintelStyleLabel">Castillo</strong></span>
+              <i class="ri-arrow-right-s-line style-picker-chevron"></i>
+            </button>
+
+            <button class="style-picker-btn portal-picker-btn" id="btnOpenDoorLinksModal"
+              title="Configurar las puertas que conectan con otros mapas del proyecto">
+              <span class="aux-icon"><i class="ri-portal-line"></i></span>
+              <span>Conexión de Puertas (Portales)</span>
+              <i class="ri-arrow-right-s-line style-picker-chevron"></i>
             </button>
           </div>
-
-          <div class="accessory-help-note">
-            <span class="acc-note-icon"><i class="ri-lightbulb-line"></i></span>
-            <span>Haz clic en el borde o centro de una casilla para colocar el accesorio.</span>
-          </div>
-
-          <button class="style-picker-btn" id="btnDoorStyle" title="Elegir el diseño con el que se dibujarán las PRÓXIMAS puertas que coloques">
-            <span class="aux-icon"><i class="ri-palette-line"></i></span>
-            <span>Pincel de Puerta: <strong id="doorStyleLabel">Castillo</strong></span>
-            <i class="ri-arrow-right-s-line style-picker-chevron"></i>
-          </button>
-
-          <button class="style-picker-btn" id="btnLintelStyle" title="Elegir el diseño de pared para el dintel (hueco fijo sobre la puerta) de las PRÓXIMAS puertas que coloques">
-            <span class="aux-icon"><i class="ri-palette-line"></i></span>
-            <span>Pincel de Dintel: <strong id="lintelStyleLabel">Castillo</strong></span>
-            <i class="ri-arrow-right-s-line style-picker-chevron"></i>
-          </button>
-
-          <button class="style-picker-btn portal-picker-btn" id="btnOpenDoorLinksModal" title="Configurar las puertas que conectan con otros mapas del proyecto">
-            <span class="aux-icon"><i class="ri-portal-line"></i></span>
-            <span>Conexión de Puertas (Portales)</span>
-            <i class="ri-arrow-right-s-line style-picker-chevron"></i>
-          </button>
         </section>
 
-        <!-- 6. Texturas Personalizadas (Plegado por defecto para optimizar espacio) -->
-        <section class="tool-section collapsed" id="sectionTextures">
-          <div class="section-title-row">
-            <h2>
-              <span><i class="ri-image-2-line"></i> Texturas Personalizadas</span>
-              <span class="collapse-icon">▾</span>
-            </h2>
-          </div>
-          <p class="section-desc">Sube una imagen por elemento para sustituir su diseño en la Demo 3D (se ajusta a 64x64 y viaja guardada con el mapa).</p>
-          <div class="texture-grid" id="textureGrid"></div>
-        </section>
       </aside>
 
       <!-- Lienzo Central de la Cuadrícula -->
@@ -334,10 +395,13 @@
           <div class="map-stats" id="mapStats">12x12 • Jugador: (3.5, 3.5)</div>
           <div class="zoom-controls">
             <span>Zoom:</span>
-            <button class="zoom-btn" id="btnZoomOut" title="Reducir tamaño de celdas"><i class="ri-zoom-out-line"></i></button>
+            <button class="zoom-btn" id="btnZoomOut" title="Reducir tamaño de celdas"><i
+                class="ri-zoom-out-line"></i></button>
             <span class="zoom-label" id="zoomLabel">32px</span>
-            <button class="zoom-btn" id="btnZoomIn" title="Aumentar tamaño de celdas"><i class="ri-zoom-in-line"></i></button>
-            <button class="zoom-btn auto" id="btnZoomAuto" title="Ajustar automáticamente a la pantalla"><i class="ri-fullscreen-line"></i> Auto</button>
+            <button class="zoom-btn" id="btnZoomIn" title="Aumentar tamaño de celdas"><i
+                class="ri-zoom-in-line"></i></button>
+            <button class="zoom-btn auto" id="btnZoomAuto" title="Ajustar automáticamente a la pantalla"><i
+                class="ri-fullscreen-line"></i> Auto</button>
           </div>
         </div>
 
@@ -374,7 +438,8 @@
 
         <div class="json-footer-help">
           <small>Puedes editar el JSON directamente aquí y pulsar "Aplicar Cambios del JSON".</small>
-          <button class="btn-subtle" id="btnApplyManualJson"><i class="ri-check-line"></i> Aplicar Cambios del JSON</button>
+          <button class="btn-subtle" id="btnApplyManualJson"><i class="ri-check-line"></i> Aplicar Cambios del
+            JSON</button>
         </div>
       </aside>
     </main>
@@ -389,7 +454,8 @@
           <h3 id="confirmModalTitle"><i class="ri-error-warning-line"></i> ¿Confirmar acción?</h3>
           <button class="modal-close-btn" id="confirmModalClose"><i class="ri-close-line"></i></button>
         </div>
-        <p class="modal-subtitle" id="confirmModalMessage">Esta acción modificará o vaciará el contenido actual del mapa.</p>
+        <p class="modal-subtitle" id="confirmModalMessage">Esta acción modificará o vaciará el contenido actual del
+          mapa.</p>
         <div class="modal-confirm-actions">
           <button class="btn-subtle" id="confirmModalCancel">Cancelar</button>
           <button class="btn-subtle danger" id="confirmModalAccept">Aceptar</button>
@@ -404,7 +470,8 @@
           <h3 id="styleModalTitle"><i class="ri-palette-line"></i> Estilo de Pared</h3>
           <button class="modal-close-btn" id="styleModalClose"><i class="ri-close-line"></i></button>
         </div>
-        <p class="modal-subtitle">Elige el diseño para lo próximo que coloques. Lo que ya está en el mapa conserva su estilo.</p>
+        <p class="modal-subtitle">Elige el diseño para lo próximo que coloques. Lo que ya está en el mapa conserva su
+          estilo.</p>
         <div class="style-modal-grid" id="styleModalGrid"></div>
       </div>
     </div>
@@ -435,13 +502,15 @@
           <div class="project-pane-section">
             <div class="pane-section-header">
               <h4><i class="ri-folders-line"></i> Tus Proyectos Guardados</h4>
-              <p>Cada proyecto es independiente. Pulsa en <strong>Generar Juego</strong> en el proyecto que quieras empaquetar en un archivo <code>.html</code> listo para jugar con doble clic.</p>
+              <p>Cada proyecto es independiente. Pulsa en <strong>Generar Juego</strong> en el proyecto que quieras
+                empaquetar en un archivo <code>.html</code> listo para jugar con doble clic.</p>
             </div>
 
             <div class="project-list" id="projectListContainer"></div>
 
             <div class="project-modal-footer">
-              <button class="btn-subtle primary-btn" id="btnCreateNewProject"><i class="ri-add-line"></i> Nuevo Proyecto</button>
+              <button class="btn-subtle primary-btn" id="btnCreateNewProject"><i class="ri-add-line"></i> Nuevo
+                Proyecto</button>
               <label class="btn-subtle upload-label" id="lblImportProject">
                 <i class="ri-upload-2-line"></i> Importar Proyecto (.json)
                 <input type="file" id="inputImportProject" accept=".json" hidden>
@@ -454,13 +523,15 @@
         <div class="modal-tab-pane" id="paneMaps" style="display: none;">
           <div class="pane-section-header">
             <h4><i class="ri-map-pin-2-line"></i> Salas en <strong id="modalProjectNameMaps">Mi Proyecto</strong></h4>
-            <p>Gestiona las salas de este mundo. Pulsa en <strong>Editar</strong> para configurar dimensiones y nombre, o en <strong>Dibujar</strong> para ir al lienzo.</p>
+            <p>Gestiona las salas de este mundo. Pulsa en <strong>Editar</strong> para configurar dimensiones y nombre,
+              o en <strong>Dibujar</strong> para ir al lienzo.</p>
           </div>
 
           <div class="modal-map-list" id="modalMapListContainer"></div>
 
           <div class="project-modal-footer">
-            <button class="btn-subtle primary-btn" id="btnAddNewMapFromModal"><i class="ri-add-line"></i> Nueva Sala</button>
+            <button class="btn-subtle primary-btn" id="btnAddNewMapFromModal"><i class="ri-add-line"></i> Nueva
+              Sala</button>
           </div>
         </div>
       </div>
@@ -473,11 +544,13 @@
           <h3 id="doorLinkModalTitle"><i class="ri-portal-line"></i> Conectar Puertas a otros Mapas</h3>
           <button class="modal-close-btn" id="doorLinkModalClose"><i class="ri-close-line"></i></button>
         </div>
-        <p class="modal-subtitle">Elige una puerta de esta sala para que al cruzarla transporte al jugador a otro mapa del proyecto.</p>
+        <p class="modal-subtitle">Elige una puerta de esta sala para que al cruzarla transporte al jugador a otro mapa
+          del proyecto.</p>
 
         <div class="doorlink-content">
           <div class="input-group full-width">
-            <label for="selectDoorToConfigure"><i class="ri-door-open-line"></i> Puerta a configurar en este mapa:</label>
+            <label for="selectDoorToConfigure"><i class="ri-door-open-line"></i> Puerta a configurar en este
+              mapa:</label>
             <select id="selectDoorToConfigure" class="preset-dropdown"></select>
           </div>
 
@@ -509,9 +582,11 @@
           </div>
 
           <div class="modal-confirm-actions" style="margin-top: 16px;">
-            <button class="btn-subtle danger" id="btnRemoveDoorLink" style="display: none;"><i class="ri-delete-bin-line"></i> Desconectar</button>
+            <button class="btn-subtle danger" id="btnRemoveDoorLink" style="display: none;"><i
+                class="ri-delete-bin-line"></i> Desconectar</button>
             <button class="btn-subtle" id="btnCancelDoorLink">Cerrar</button>
-            <button class="btn-subtle primary-btn" id="btnSaveDoorLink"><i class="ri-check-line"></i> Guardar Enlace</button>
+            <button class="btn-subtle primary-btn" id="btnSaveDoorLink"><i class="ri-check-line"></i> Guardar
+              Enlace</button>
           </div>
         </div>
       </div>
@@ -521,4 +596,5 @@
   <script src="../engine/textures.js"></script>
   <script src="editor.js"></script>
 </body>
+
 </html>

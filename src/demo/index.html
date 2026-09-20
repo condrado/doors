@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Laberinto 3D - Prototipo Primera Persona</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap"
@@ -19,14 +20,14 @@
         <span class="retro-badge">PROTOTIPO 2.5D</span>
         <h1>LABERINTO: LA SALA DE LAS 4 PUERTAS</h1>
         <div class="title-meta">
-          <span class="info-pill" id="compassPill">🧭 Rumbo: <strong id="compassText">Norte (0°)</strong></span>
-          <span class="info-pill" id="targetPill">🎯 Frente a ti: <strong id="facingTargetText">Pared</strong></span>
+          <span class="info-pill" id="compassPill"><i class="ri-compass-3-line"></i> Rumbo: <strong id="compassText">Norte (0°)</strong></span>
+          <span class="info-pill" id="targetPill"><i class="ri-focus-3-line"></i> Frente a ti: <strong id="facingTargetText">Pared</strong></span>
         </div>
       </div>
       <div class="header-info">
-        <a href="../../index.html" class="hub-nav-btn" id="btnOpenHub" title="Volver al Portal Principal">🏠 Inicio</a>
+        <a href="../../index.html" class="hub-nav-btn" id="btnOpenHub" title="Volver al Portal Principal"><i class="ri-home-4-line"></i> Inicio</a>
         <a href="../editor/index.html" class="action-btn editor-nav-btn" id="btnOpenEditor"
-          title="Abrir Editor de Niveles">🛠️ Editor</a>
+          title="Abrir Editor de Niveles"><i class="ri-tools-line"></i> Editor</a>
       </div>
     </header>
 
@@ -38,27 +39,27 @@
         <!-- Crosshair / Punto de mira -->
         <div class="crosshair"></div>
 
-        <!-- Indicador de brújula superior -->
+        <!-- Indicador de brújula superior 360° -->
         <div class="compass-bar" id="compassBar">
-          <div class="compass-strip" id="compassStrip">
-            <span class="cardinal">N</span>
-            <span class="sub">·</span>
-            <span class="cardinal">E</span>
-            <span class="sub">·</span>
-            <span class="cardinal">S</span>
-            <span class="sub">·</span>
-            <span class="cardinal">O</span>
-            <span class="sub">·</span>
-            <span class="cardinal">N</span>
-            <span class="sub">·</span>
-            <span class="cardinal">E</span>
-          </div>
-          <div class="compass-pointer">▼</div>
+          <canvas id="compassCanvas" width="220" height="28"></canvas>
+          <div class="compass-pointer"><i class="ri-arrow-down-s-fill"></i></div>
         </div>
 
-        <!-- Radar / Minimapa -->
+        <!-- Radar / Minimapa con Zoom Dinámico (-1, 0, 1) -->
         <div class="minimap-container">
-          <canvas id="minimapCanvas" width="140" height="140"></canvas>
+          <div class="minimap-header">
+            <span class="minimap-title">RADAR</span>
+            <div class="minimap-zoom-ctrls">
+              <button class="minimap-zoom-btn" id="btnMinimapZoomOut" title="Alejar (-)" type="button">
+                <i class="ri-subtract-line"></i>
+              </button>
+              <span class="minimap-zoom-badge" id="minimapZoomBadge" title="Nivel de zoom actual (-1, 0, +1)">0</span>
+              <button class="minimap-zoom-btn" id="btnMinimapZoomIn" title="Ampliar (+)" type="button">
+                <i class="ri-add-line"></i>
+              </button>
+            </div>
+          </div>
+          <canvas id="minimapCanvas" width="140" height="140" title="Haz clic en el mapa o pulsa [Z] para alternar zoom (0 / -1 / +1)"></canvas>
           <div class="minimap-legend">
             <span><i class="dot player-dot"></i> Tú</span>
             <span><i class="dot door-dot"></i> Puertas</span>
@@ -67,14 +68,14 @@
 
         <!-- Botón de Pantalla Completa flotante -->
         <button class="fullscreen-btn" id="btnFullscreen" title="Pantalla Completa (F)">
-          <span class="fs-icon">⛶</span>
+          <span class="fs-icon"><i class="ri-fullscreen-line"></i></span>
           <span class="fs-label">Pantalla Completa</span>
         </button>
 
         <!-- Overlay de aviso para captura de ratón (Pointer Lock) -->
         <div class="pointer-lock-overlay" id="pointerLockOverlay">
           <div class="lock-notice">
-            <span class="lock-icon">🖱️</span>
+            <span class="lock-icon"><i class="ri-mouse-line"></i></span>
             <strong>Haz clic para mirar con el ratón</strong>
             <small>Usa el ratón para apuntar en 360° • [ESC] para liberar el cursor</small>
           </div>
@@ -92,12 +93,13 @@
       <!-- Panel de Controles -->
       <div class="controls-panel">
         <div class="keyboard-guide">
-          <h3>🎮 Controles de Teclado & Ratón</h3>
+          <h3><i class="ri-gamepad-line"></i> Controles de Teclado & Ratón</h3>
           <div class="key-rows">
-            <div class="key-item"><kbd>🖱️ Clic Izq</kbd> / <kbd>Enter</kbd> <span>Abrir / Cerrar Puerta</span></div>
-            <div class="key-item"><kbd>🖱️ Ratón</kbd> <span>Mirar y apuntar en 360°</span></div>
+            <div class="key-item"><kbd><i class="ri-mouse-line"></i> Clic Izq</kbd> / <kbd>Enter</kbd> <span>Abrir / Cerrar Puerta</span></div>
+            <div class="key-item"><kbd><i class="ri-cursor-line"></i> Ratón</kbd> <span>Mirar y apuntar en 360°</span></div>
             <div class="key-item"><kbd>W</kbd> / <kbd>S</kbd> <span>Avanzar / Retroceder</span></div>
             <div class="key-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Desplazamiento Lateral (Strafe)</span></div>
+            <div class="key-item"><kbd>+</kbd> / <kbd>-</kbd> <span>Zoom Radar (Ampliar / Alejar)</span></div>
             <div class="key-item"><kbd>F</kbd> <span>Alternar Pantalla Completa</span></div>
           </div>
         </div>
@@ -105,31 +107,34 @@
         <!-- Botones en pantalla (para táctil o ratón) -->
         <div class="touch-controls">
           <div class="control-row">
-            <button class="ctrl-btn forward" id="btnForward" title="Avanzar (W)">▲</button>
+            <button class="ctrl-btn forward" id="btnForward" title="Avanzar (W)"><i class="ri-arrow-up-s-line"></i></button>
           </div>
           <div class="control-row horizontal">
             <button class="ctrl-btn strafe-btn" id="btnStrafeLeft" title="Desplazamiento Lateral Izquierda (A)">
-              <span class="btn-icon">◄</span>
+              <span class="btn-icon"><i class="ri-arrow-left-s-line"></i></span>
               <span class="btn-label">Paso Izq (A)</span>
             </button>
             <button class="ctrl-btn center-btn" id="btnCenter" title="Volver al centro">
-              🎯
+              <i class="ri-focus-line"></i>
             </button>
             <button class="ctrl-btn strafe-btn" id="btnStrafeRight" title="Desplazamiento Lateral Derecha (D)">
-              <span class="btn-icon">►</span>
+              <span class="btn-icon"><i class="ri-arrow-right-s-line"></i></span>
               <span class="btn-label">Paso Der (D)</span>
             </button>
           </div>
           <div class="control-row">
-            <button class="ctrl-btn backward" id="btnBackward" title="Retroceder (S)">▼</button>
+            <button class="ctrl-btn backward" id="btnBackward" title="Retroceder (S)"><i class="ri-arrow-down-s-line"></i></button>
           </div>
         </div>
 
         <!-- Ajustes rápidos -->
         <div class="settings-box">
-          <h3>⚙️ Ajustes</h3>
+          <h3><i class="ri-settings-3-line"></i> Ajustes</h3>
           <label class="setting-row">
-            <span>Sensibilidad de Ratón:</span>
+            <div class="setting-row-header">
+              <span>Sensibilidad de Ratón:</span>
+              <strong id="mouseSensValLabel" class="setting-val-badge">Normal (3)</strong>
+            </div>
             <input type="range" id="mouseSensRange" min="1" max="5" value="3" step="0.5">
           </label>
           <label class="setting-row">

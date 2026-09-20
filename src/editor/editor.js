@@ -98,10 +98,13 @@ class LevelEditor {
 
     this.headerProjectName = document.getElementById('headerProjectName');
     this.sidebarProjectName = document.getElementById('sidebarProjectName');
+    this.selectActiveProject = document.getElementById('selectActiveProject');
+    this.btnQuickNewProject = document.getElementById('btnQuickNewProject');
     this.btnOpenProjectsFromSidebar = document.getElementById('btnOpenProjectsFromSidebar');
     this.btnOpenProjectsFromHeader = document.getElementById('btnOpenProjectsFromHeader');
     this.selectActiveMap = document.getElementById('selectActiveMap');
     this.badgeStartingMap = document.getElementById('badgeStartingMap');
+    this.iconStartingMap = document.getElementById('iconStartingMap');
     this.btnQuickNewMap = document.getElementById('btnQuickNewMap');
     this.btnManageMapsInModal = document.getElementById('btnManageMapsInModal');
     this.btnNewMapInProject = document.getElementById('btnNewMapInProject');
@@ -2249,10 +2252,21 @@ class LevelEditor {
   selectStyle(kind, styleKey) {
     const { styles, prop, label } = this._styleKindInfo(kind);
     this[prop] = styleKey;
+
+    // Sincronización inteligente: al cambiar la puerta, el dintel adopta automáticamente el mismo estilo
+    if (kind === 'door' && typeof WALL_STYLES !== 'undefined' && WALL_STYLES[styleKey]) {
+      this.lintelStyle = styleKey;
+    }
+
     this.updateStyleLabels();
     this.closeStyleModal();
     this.updateJSON();
-    this.showToast(`🖌️ Pincel de ${label.toLowerCase()}: ${styles[styleKey].label} (se aplicará a lo próximo que coloques)`);
+
+    if (kind === 'door' && typeof WALL_STYLES !== 'undefined' && WALL_STYLES[styleKey]) {
+      this.showToast(`🚪 Puerta y dintel sincronizados: ${styles[styleKey].label}`);
+    } else {
+      this.showToast(`🖌️ Pincel de ${label.toLowerCase()}: ${styles[styleKey].label} (se aplicará a lo próximo que coloques)`);
+    }
   }
 
   closeStyleModal() {
@@ -2449,6 +2463,7 @@ class LevelEditor {
     if (this.headerProjectName) {
       this.headerProjectName.textContent = this.currentProject.name;
     }
+    this.renderProjectDropdown();
     if (this.sidebarProjectName) {
       this.sidebarProjectName.textContent = this.currentProject.name;
     }
@@ -2541,6 +2556,21 @@ class LevelEditor {
         if (e.target.files && e.target.files[0]) {
           this.importProjectJson(e.target.files[0]);
           e.target.value = '';
+        }
+      });
+    }
+
+    if (this.selectActiveProject) {
+      this.selectActiveProject.addEventListener('change', (e) => {
+        this.switchProject(e.target.value);
+      });
+    }
+
+    if (this.btnQuickNewProject) {
+      this.btnQuickNewProject.addEventListener('click', () => {
+        const name = prompt('Nombre para el nuevo proyecto:');
+        if (name !== null) {
+          this.createNewProject(name);
         }
       });
     }
@@ -2648,7 +2678,7 @@ class LevelEditor {
             <div class="modal-map-info">
               <div class="modal-map-title-row">
                 <span class="modal-map-name">${m.name || id}</span>
-                ${isStart ? '<span class="starting-map-pill"><i class="ri-flag-fill"></i> Spawn Inicial</span>' : ''}
+                ${isStart ? '<span class="starting-map-badge"><i class="ri-flag-fill"></i> Spawn Inicial</span>' : ''}
                 ${isCurrent ? '<span class="project-active-badge"><i class="ri-pencil-line"></i> Activa en Editor</span>' : ''}
               </div>
               <div class="modal-map-meta">
@@ -3147,6 +3177,7 @@ class LevelEditor {
       this.updateHeaderProject();
       this.saveProjectsToStorage();
       this.renderProjectList();
+      this.renderProjectDropdown();
       this.showToast(`✏️ Proyecto renombrado a: ${p.name}`);
     }
   }
@@ -3173,6 +3204,7 @@ class LevelEditor {
         } else {
           this.saveProjectsToStorage();
           this.renderProjectList();
+          this.renderProjectDropdown();
         }
         this.showToast(`🗑️ Proyecto eliminado`);
       }
@@ -3249,12 +3281,12 @@ class LevelEditor {
     this.selectActiveMap.innerHTML = mapIds.map(id => {
       const m = this.currentProject.maps[id];
       const isStart = (id === this.currentProject.startingMapId);
-      return `<option value="${id}" ${id === this.currentMapId ? 'selected' : ''}>${m.name || id} ${isStart ? '🚩' : ''}</option>`;
+      return `<option value="${id}" ${id === this.currentMapId ? 'selected' : ''}>${isStart ? '⚑ ' : ''}${m.name || id}</option>`;
     }).join('');
 
     const isCurrentStarting = (this.currentMapId === this.currentProject.startingMapId);
-    if (this.badgeStartingMap) {
-      this.badgeStartingMap.style.display = isCurrentStarting ? '' : 'none';
+    if (this.iconStartingMap) {
+      this.iconStartingMap.classList.toggle('hidden', !isCurrentStarting);
     }
 
     if (this.modalMapCountBadge) {
@@ -3273,6 +3305,15 @@ class LevelEditor {
       this.btnDeleteMap.disabled = (mapIds.length <= 1);
       this.btnDeleteMap.title = (mapIds.length <= 1) ? 'No se puede eliminar el único mapa' : 'Eliminar este mapa del proyecto';
     }
+  }
+
+  renderProjectDropdown() {
+    if (!this.selectActiveProject) return;
+    const ids = Object.keys(this.projects);
+    this.selectActiveProject.innerHTML = ids.map(id => {
+      const p = this.projects[id];
+      return `<option value="${id}" ${id === this.currentProjectId ? 'selected' : ''}>${p.name || id}</option>`;
+    }).join('');
   }
 
   switchMap(mapId) {
@@ -3629,6 +3670,7 @@ class LevelEditor {
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css">
   <style>
 ${styleCss}
 ${customCss}

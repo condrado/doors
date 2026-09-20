@@ -76,6 +76,17 @@ class RaycasterEngine {
 
     // Caché de segmentos/caras 3D por celda para máximo rendimiento
     this._cellSegmentsCache = null;
+
+    // Configuración de zoom para minimapa / radar centrado
+    // Nivel por defecto: 0 (intermedio / 14px)
+    // Con + amplías a nivel -1 (cercano / 20px)
+    // Con - te alejas a nivel +1 (panorámico / 10px)
+    this.minimapZoomLevel = 0;
+    this.minimapZoomCellSizes = {
+      '-1': 20,
+      '0': 14,
+      '1': 10
+    };
   }
 
   /**
@@ -1562,24 +1573,41 @@ class RaycasterEngine {
     const ctx = this.minimapCtx;
     const cw = this.minimapCanvas.width;
     const ch = this.minimapCanvas.height;
-    const cellSize = cw / this.mapWidth;
+    const centerX = cw / 2;
+    const centerY = ch / 2;
+    const zoomLevel = this.minimapZoomLevel ?? -1;
+    const cellSize = this.minimapZoomCellSizes[zoomLevel] || 20;
 
     ctx.clearRect(0, 0, cw, ch);
+    ctx.save();
 
-    // Dibujar celdas
+    // Fondo del radar (vacío fuera del mapa)
+    ctx.fillStyle = '#080a0f';
+    ctx.fillRect(0, 0, cw, ch);
+
+    // Dibujar celdas relativas a la posición del jugador
     for (let y = 0; y < this.mapHeight; y++) {
       for (let x = 0; x < this.mapWidth; x++) {
-        const val = this.map[y][x];
-        const px = x * cellSize;
-        const py = y * cellSize;
+        const px = Math.round(centerX + (x - player.posX) * cellSize);
+        const py = Math.round(centerY + (y - player.posY) * cellSize);
+
+        // Omitir celdas fuera del campo de visión del minimapa
+        if (px + cellSize < -2 || px > cw + 2 || py + cellSize < -2 || py > ch + 2) {
+          continue;
+        }
 
         // Suelo base de la celda
-        ctx.fillStyle = '#11141c';
-        ctx.fillRect(px, py, cellSize - 1, cellSize - 1);
+        ctx.fillStyle = '#141824';
+        ctx.fillRect(px, py, cellSize, cellSize);
+
+        // Cuadrícula sutil
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(px, py, cellSize, cellSize);
 
         const codes = this.getCellCodes(x, y);
-        const th = Math.max(1, Math.floor(cellSize * 0.10));
-        const thDoor = th;
+        const th = Math.max(2, Math.round(cellSize * 0.12));
+        const thDoor = Math.max(2, Math.round(cellSize * 0.14));
         const dOffset = 0;
 
         for (let s = 0; s < codes.length; s++) {
@@ -1595,7 +1623,7 @@ class RaycasterEngine {
           const doorColor = this.doorInfo[doorType]?.color || '#e5a93b';
           if (isDoor) ctx.fillStyle = doorColor;
           else if (isWin) ctx.fillStyle = '#54a0ff';
-          else ctx.fillStyle = '#636e72';
+          else ctx.fillStyle = '#7a828e';
 
           switch (code) {
             case 'N':
@@ -1662,7 +1690,7 @@ class RaycasterEngine {
               ctx.fillRect(cx0, cy0, (px + cellSize) - cx0, th);
               break;
             }
-            // Puertas Abiertas en Minimapa (Abatidas 90° con grosor de 1/10)
+            // Puertas Abiertas en Minimapa (Abatidas 90° con grosor)
             case 'ODN': {
               ctx.fillStyle = this.doorInfo[2]?.color || '#e74c3c';
               ctx.fillRect(px, py, thDoor, cellSize);
@@ -1688,9 +1716,19 @@ class RaycasterEngine {
       }
     }
 
-    // Dibujar jugador
-    const playerPx = player.posX * cellSize;
-    const playerPy = player.posY * cellSize;
+    // Anillos sutiles de distancia de radar
+    ctx.strokeStyle = 'rgba(79, 163, 227, 0.12)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, cellSize * 1.5, 0, Math.PI * 2);
+    ctx.arc(centerX, centerY, cellSize * 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dibujar jugador en el centro del radar
+    const playerPx = centerX;
+    const playerPy = centerY;
 
     // Cono de visión (FOV)
     const fovLen = cellSize * 2.2;
@@ -1705,10 +1743,10 @@ class RaycasterEngine {
       playerPy + (player.dirY - player.planeY) * fovLen
     );
     ctx.closePath();
-    ctx.fillStyle = 'rgba(0, 210, 211, 0.25)';
+    ctx.fillStyle = 'rgba(0, 210, 211, 0.28)';
     ctx.fill();
 
-    // Línea de visión
+    // Línea de dirección de la mirada
     ctx.beginPath();
     ctx.moveTo(playerPx, playerPy);
     ctx.lineTo(
@@ -1719,14 +1757,45 @@ class RaycasterEngine {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Punto del jugador
+    // Halo y punto del jugador
     ctx.beginPath();
-    ctx.arc(playerPx, playerPy, 4, 0, Math.PI * 2);
+    ctx.arc(playerPx, playerPy, 4.5, 0, Math.PI * 2);
     ctx.fillStyle = '#00d2d3';
     ctx.fill();
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1.5;
     ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(playerPx, playerPy, 1.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  /**
+   * Cambia el nivel de zoom del minimapa (-1, 0, 1)
+   */
+  setMinimapZoom(level) {
+    if (level === -1 || level === 0 || level === 1) {
+      this.minimapZoomLevel = level;
+    }
+    return this.minimapZoomLevel;
+  }
+
+  /**
+   * Alterna de forma circular entre los 3 niveles de zoom: 0 -> -1 -> +1 -> 0
+   */
+  cycleMinimapZoom() {
+    if (this.minimapZoomLevel === 0) {
+      this.minimapZoomLevel = -1;
+    } else if (this.minimapZoomLevel === -1) {
+      this.minimapZoomLevel = 1;
+    } else {
+      this.minimapZoomLevel = 0;
+    }
+    return this.minimapZoomLevel;
   }
 }
 

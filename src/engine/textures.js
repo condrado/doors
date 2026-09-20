@@ -434,6 +434,7 @@ function createCrystalDoorPixels(w = 64, h = 128) {
 const WALL_STYLES = {
   castillo: { label: 'Castillo', wall: createStoneWallPixels, cap: createStoneCapPixels },
   blanca: { label: 'Blanca', wall: createWhiteWallPixels, cap: createWhiteCapPixels },
+  negra: { label: 'Negra', wall: createBlackCapPixels, cap: createBlackCapPixels },
   cristal: { label: 'Cristal', wall: createCrystalWallPixels, cap: createCrystalCapPixels }
 };
 
