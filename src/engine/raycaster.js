@@ -14,8 +14,19 @@ class RaycasterEngine {
     this.width = canvas.width;
     this.height = canvas.height;
     this.halfHeight = Math.floor(this.height / 2);
-    this.textureSize = 64; // 64x64 px por textura
+    this.wallTexWidth = 64; // Paredes 5x15 nativas: ancho 64px
+    this.doorTexWidth = 64; // Puertas 5x10 nativas: ancho 64px
+    this.doorTexHeight = 128; // Altura 128px (sin estirar)
+    this.doorTexSize = 64; // Retrocompatibilidad
+    this.textureSize = 64; // Retrocompatibilidad
     this.textureMode = 'classic'; // 'classic' o 'flat'
+    // Proporción alto/ancho: 1.0 = celda cúbica (1.0m x 1.0m = 5x5 submódulos).
+    // Paredes completas: 5x15 submódulos = 3.0m de altura (192px).
+    // Puertas y vanos: 5x10 submódulos = 2.0m de altura (128px).
+    // Dintel superior: 5x5 submódulos = 1.0m de altura (64px, de 2.0m a 3.0m).
+    // Coincidencia exacta: 64px (dintel) + 128px (puerta) = 192px (pared).
+    this.wallHeightScale = 3.0;
+    this.doorHeightScale = 2.0;
 
     // Mapa de la sala: 7x7 celdas
     // 0: Vacío / Suelo
@@ -75,12 +86,44 @@ class RaycasterEngine {
     if (mapY < 0 || mapY >= this.mapHeight || mapX < 0 || mapX >= this.mapWidth) return [];
     const cell = this.map[mapY][mapX];
     if (!cell || cell === 0) return [];
-    if (Array.isArray(cell)) return cell;
+    if (Array.isArray(cell)) {
+      // Migración al vuelo de códigos centrales obsoletos si vinieran de mapas antiguos
+      return cell.map(c => (c === 'DCH' || c === 'ODCH') ? 'CH' : (c === 'DCV' || c === 'ODCV') ? 'CV' : c);
+    }
     if (cell === 1) return ['N', 'S', 'E', 'W'];
     if (cell >= 2 && cell <= 5) {
       return [(cell === 2) ? 'DN' : (cell === 3) ? 'DE' : (cell === 4) ? 'DS' : 'DW'];
     }
     return [];
+  }
+
+  /**
+   * Comprueba si una celda vecina continúa la pared en la misma línea perimetral.
+   * Retorna: 'wall' (muro/ventana continua), 'door' (puerta cerrada), 'open' (puerta abierta), o null.
+   */
+  getWallConnection(mapX, mapY, edge) {
+    if (mapY < 0 || mapY >= this.mapHeight || mapX < 0 || mapX >= this.mapWidth) return null;
+    const codes = this.getCellCodes(mapX, mapY);
+    if (!codes || codes.length === 0) return null;
+
+    if (edge === 'N') {
+      if (codes.some(c => c === 'N' || c === 'WN')) return 'wall';
+      if (codes.includes('DN')) return 'door';
+      if (codes.includes('ODN')) return 'open';
+    } else if (edge === 'S') {
+      if (codes.some(c => c === 'S' || c === 'WS')) return 'wall';
+      if (codes.includes('DS')) return 'door';
+      if (codes.includes('ODS')) return 'open';
+    } else if (edge === 'W') {
+      if (codes.some(c => c === 'W' || c === 'WW')) return 'wall';
+      if (codes.includes('DW')) return 'door';
+      if (codes.includes('ODW')) return 'open';
+    } else if (edge === 'E') {
+      if (codes.some(c => c === 'E' || c === 'WE')) return 'wall';
+      if (codes.includes('DE')) return 'door';
+      if (codes.includes('ODE')) return 'open';
+    }
+    return null;
   }
 
   /**
@@ -92,7 +135,7 @@ class RaycasterEngine {
 
   /**
    * Abre la puerta en (mapX, mapY) dejándola visible en posición abatida (OD*)
-   * y transitable para el jugador.
+   * y transitable para el jugador. Solo aplicable a puertas perimetrales (N, E, S, W).
    */
   openDoor(mapX, mapY) {
     if (mapY < 0 || mapY >= this.mapHeight || mapX < 0 || mapX >= this.mapWidth) return null;
@@ -116,12 +159,12 @@ class RaycasterEngine {
         doorOpened = true;
       }
     } else if (Array.isArray(cell)) {
-      const doorCodes = ['DN', 'DE', 'DS', 'DW', 'DCH', 'DCV'];
+      const doorCodes = ['DN', 'DE', 'DS', 'DW'];
       const foundDoor = cell.find(code => doorCodes.includes(code));
       if (foundDoor) {
         doorOpened = true;
         const typeLetter = foundDoor.replace('D', '');
-        const doorNum = (typeLetter === 'N' ? 2 : typeLetter === 'E' ? 3 : typeLetter === 'S' ? 4 : typeLetter === 'W' ? 5 : 2);
+        const doorNum = (typeLetter === 'N' ? 2 : typeLetter === 'E' ? 3 : typeLetter === 'S' ? 4 : 5);
         doorName = this.doorInfo[doorNum]?.name || 'Puerta';
         this.openedDoorsOriginalType.set(key, JSON.parse(JSON.stringify(cell)));
         this.map[mapY][mapX] = cell.map(c => c === foundDoor ? ('OD' + typeLetter) : c);
@@ -163,8 +206,8 @@ class RaycasterEngine {
       if (typeof original === 'number') {
         doorName = this.doorInfo[original]?.name || 'Puerta';
       } else if (Array.isArray(original)) {
-        const dCode = original.find(c => ['DN', 'DE', 'DS', 'DW', 'DCH', 'DCV'].includes(c));
-        const num = dCode === 'DN' ? 2 : dCode === 'DE' ? 3 : dCode === 'DS' ? 4 : dCode === 'DW' ? 5 : 2;
+        const dCode = original.find(c => ['DN', 'DE', 'DS', 'DW'].includes(c));
+        const num = dCode === 'DN' ? 2 : dCode === 'DE' ? 3 : dCode === 'DS' ? 4 : 5;
         doorName = this.doorInfo[num]?.name || 'Puerta';
       }
     } else {
@@ -196,10 +239,6 @@ class RaycasterEngine {
         return (px + pRad >= x0 && px - pRad <= x0 + 0.25 && py >= y0 - 0.1 && py <= y1 + 0.1);
       case 'ODE':
         return (px + pRad >= x1 - 0.25 && px - pRad <= x1 && py >= y0 - 0.1 && py <= y1 + 0.1);
-      case 'ODCH':
-        return (py + pRad >= y0 + 0.35 && py - pRad <= y0 + 0.65 && px >= x0 - 0.1 && px <= x1 + 0.1);
-      case 'ODCV':
-        return (px + pRad >= x0 + 0.35 && px - pRad <= x0 + 0.65 && py >= y0 - 0.1 && py <= y1 + 0.1);
       default:
         return false;
     }
@@ -237,7 +276,7 @@ class RaycasterEngine {
       if (frontX >= 0 && frontX < this.mapWidth && frontY >= 0 && frontY < this.mapHeight) {
         const cell = this.map[frontY][frontX];
         const isNumDoor = typeof cell === 'number' && cell >= 2 && cell <= 5;
-        const isArrClosed = Array.isArray(cell) && cell.some(c => ['DN', 'DE', 'DS', 'DW', 'DCH', 'DCV'].includes(c));
+        const isArrClosed = Array.isArray(cell) && cell.some(c => ['DN', 'DE', 'DS', 'DW'].includes(c));
         const isArrOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
 
         if (isArrOpen) {
@@ -333,345 +372,522 @@ class RaycasterEngine {
       return faces;
     }
 
-    // 1. RINCONES EN EL CENTRO (EN FORMA DE L CON GROSOR 0.20)
-    // -------------------------------------------------------------
-    if (has('CN') && has('CW')) { // Rincón Centro Noroeste ┌
-      const styleCN = styleOf('CN');
-      const styleCW = styleOf('CW');
+    // 1. PUERTAS CERRADAS (DN, DS, DW, DE)
+    if (has('DN')) {
+      const type = 2;
+      const name = 'Puerta Norte';
+      const style = styleOf('DN');
+      const lintelStyle = styleOf('DN_lintel');
+      const westConn = this.getWallConnection(mapX - 1, mapY, 'N');
+      const eastConn = this.getWallConnection(mapX + 1, mapY, 'N');
+
       faces.push(
-        { axis: 'x', pos: cxB, minY: y0, maxY: cyB, type: 1, name: 'Rincón (Exterior Este)', style: styleCN },
-        { axis: 'y', pos: cyB, minX: x0, maxX: cxB, type: 1, name: 'Rincón (Exterior Sur)', style: styleCW },
-        { axis: 'x', pos: cxA, minY: y0, maxY: cyA, type: 1, name: 'Rincón (Interior Oeste)', style: styleCN },
-        { axis: 'y', pos: cyA, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Norte)', style: styleCW },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style: styleCN },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style: styleCW }
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style, lintelStyle },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style, lintelStyle }
       );
-      return faces;
+      if (!westConn) {
+        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Oeste', style, lintelStyle });
+      } else if (westConn === 'open') {
+        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, isJamb: true, name: 'Jamba Oeste', style, lintelStyle });
+      }
+      if (!eastConn) {
+        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Este', style, lintelStyle });
+      } else if (eastConn === 'open') {
+        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, isJamb: true, name: 'Jamba Este', style, lintelStyle });
+      }
+      faces.push(
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Norte', style: lintelStyle },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Norte', style: lintelStyle }
+      );
+      if (!westConn) {
+        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Oeste', style: lintelStyle });
+      }
+      if (!eastConn) {
+        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Este', style: lintelStyle });
+      }
     }
 
-    if (has('CN') && has('CE')) { // Rincón Centro Noreste ┐
-      const styleCN = styleOf('CN');
-      const styleCE = styleOf('CE');
+    if (has('DS')) {
+      const type = 4;
+      const name = 'Puerta Sur';
+      const style = styleOf('DS');
+      const lintelStyle = styleOf('DS_lintel');
+      const westConn = this.getWallConnection(mapX - 1, mapY, 'S');
+      const eastConn = this.getWallConnection(mapX + 1, mapY, 'S');
+
       faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: cyB, type: 1, name: 'Rincón (Exterior Oeste)', style: styleCN },
-        { axis: 'y', pos: cyB, minX: cxA, maxX: x1, type: 1, name: 'Rincón (Exterior Sur)', style: styleCE },
-        { axis: 'x', pos: cxB, minY: y0, maxY: cyA, type: 1, name: 'Rincón (Interior Este)', style: styleCN },
-        { axis: 'y', pos: cyA, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Norte)', style: styleCE },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style: styleCN },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style: styleCE }
+        { axis: 'y', pos: syA, minX: x0, maxX: x1, type, name, style, lintelStyle },
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type, name, style, lintelStyle }
       );
-      return faces;
+      if (!westConn) {
+        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 11, isCap: true, name: 'Canto Oeste', style, lintelStyle });
+      } else if (westConn === 'open') {
+        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, isJamb: true, name: 'Jamba Oeste', style, lintelStyle });
+      }
+      if (!eastConn) {
+        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 11, isCap: true, name: 'Canto Este', style, lintelStyle });
+      } else if (eastConn === 'open') {
+        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, isJamb: true, name: 'Jamba Este', style, lintelStyle });
+      }
+      faces.push(
+        { axis: 'y', pos: syA, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Sur', style: lintelStyle },
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Sur', style: lintelStyle }
+      );
+      if (!westConn) {
+        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Oeste', style: lintelStyle });
+      }
+      if (!eastConn) {
+        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Este', style: lintelStyle });
+      }
     }
 
-    if (has('CS') && has('CW')) { // Rincón Centro Suroeste └
-      const styleCS = styleOf('CS');
-      const styleCW = styleOf('CW');
+    if (has('DW')) {
+      const type = 5;
+      const name = 'Puerta Oeste';
+      const style = styleOf('DW');
+      const lintelStyle = styleOf('DW_lintel');
+      const northConn = this.getWallConnection(mapX, mapY - 1, 'W');
+      const southConn = this.getWallConnection(mapX, mapY + 1, 'W');
+
       faces.push(
-        { axis: 'x', pos: cxB, minY: cyA, maxY: y1, type: 1, name: 'Rincón (Exterior Este)', style: styleCS },
-        { axis: 'y', pos: cyA, minX: x0, maxX: cxB, type: 1, name: 'Rincón (Exterior Norte)', style: styleCW },
-        { axis: 'x', pos: cxA, minY: cyB, maxY: y1, type: 1, name: 'Rincón (Interior Oeste)', style: styleCS },
-        { axis: 'y', pos: cyB, minX: x0, maxX: cxA, type: 1, name: 'Rincón (Interior Sur)', style: styleCW },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style: styleCS },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style: styleCW }
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style, lintelStyle },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style, lintelStyle }
       );
-      return faces;
+      if (!northConn) {
+        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Norte', style, lintelStyle });
+      } else if (northConn === 'open') {
+        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, isJamb: true, name: 'Jamba Norte', style, lintelStyle });
+      }
+      if (!southConn) {
+        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Sur', style, lintelStyle });
+      } else if (southConn === 'open') {
+        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, isJamb: true, name: 'Jamba Sur', style, lintelStyle });
+      }
+      faces.push(
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Oeste', style: lintelStyle },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Oeste', style: lintelStyle }
+      );
+      if (!northConn) {
+        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Norte', style: lintelStyle });
+      }
+      if (!southConn) {
+        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Sur', style: lintelStyle });
+      }
     }
 
-    if (has('CS') && has('CE')) { // Rincón Centro Sureste ┘
-      const styleCS = styleOf('CS');
-      const styleCE = styleOf('CE');
+    if (has('DE')) {
+      const type = 3;
+      const name = 'Puerta Este';
+      const style = styleOf('DE');
+      const lintelStyle = styleOf('DE_lintel');
+      const northConn = this.getWallConnection(mapX, mapY - 1, 'E');
+      const southConn = this.getWallConnection(mapX, mapY + 1, 'E');
+
       faces.push(
-        { axis: 'x', pos: cxA, minY: cyA, maxY: y1, type: 1, name: 'Rincón (Exterior Oeste)', style: styleCS },
-        { axis: 'y', pos: cyA, minX: cxA, maxX: x1, type: 1, name: 'Rincón (Exterior Norte)', style: styleCE },
-        { axis: 'x', pos: cxB, minY: cyB, maxY: y1, type: 1, name: 'Rincón (Interior Este)', style: styleCS },
-        { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Rincón (Interior Sur)', style: styleCE },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style: styleCS },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style: styleCE }
+        { axis: 'x', pos: exA, minY: y0, maxY: y1, type, name, style, lintelStyle },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type, name, style, lintelStyle }
       );
-      return faces;
+      if (!northConn) {
+        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 11, isCap: true, name: 'Canto Norte', style, lintelStyle });
+      } else if (northConn === 'open') {
+        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, isJamb: true, name: 'Jamba Norte', style, lintelStyle });
+      }
+      if (!southConn) {
+        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 11, isCap: true, name: 'Canto Sur', style, lintelStyle });
+      } else if (southConn === 'open') {
+        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, isJamb: true, name: 'Jamba Sur', style, lintelStyle });
+      }
+      faces.push(
+        { axis: 'x', pos: exA, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Este', style: lintelStyle },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Este', style: lintelStyle }
+      );
+      if (!northConn) {
+        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Norte', style: lintelStyle });
+      }
+      if (!southConn) {
+        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Sur', style: lintelStyle });
+      }
     }
 
-    // 2. CRUCE CENTRAL (H + V)
-    // -------------------------------------------------------------
-    if (has('CH') && has('CV')) {
-      const styleCH = styleOf('CH');
-      const styleCV = styleOf('CV');
-      faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: cyA, type: 1, name: 'Cruce (NO-V)', style: styleCV },
-        { axis: 'y', pos: cyA, minX: x0, maxX: cxA, type: 1, name: 'Cruce (NO-H)', style: styleCH },
-        { axis: 'x', pos: cxB, minY: y0, maxY: cyA, type: 1, name: 'Cruce (NE-V)', style: styleCV },
-        { axis: 'y', pos: cyA, minX: cxB, maxX: x1, type: 1, name: 'Cruce (NE-H)', style: styleCH },
-        { axis: 'x', pos: cxA, minY: cyB, maxY: y1, type: 1, name: 'Cruce (SO-V)', style: styleCV },
-        { axis: 'y', pos: cyB, minX: x0, maxX: cxA, type: 1, name: 'Cruce (SO-H)', style: styleCH },
-        { axis: 'x', pos: cxB, minY: cyB, maxY: y1, type: 1, name: 'Cruce (SE-V)', style: styleCV },
-        { axis: 'y', pos: cyB, minX: cxB, maxX: x1, type: 1, name: 'Cruce (SE-H)', style: styleCH },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style: styleCV },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style: styleCV },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style: styleCH },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style: styleCH }
-      );
-      return faces;
+    // 2. MODELO DE SUBGRIS 5x5 PARA TODAS LAS PAREDES (ORDEN DE COLOCACIÓN ESTRICTO)
+    // Coordenadas submétricas de los 5 intervalos (0.20 cada uno)
+    const xCoords = [x0, x0 + 0.20, x0 + 0.40, x0 + 0.60, x0 + 0.80, x1];
+    const yCoords = [y0, y0 + 0.20, y0 + 0.40, y0 + 0.60, y0 + 0.80, y1];
+
+    const WALL_FOOTPRINTS = {
+      'N':   { r0: 0, r1: 0, c0: 0, c1: 4, axis: 'H', edge: 'N' },
+      'S':   { r0: 4, r1: 4, c0: 0, c1: 4, axis: 'H', edge: 'S' },
+      'W':   { r0: 0, r1: 4, c0: 0, c1: 0, axis: 'V', edge: 'W' },
+      'E':   { r0: 0, r1: 4, c0: 4, c1: 4, axis: 'V', edge: 'E' },
+      'CH':  { r0: 2, r1: 2, c0: 0, c1: 4, axis: 'H' },
+      'CV':  { r0: 0, r1: 4, c0: 2, c1: 2, axis: 'V' },
+      'CN':  { r0: 0, r1: 2, c0: 2, c1: 2, axis: 'V' },
+      'CS':  { r0: 2, r1: 4, c0: 2, c1: 2, axis: 'V' },
+      'CW':  { r0: 2, r1: 2, c0: 0, c1: 2, axis: 'H' },
+      'CE':  { r0: 2, r1: 2, c0: 2, c1: 4, axis: 'H' },
+      'RNW': { r0: 0, r1: 0, c0: 0, c1: 0, isCorner1x1: true },
+      'RNE': { r0: 0, r1: 0, c0: 4, c1: 4, isCorner1x1: true },
+      'RSW': { r0: 4, r1: 4, c0: 0, c1: 0, isCorner1x1: true },
+      'RSE': { r0: 4, r1: 4, c0: 4, c1: 4, isCorner1x1: true },
+      'WN':  { r0: 0, r1: 0, c0: 0, c1: 4, axis: 'H', isWin: true, edge: 'N' },
+      'WS':  { r0: 4, r1: 4, c0: 0, c1: 4, axis: 'H', isWin: true, edge: 'S' },
+      'WW':  { r0: 0, r1: 4, c0: 0, c1: 0, axis: 'V', isWin: true, edge: 'W' },
+      'WE':  { r0: 0, r1: 4, c0: 4, c1: 4, axis: 'V', isWin: true, edge: 'E' },
+      'WCH': { r0: 2, r1: 2, c0: 0, c1: 4, axis: 'H', isWin: true },
+      'WCV': { r0: 0, r1: 4, c0: 2, c1: 2, axis: 'V', isWin: true },
+    };
+
+    const expandedCodes = [];
+    const cornerMap = {
+      'corner_FULL_BOX': ['N', 'S', 'E', 'W'],
+      'corner_NW': ['N', 'W'],
+      'corner_NE': ['N', 'E'],
+      'corner_SW': ['S', 'W'],
+      'corner_SE': ['S', 'E'],
+      'corner_CH_W': ['CH', 'W'],
+      'corner_CH_E': ['CH', 'E'],
+      'corner_CV_N': ['CV', 'N'],
+      'corner_CV_S': ['CV', 'S'],
+      'corner_CH_W_full': ['CH', 'W'],
+      'corner_CH_E_full': ['CH', 'E'],
+      'corner_CENTER_CROSS': ['CH', 'CV'],
+      'corner_CENTER_NW': ['CN', 'CW'],
+      'corner_CENTER_NE': ['CN', 'CE'],
+      'corner_CENTER_SW': ['CS', 'CW'],
+      'corner_CENTER_SE': ['CS', 'CE'],
+      'corner_T_INT_N': ['CH', 'CN'],
+      'corner_T_INT_S': ['CH', 'CS'],
+      'corner_T_INT_W': ['CV', 'CW'],
+      'corner_T_INT_E': ['CV', 'CE']
+    };
+    for (const c of codes) {
+      if (cornerMap[c]) {
+        expandedCodes.push(...cornerMap[c]);
+      } else {
+        expandedCodes.push(c);
+      }
     }
 
-    // 3. TABIQUES, PUERTAS O VENTANAS COMPLETAS
-    // -------------------------------------------------------------
-    if (has('CH') || has('DCH') || has('WCH')) {
-      const isDoor = has('DCH');
-      const isWin = has('WCH');
-      const type = isDoor ? 2 : isWin ? 6 : 1;
-      const name = isDoor ? 'Puerta Central' : isWin ? 'Ventana Central' : 'Pared Central (N)';
-      const style = styleOf(isDoor ? 'DCH' : isWin ? 'WCH' : 'CH');
-      faces.push(
-        { axis: 'y', pos: cyA, minX: x0, maxX: x1, type, name, style },
-        { axis: 'y', pos: cyB, minX: x0, maxX: x1, type, name, style },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Oeste', style },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Este', style }
-      );
+    const subgrid = Array.from({ length: 5 }, () => new Array(5).fill(null));
+
+    // Si hay puertas cerradas o abiertas, marcar su huella para que los muros se conecten a ella
+    if (has('DN') || has('ODN')) {
+      for (let c = 0; c < 5; c++) subgrid[0][c] = { isDoor: true, axis: 'H' };
+    }
+    if (has('DS') || has('ODS')) {
+      for (let c = 0; c < 5; c++) subgrid[4][c] = { isDoor: true, axis: 'H' };
+    }
+    if (has('DW') || has('ODW')) {
+      for (let r = 0; r < 5; r++) subgrid[r][0] = { isDoor: true, axis: 'V' };
+    }
+    if (has('DE') || has('ODE')) {
+      for (let r = 0; r < 5; r++) subgrid[r][4] = { isDoor: true, axis: 'V' };
     }
 
-    if (has('CV') || has('DCV') || has('WCV')) {
-      const isDoor = has('DCV');
-      const isWin = has('WCV');
-      const type = isDoor ? 3 : isWin ? 6 : 1;
-      const name = isDoor ? 'Puerta Central' : isWin ? 'Ventana Central' : 'Pared Central (O)';
-      const style = styleOf(isDoor ? 'DCV' : isWin ? 'WCV' : 'CV');
-      faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: y1, type, name, style },
-        { axis: 'x', pos: cxB, minY: y0, maxY: y1, type, name, style },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Norte', style },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Sur', style }
-      );
+    // Pintar cada pieza en el orden de colocación (la última pisa a las anteriores)
+    for (const code of expandedCodes) {
+      const fp = WALL_FOOTPRINTS[code];
+      if (!fp) continue;
+      const style = styleOf(code);
+      for (let r = fp.r0; r <= fp.r1; r++) {
+        for (let c = fp.c0; c <= fp.c1; c++) {
+          subgrid[r][c] = {
+            code,
+            style,
+            isWin: !!fp.isWin,
+            axis: fp.axis,
+            isCorner1x1: !!fp.isCorner1x1,
+            edge: fp.edge
+          };
+        }
+      }
     }
 
-    // Semiramas aisladas o conectadas en T
-    if (has('CN') && !has('CW') && !has('CE')) {
-      const endY = has('CH') ? cyA : cyB;
-      const style = styleOf('CN');
-      faces.push(
-        { axis: 'x', pos: cxA, minY: y0, maxY: endY, type: 1, name: 'Muro CN (O)', style },
-        { axis: 'x', pos: cxB, minY: y0, maxY: endY, type: 1, name: 'Muro CN (E)', style },
-        { axis: 'y', pos: y0, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style },
-        { axis: 'y', pos: cyB, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style }
-      );
-    }
-    if (has('CS') && !has('CW') && !has('CE')) {
-      const startY = has('CH') ? cyB : cyA;
-      const style = styleOf('CS');
-      faces.push(
-        { axis: 'x', pos: cxA, minY: startY, maxY: y1, type: 1, name: 'Muro CS (O)', style },
-        { axis: 'x', pos: cxB, minY: startY, maxY: y1, type: 1, name: 'Muro CS (E)', style },
-        { axis: 'y', pos: y1, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Sur', style },
-        { axis: 'y', pos: cyA, minX: cxA, maxX: cxB, type: 10, isCap: true, name: 'Canto Norte', style }
-      );
-    }
-    if (has('CW') && !has('CN') && !has('CS')) {
-      const endX = has('CV') ? cxA : cxB;
-      const style = styleOf('CW');
-      faces.push(
-        { axis: 'y', pos: cyA, minX: x0, maxX: endX, type: 1, name: 'Muro CW (N)', style },
-        { axis: 'y', pos: cyB, minX: x0, maxX: endX, type: 1, name: 'Muro CW (S)', style },
-        { axis: 'x', pos: x0, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style },
-        { axis: 'x', pos: cxB, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style }
-      );
-    }
-    if (has('CE') && !has('CN') && !has('CS')) {
-      const startX = has('CV') ? cxB : cxA;
-      const style = styleOf('CE');
-      faces.push(
-        { axis: 'y', pos: cyA, minX: startX, maxX: x1, type: 1, name: 'Muro CE (N)', style },
-        { axis: 'y', pos: cyB, minX: startX, maxX: x1, type: 1, name: 'Muro CE (S)', style },
-        { axis: 'x', pos: x1, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Este', style },
-        { axis: 'x', pos: cxA, minY: cyA, maxY: cyB, type: 10, isCap: true, name: 'Canto Oeste', style }
-      );
+    // Generar caras horizontales (eje 'y' en k = 0..5)
+    for (let k = 0; k <= 5; k++) {
+      let currentSeg = null;
+
+      for (let c = 0; c < 5; c++) {
+        const above = (k > 0) ? subgrid[k - 1][c] : null;
+        const below = (k < 5) ? subgrid[k][c] : null;
+
+        // Si ambos están ocupados (muro continuo) o ambos vacíos: no hay cara
+        if ((above !== null && below !== null) || (above === null && below === null)) {
+          if (currentSeg) {
+            faces.push(currentSeg);
+            currentSeg = null;
+          }
+          continue;
+        }
+
+        const owner = above || below;
+        if (owner.isDoor) {
+          if (currentSeg) {
+            faces.push(currentSeg);
+            currentSeg = null;
+          }
+          continue;
+        }
+
+        let isCap = false;
+        let type = owner.isWin ? 6 : 1;
+
+        if (k === 0 && owner.axis === 'V') {
+          isCap = true;
+          type = 10;
+        } else if (k === 5 && owner.axis === 'V') {
+          isCap = true;
+          type = 10;
+        }
+
+        // Si es canto en el borde exterior y hay pared vecina continuando, no generar canto ciego
+        if (isCap) {
+          if (k === 0 && c === 0) {
+            const conn = this.getWallConnection(mapX, mapY - 1, 'W');
+            if (conn === 'wall') continue;
+          } else if (k === 0 && c === 4) {
+            const conn = this.getWallConnection(mapX, mapY - 1, 'E');
+            if (conn === 'wall') continue;
+          } else if (k === 5 && c === 0) {
+            const conn = this.getWallConnection(mapX, mapY + 1, 'W');
+            if (conn === 'wall') continue;
+          } else if (k === 5 && c === 4) {
+            const conn = this.getWallConnection(mapX, mapY + 1, 'E');
+            if (conn === 'wall') continue;
+          }
+        }
+
+        const segMinX = xCoords[c];
+        const segMaxX = xCoords[c + 1];
+
+        if (
+          currentSeg &&
+          currentSeg.pos === yCoords[k] &&
+          currentSeg.type === type &&
+          currentSeg.style === owner.style &&
+          currentSeg.isCap === isCap &&
+          Math.abs(currentSeg.maxX - segMinX) < 1e-5
+        ) {
+          currentSeg.maxX = segMaxX;
+        } else {
+          if (currentSeg) faces.push(currentSeg);
+          currentSeg = {
+            axis: 'y',
+            pos: yCoords[k],
+            minX: segMinX,
+            maxX: segMaxX,
+            type,
+            style: owner.style,
+            isCap,
+            name: isCap ? (k === 0 ? 'Canto Norte' : 'Canto Sur') : 'Pared (H)'
+          };
+        }
+      }
+
+      if (currentSeg) {
+        faces.push(currentSeg);
+      }
     }
 
-    // 4. ESQUINAS EN BORDES (NW, NE, SW, SE)
-    // -------------------------------------------------------------
-    if (has('N') && has('W') && !has('S') && !has('E')) {
-      const styleN = styleOf('N');
-      const styleW = styleOf('W');
-      faces.push(
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NO (N)', style: styleN },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina NO (O)', style: styleW },
-        { axis: 'y', pos: nyB, minX: wxB, maxX: x1, type: 1, name: 'Esquina NO (S)', style: styleN },
-        { axis: 'x', pos: wxB, minY: nyB, maxY: y1, type: 1, name: 'Esquina NO (E)', style: styleW },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Este', style: styleN },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Sur', style: styleW }
-      );
-      return faces;
-    }
-    if (has('N') && has('E') && !has('S') && !has('W')) {
-      const styleN = styleOf('N');
-      const styleE = styleOf('E');
-      faces.push(
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, name: 'Esquina NE (N)', style: styleN },
-        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina NE (E)', style: styleE },
-        { axis: 'y', pos: nyB, minX: x0, maxX: exA, type: 1, name: 'Esquina NE (S)', style: styleN },
-        { axis: 'x', pos: exA, minY: nyB, maxY: y1, type: 1, name: 'Esquina NE (O)', style: styleE },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, name: 'Canto Oeste', style: styleN },
-        { axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Sur', style: styleE }
-      );
-      return faces;
-    }
-    if (has('S') && has('W') && !has('N') && !has('E')) {
-      const styleS = styleOf('S');
-      const styleW = styleOf('W');
-      faces.push(
-        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SO (S)', style: styleS },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, name: 'Esquina SO (O)', style: styleW },
-        { axis: 'y', pos: syA, minX: wxB, maxX: x1, type: 1, name: 'Esquina SO (N)', style: styleS },
-        { axis: 'x', pos: wxB, minY: y0, maxY: syA, type: 1, name: 'Esquina SO (E)', style: styleW },
-        { axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Este', style: styleS },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, name: 'Canto Norte', style: styleW }
-      );
-      return faces;
-    }
-    if (has('S') && has('E') && !has('N') && !has('W')) {
-      const styleS = styleOf('S');
-      const styleE = styleOf('E');
-      faces.push(
-        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, name: 'Esquina SE (S)', style: styleS },
-        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, name: 'Esquina SE (E)', style: styleE },
-        { axis: 'y', pos: syA, minX: x0, maxX: exA, type: 1, name: 'Esquina SE (N)', style: styleS },
-        { axis: 'x', pos: exA, minY: y0, maxY: syA, type: 1, name: 'Esquina SE (O)', style: styleE },
-        { axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, name: 'Canto Oeste', style: styleS },
-        { axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, name: 'Canto Norte', style: styleE }
-      );
-      return faces;
-    }
+    // Generar caras verticales (eje 'x' en k = 0..5)
+    for (let k = 0; k <= 5; k++) {
+      let currentSeg = null;
 
-    // 5. MUROS, PUERTAS Y VENTANAS EN BORDES SUELTOS O COMBINADOS
-    // -------------------------------------------------------------
-    if (has('N') || has('DN') || has('WN')) {
-      const isDoor = has('DN');
-      const isWin = has('WN');
-      const type = isDoor ? 2 : isWin ? 6 : 1;
-      const name = isDoor ? 'Puerta Norte' : isWin ? 'Ventana Norte' : 'Pared Norte';
-      const style = styleOf(isDoor ? 'DN' : isWin ? 'WN' : 'N');
-      faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Oeste', style },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Este', style }
-      );
-    }
+      for (let r = 0; r < 5; r++) {
+        const left = (k > 0) ? subgrid[r][k - 1] : null;
+        const right = (k < 5) ? subgrid[r][k] : null;
 
-    if (has('S') || has('DS') || has('WS')) {
-      const isDoor = has('DS');
-      const isWin = has('WS');
-      const type = isDoor ? 4 : isWin ? 6 : 1;
-      const name = isDoor ? 'Puerta Sur' : isWin ? 'Ventana Sur' : 'Pared Sur';
-      const style = styleOf(isDoor ? 'DS' : isWin ? 'WS' : 'S');
-      faces.push(
-        { axis: 'y', pos: syA, minX: x0, maxX: x1, type, name, style },
-        { axis: 'y', pos: syB, minX: x0, maxX: x1, type, name, style },
-        { axis: 'x', pos: x0, minY: syA, maxY: syB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Oeste', style },
-        { axis: 'x', pos: x1, minY: syA, maxY: syB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Este', style }
-      );
-    }
+        if ((left !== null && right !== null) || (left === null && right === null)) {
+          if (currentSeg) {
+            faces.push(currentSeg);
+            currentSeg = null;
+          }
+          continue;
+        }
 
-    if (has('W') || has('DW') || has('WW')) {
-      const isDoor = has('DW');
-      const isWin = has('WW');
-      const type = isDoor ? 5 : isWin ? 6 : 1;
-      const name = isDoor ? 'Puerta Oeste' : isWin ? 'Ventana Oeste' : 'Pared Oeste';
-      const style = styleOf(isDoor ? 'DW' : isWin ? 'WW' : 'W');
-      faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Norte', style },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Sur', style }
-      );
-    }
+        const owner = left || right;
+        if (owner.isDoor) {
+          if (currentSeg) {
+            faces.push(currentSeg);
+            currentSeg = null;
+          }
+          continue;
+        }
 
-    if (has('E') || has('DE') || has('WE')) {
-      const isDoor = has('DE');
-      const isWin = has('WE');
-      const type = isDoor ? 3 : isWin ? 6 : 1;
-      const name = isDoor ? 'Puerta Este' : isWin ? 'Ventana Este' : 'Pared Este';
-      const style = styleOf(isDoor ? 'DE' : isWin ? 'WE' : 'E');
-      faces.push(
-        { axis: 'x', pos: exA, minY: y0, maxY: y1, type, name, style },
-        { axis: 'x', pos: exB, minY: y0, maxY: y1, type, name, style },
-        { axis: 'y', pos: y0, minX: exA, maxX: exB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Norte', style },
-        { axis: 'y', pos: y1, minX: exA, maxX: exB, type: isDoor ? 11 : 10, isCap: true, name: 'Canto Sur', style }
-      );
+        let isCap = false;
+        let type = owner.isWin ? 6 : 1;
+
+        if (k === 0 && owner.axis === 'H') {
+          isCap = true;
+          type = 10;
+        } else if (k === 5 && owner.axis === 'H') {
+          isCap = true;
+          type = 10;
+        }
+
+        // Si es canto en el borde exterior y hay pared vecina continuando, no generar canto ciego
+        if (isCap) {
+          if (k === 0 && r === 0) {
+            const conn = this.getWallConnection(mapX - 1, mapY, 'N');
+            if (conn === 'wall') continue;
+          } else if (k === 0 && r === 4) {
+            const conn = this.getWallConnection(mapX - 1, mapY, 'S');
+            if (conn === 'wall') continue;
+          } else if (k === 5 && r === 0) {
+            const conn = this.getWallConnection(mapX + 1, mapY, 'N');
+            if (conn === 'wall') continue;
+          } else if (k === 5 && r === 4) {
+            const conn = this.getWallConnection(mapX + 1, mapY, 'S');
+            if (conn === 'wall') continue;
+          }
+        }
+
+        const segMinY = yCoords[r];
+        const segMaxY = yCoords[r + 1];
+
+        if (
+          currentSeg &&
+          currentSeg.pos === xCoords[k] &&
+          currentSeg.type === type &&
+          currentSeg.style === owner.style &&
+          currentSeg.isCap === isCap &&
+          Math.abs(currentSeg.maxY - segMinY) < 1e-5
+        ) {
+          currentSeg.maxY = segMaxY;
+        } else {
+          if (currentSeg) faces.push(currentSeg);
+          currentSeg = {
+            axis: 'x',
+            pos: xCoords[k],
+            minY: segMinY,
+            maxY: segMaxY,
+            type,
+            style: owner.style,
+            isCap,
+            name: isCap ? (k === 0 ? 'Canto Oeste' : 'Canto Este') : 'Pared (V)'
+          };
+        }
+      }
+
+      if (currentSeg) {
+        faces.push(currentSeg);
+      }
     }
 
     // 6. PUERTAS ABIERTAS (HOJA ABATIDA A 90° CON DIMENSIONES IDÉNTICAS A CERRADA: 1.0x0.20)
-    // El estilo se toma del código de la puerta CERRADA correspondiente (DN, DS...),
-    // que es donde el Editor guardó con qué pincel se colocó esa puerta.
+    // El estilo (y el estilo de dintel) se toma del código de la puerta CERRADA
     // --------------------------------------------------------------------------------------
     if (has('ODN')) {
       const type = 2;
       const name = 'Puerta Norte [N] (Abierta)';
       const style = styleOf('DN');
+      const lintelStyleN = styleOf('DN_lintel');
+      const westConn = this.getWallConnection(mapX - 1, mapY, 'N');
+      const eastConn = this.getWallConnection(mapX + 1, mapY, 'N');
+
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style }
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleN },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleN },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleN },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleN }
       );
+      // Dintel en el vano original que queda despejado para el paso del jugador
+      faces.push(
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Norte', style: lintelStyleN },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Norte', style: lintelStyleN }
+      );
+      if (!westConn) {
+        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Oeste', style: lintelStyleN });
+        faces.push({ axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 10, isCap: true, isJamb: true, name: 'Jamba Oeste', style: lintelStyleN });
+      }
+      if (!eastConn) {
+        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Este', style: lintelStyleN });
+        faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, isJamb: true, name: 'Jamba Este', style: lintelStyleN });
+      }
     }
 
     if (has('ODS')) {
       const type = 4;
       const name = 'Puerta Sur [S] (Abierta)';
       const style = styleOf('DS');
+      const lintelStyleS = styleOf('DS_lintel');
+      const westConn = this.getWallConnection(mapX - 1, mapY, 'S');
+      const eastConn = this.getWallConnection(mapX + 1, mapY, 'S');
+
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style }
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleS },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleS },
+        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleS },
+        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleS }
       );
+      faces.push(
+        { axis: 'y', pos: syA, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Sur', style: lintelStyleS },
+        { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Sur', style: lintelStyleS }
+      );
+      if (!westConn) {
+        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Oeste', style: lintelStyleS });
+        faces.push({ axis: 'x', pos: x0, minY: syA, maxY: syB, type: 10, isCap: true, isJamb: true, name: 'Jamba Oeste', style: lintelStyleS });
+      }
+      if (!eastConn) {
+        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Este', style: lintelStyleS });
+        faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, isJamb: true, name: 'Jamba Este', style: lintelStyleS });
+      }
     }
 
     if (has('ODW')) {
       const type = 5;
       const name = 'Puerta Oeste [O] (Abierta)';
       const style = styleOf('DW');
+      const lintelStyleW = styleOf('DW_lintel');
+      const northConn = this.getWallConnection(mapX, mapY - 1, 'W');
+      const southConn = this.getWallConnection(mapX, mapY + 1, 'W');
+
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style }
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleW },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleW },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleW },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleW }
       );
+      faces.push(
+        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Oeste', style: lintelStyleW },
+        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Oeste', style: lintelStyleW }
+      );
+      if (!northConn) {
+        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Norte', style: lintelStyleW });
+        faces.push({ axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 10, isCap: true, isJamb: true, name: 'Jamba Norte', style: lintelStyleW });
+      }
+      if (!southConn) {
+        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Sur', style: lintelStyleW });
+        faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, isJamb: true, name: 'Jamba Sur', style: lintelStyleW });
+      }
     }
 
     if (has('ODE')) {
       const type = 3;
       const name = 'Puerta Este [E] (Abierta)';
       const style = styleOf('DE');
-      faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style }
-      );
-    }
+      const lintelStyleE = styleOf('DE_lintel');
+      const northConn = this.getWallConnection(mapX, mapY - 1, 'E');
+      const southConn = this.getWallConnection(mapX, mapY + 1, 'E');
 
-    if (has('ODCH')) {
-      const type = 2;
-      const name = 'Puerta Central (Abierta)';
-      const style = styleOf('DCH');
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta', style }
+        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleE },
+        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleE },
+        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleE },
+        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleE }
       );
-    }
-
-    if (has('ODCV')) {
-      const type = 3;
-      const name = 'Puerta Central (Abierta)';
-      const style = styleOf('DCV');
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta', style }
+        { axis: 'x', pos: exA, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Este', style: lintelStyleE },
+        { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Este', style: lintelStyleE }
       );
+      if (!northConn) {
+        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Norte', style: lintelStyleE });
+        faces.push({ axis: 'y', pos: y0, minX: exA, maxX: exB, type: 10, isCap: true, isJamb: true, name: 'Jamba Norte', style: lintelStyleE });
+      }
+      if (!southConn) {
+        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, isLintelOnly: true, name: 'Canto Dintel Sur', style: lintelStyleE });
+        faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, isJamb: true, name: 'Jamba Sur', style: lintelStyleE });
+      }
     }
 
     return faces;
@@ -688,8 +904,8 @@ class RaycasterEngine {
     this.textures[1] = {};
     this.textures[10] = {};
     Object.keys(WALL_STYLES).forEach(style => {
-      this.textures[1][style] = WALL_STYLES[style].wall(this.textureSize);
-      this.textures[10][style] = WALL_STYLES[style].cap(this.textureSize);
+      this.textures[1][style] = WALL_STYLES[style].wall(64, 192);
+      this.textures[10][style] = WALL_STYLES[style].cap(64, 192);
     });
 
     this.textures[2] = {};
@@ -699,13 +915,13 @@ class RaycasterEngine {
     this.textures[11] = {};
     Object.keys(DOOR_STYLES).forEach(style => {
       [2, 3, 4, 5].forEach(type => {
-        this.textures[type][style] = DOOR_STYLES[style].door(this.textureSize, this.doorInfo[type]);
+        this.textures[type][style] = DOOR_STYLES[style].door(64, 128);
       });
-      this.textures[11][style] = DOOR_STYLES[style].cap(this.textureSize);
+      this.textures[11][style] = DOOR_STYLES[style].cap(64, 192);
     });
 
-    // Textura 6: Ventana medieval gótica de cristal biselado con cruceta de hierro (sin variantes)
-    this.textures[6] = createWindowPixels(this.textureSize);
+    // Textura 6: Ventana medieval de 64x192 (dintel + hueco + antepecho, sin variantes)
+    this.textures[6] = createWindowPixels(64, 192);
   }
 
   /**
@@ -718,21 +934,25 @@ class RaycasterEngine {
   }
 
   /**
-   * Carga una imagen (ruta de archivo o Data URL) y la reescala a textureSize x textureSize
-   * para sustituir la textura procedural del tipo indicado. Si la imagen no existe o falla
-   * al cargar, se ignora silenciosamente y se conserva la textura anterior (procedural).
+   * Carga una imagen (ruta de archivo o Data URL) y la reescala a su tamaño correspondiente
+   * (64x192 para pared/canto/ventana, 64x128 para puerta) para sustituir la textura procedural.
    */
   loadTextureImage(type, url) {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const size = this.textureSize;
+        const isDoor = (type >= 2 && type <= 5);
+        const w = 64;
+        const h = isDoor ? 128 : 192;
         const off = document.createElement('canvas');
-        off.width = size;
-        off.height = size;
+        off.width = w;
+        off.height = h;
         const octx = off.getContext('2d');
-        octx.drawImage(img, 0, 0, size, size);
-        this.textures[type] = new Uint32Array(octx.getImageData(0, 0, size, size).data.buffer);
+        octx.drawImage(img, 0, 0, w, h);
+        const arr = new Uint32Array(octx.getImageData(0, 0, w, h).data.buffer);
+        arr.width = w;
+        arr.height = h;
+        this.textures[type] = arr;
         resolve(true);
       };
       img.onerror = () => resolve(false);
@@ -775,6 +995,66 @@ class RaycasterEngine {
           .map(([type, url]) => this.loadTextureImage(Number(type), url))
       )
     );
+  }
+
+  /**
+   * Intersecta un rayo con los segmentos de una celda.
+   * Separa el impacto inferior (suelo a 2.2m o 3.0m: puertas/paredes)
+   * del impacto en dintel (2.2m a 3.0m: isLintelOnly).
+   */
+  _intersectCellSegments(segments, posX, posY, rayDirX, rayDirY, mapX, mapY, minDist = 0.001) {
+    let bestBottom = null;
+    let bestLintel = null;
+
+    for (let s = 0; s < segments.length; s++) {
+      const seg = segments[s];
+      let dist, hitCoord, minB, maxB, side;
+
+      if (seg.axis === 'y') {
+        if (Math.abs(rayDirY) <= 1e-6) continue;
+        dist = (seg.pos - posY) / rayDirY;
+        if (dist <= minDist) continue;
+        hitCoord = posX + dist * rayDirX;
+        minB = seg.minX !== undefined ? seg.minX : (mapX - 0.02);
+        maxB = seg.maxX !== undefined ? seg.maxX : (mapX + 1.02);
+        side = 1;
+      } else {
+        if (Math.abs(rayDirX) <= 1e-6) continue;
+        dist = (seg.pos - posX) / rayDirX;
+        if (dist <= minDist) continue;
+        hitCoord = posY + dist * rayDirY;
+        minB = seg.minY !== undefined ? seg.minY : (mapY - 0.02);
+        maxB = seg.maxY !== undefined ? seg.maxY : (mapY + 1.02);
+        side = 0;
+      }
+      if (hitCoord < minB || hitCoord > maxB) continue;
+
+      let wallX;
+      if (seg.isCap) {
+        const span = Math.max(0.001, maxB - minB);
+        wallX = Math.max(0, Math.min(0.999, (hitCoord - minB) / span));
+      } else {
+        wallX = hitCoord - Math.floor(hitCoord);
+      }
+
+      const isLintel = !!seg.isLintelOnly;
+      const isOpenDoor = !!seg.isOpenDoor;
+      const isDoor = ((seg.type >= 2 && seg.type <= 5) || seg.type === 11 || seg.isJamb) && !isLintel;
+      const isTransparent = (seg.style === 'cristal');
+      const hitData = { seg, dist, wallX, side, isDoor, isLintel, isOpenDoor, isTransparent, mapX, mapY };
+
+      if (isLintel) {
+        if (!bestLintel || dist < bestLintel.dist) {
+          bestLintel = hitData;
+        }
+      } else {
+        if (!bestBottom || dist < bestBottom.dist) {
+          bestBottom = hitData;
+        }
+      }
+    }
+
+    return { bestBottom, bestLintel };
   }
 
   /**
@@ -860,72 +1140,53 @@ class RaycasterEngine {
         sideDistY = (mapY + 1.0 - posY) * deltaDistY;
       }
 
-      let hitSide = 0;
-      let wallHitCoord = 0;
-      let hitTargetName = 'Pared de piedra';
-      let hitStyle = 'castillo';
+      let hitBottom = null;
+      let hitOpenDoor = null;
+      const hitLintels = [];
+      const hitTransparents = [];
+
+      const recordCellIntersects = (res) => {
+        if (res.bestLintel) {
+          if (!hitLintels.some(l => Math.abs(l.dist - res.bestLintel.dist) < 0.01)) {
+            hitLintels.push(res.bestLintel);
+          }
+        }
+        if (res.bestBottom) {
+          if (res.bestBottom.isOpenDoor) {
+            if (!hitOpenDoor || res.bestBottom.dist < hitOpenDoor.dist) {
+              hitOpenDoor = res.bestBottom;
+            }
+            // La hoja abatida de una puerta abierta sólo cubre de 0 a 2.2m.
+            // Arriba (2.2 a 3.0m) la vista continúa libre hacia la pared del fondo,
+            // por lo que NO detenemos el rayo DDA.
+            return false;
+          } else if (res.bestBottom.isTransparent) {
+            // Superficie translúcida (pared o puerta de cristal):
+            // Acumulamos el impacto para renderizarlo con alpha blending
+            // y dejamos que el rayo DDA continúe avanzando para ver qué hay detrás
+            if (!hitTransparents.some(t => Math.abs(t.dist - res.bestBottom.dist) < 0.01)) {
+              hitTransparents.push(res.bestBottom);
+            }
+            return false;
+          } else {
+            hitBottom = res.bestBottom;
+            return true;
+          }
+        }
+        return false;
+      };
 
       // Comprobar primero si hay un tabique frente al jugador en su propia celda de inicio
       const startCellSegs = this.getCellSegments(mapX, mapY);
       if (startCellSegs.length > 0) {
-        let closestDist = Infinity;
-        let bestSeg = null;
-        let bestWallX = 0;
-        let bestSide = 0;
-
-        for (let s = 0; s < startCellSegs.length; s++) {
-          const seg = startCellSegs[s];
-          if (seg.axis === 'y' && Math.abs(rayDirY) > 1e-6) {
-            const dist = (seg.pos - posY) / rayDirY;
-            if (dist > 0.05 && dist < closestDist) {
-              const hitX = posX + dist * rayDirX;
-              const minX = seg.minX !== undefined ? seg.minX : (mapX - 0.02);
-              const maxX = seg.maxX !== undefined ? seg.maxX : (mapX + 1.02);
-              if (hitX >= minX && hitX <= maxX) {
-                closestDist = dist;
-                bestSeg = seg;
-                if (seg.isCap) {
-                  const span = Math.max(0.001, maxX - minX);
-                  bestWallX = Math.max(0, Math.min(0.999, (hitX - minX) / span));
-                } else {
-                  bestWallX = hitX - Math.floor(hitX);
-                }
-                bestSide = 1;
-              }
-            }
-          } else if (seg.axis === 'x' && Math.abs(rayDirX) > 1e-6) {
-            const dist = (seg.pos - posX) / rayDirX;
-            if (dist > 0.05 && dist < closestDist) {
-              const hitY = posY + dist * rayDirY;
-              const minY = seg.minY !== undefined ? seg.minY : (mapY - 0.02);
-              const maxY = seg.maxY !== undefined ? seg.maxY : (mapY + 1.02);
-              if (hitY >= minY && hitY <= maxY) {
-                closestDist = dist;
-                bestSeg = seg;
-                if (seg.isCap) {
-                  const span = Math.max(0.001, maxY - minY);
-                  bestWallX = Math.max(0, Math.min(0.999, (hitY - minY) / span));
-                } else {
-                  bestWallX = hitY - Math.floor(hitY);
-                }
-                bestSide = 0;
-              }
-            }
-          }
-        }
-
-        if (bestSeg) {
-          hit = bestSeg.type;
-          perpWallDist = closestDist;
-          wallHitCoord = bestWallX;
-          hitSide = bestSide;
-          hitTargetName = bestSeg.name;
-          hitStyle = bestSeg.style || 'castillo';
-        }
+        const res = this._intersectCellSegments(startCellSegs, posX, posY, rayDirX, rayDirY, mapX, mapY, 0.05);
+        recordCellIntersects(res);
       }
 
-      // Ejecutar DDA si no golpeó un tabique inmediato en su celda
-      while (hit === 0) {
+      // Ejecutar DDA avanzando celdas hasta encontrar un obstáculo en el suelo (hitBottom)
+      let ddaSteps = 0;
+      const maxSteps = (this.mapWidth + this.mapHeight) * 2;
+      while (!hitBottom && ddaSteps++ < maxSteps) {
         if (sideDistX < sideDistY) {
           sideDistX += deltaDistX;
           mapX += stepX;
@@ -936,78 +1197,16 @@ class RaycasterEngine {
           side = 1;
         }
 
-        // Comprobar si golpeó una pared o puerta dentro del mapa
+        // Comprobar si golpeó una pared, puerta o dintel dentro del mapa
         if (mapX >= 0 && mapX < this.mapWidth && mapY >= 0 && mapY < this.mapHeight) {
           const segments = this.getCellSegments(mapX, mapY);
           if (segments.length > 0) {
-            let closestDist = Infinity;
-            let bestSeg = null;
-            let bestWallX = 0;
-            let bestSide = 0;
-
-            for (let s = 0; s < segments.length; s++) {
-              const seg = segments[s];
-              if (seg.axis === 'y') {
-                // Segmento horizontal a Y = seg.pos
-                if (Math.abs(rayDirY) > 1e-6) {
-                  const dist = (seg.pos - posY) / rayDirY;
-                  if (dist > 0.001 && dist < closestDist) {
-                    const hitX = posX + dist * rayDirX;
-                    const minX = seg.minX !== undefined ? seg.minX : (mapX - 0.02);
-                    const maxX = seg.maxX !== undefined ? seg.maxX : (mapX + 1.02);
-                    // Tolerancia de 0.02 para sellar esquinas y rincones en 90° sin fisuras
-                    if (hitX >= minX && hitX <= maxX) {
-                      closestDist = dist;
-                      bestSeg = seg;
-                      if (seg.isCap) {
-                        const span = Math.max(0.001, maxX - minX);
-                        bestWallX = Math.max(0, Math.min(0.999, (hitX - minX) / span));
-                      } else {
-                        bestWallX = hitX - Math.floor(hitX);
-                      }
-                      bestSide = 1;
-                    }
-                  }
-                }
-              } else {
-                // Segmento vertical a X = seg.pos
-                if (Math.abs(rayDirX) > 1e-6) {
-                  const dist = (seg.pos - posX) / rayDirX;
-                  if (dist > 0.001 && dist < closestDist) {
-                    const hitY = posY + dist * rayDirY;
-                    const minY = seg.minY !== undefined ? seg.minY : (mapY - 0.02);
-                    const maxY = seg.maxY !== undefined ? seg.maxY : (mapY + 1.02);
-                    // Tolerancia de 0.02 para sellar esquinas y rincones en 90° sin fisuras
-                    if (hitY >= minY && hitY <= maxY) {
-                      closestDist = dist;
-                      bestSeg = seg;
-                      if (seg.isCap) {
-                        const span = Math.max(0.001, maxY - minY);
-                        bestWallX = Math.max(0, Math.min(0.999, (hitY - minY) / span));
-                      } else {
-                        bestWallX = hitY - Math.floor(hitY);
-                      }
-                      bestSide = 0;
-                    }
-                  }
-                }
-              }
-            }
-
-            if (bestSeg) {
-              hit = bestSeg.type;
-              perpWallDist = closestDist;
-              wallHitCoord = bestWallX;
-              hitSide = bestSide;
-              hitTargetName = bestSeg.name;
-              hitStyle = bestSeg.style || 'castillo';
-              break;
-            }
+            const res = this._intersectCellSegments(segments, posX, posY, rayDirX, rayDirY, mapX, mapY, 0.001);
+            recordCellIntersects(res);
           }
         } else {
           // Muro perimetral exterior de seguridad
-          hit = 1;
-          hitSide = side;
+          let perpWallDist, wallHitCoord;
           if (side === 0) {
             perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
             wallHitCoord = posY + perpWallDist * rayDirY;
@@ -1016,81 +1215,305 @@ class RaycasterEngine {
             wallHitCoord = posX + perpWallDist * rayDirX;
           }
           wallHitCoord -= Math.floor(wallHitCoord);
-          hitTargetName = 'Pared perimetral';
+
+          hitBottom = {
+            seg: { type: 1, name: 'Pared perimetral', style: 'castillo' },
+            dist: perpWallDist,
+            wallX: wallHitCoord,
+            side,
+            isDoor: false,
+            isLintel: false,
+            isOpenDoor: false,
+            mapX,
+            mapY
+          };
           break;
         }
       }
 
       // Guardar información del objeto en el centro de la pantalla
       if (x === centerRayX) {
-        const isDoor = (hit >= 2 && hit <= 5);
-        const isOpenDoor = hitTargetName && hitTargetName.includes('(Abierta)');
-        this.facingTarget = {
-          name: hitTargetName,
-          type: isDoor ? (isOpenDoor ? 'door-open' : 'door') : (hit === 6 ? 'window' : 'wall'),
-          distance: perpWallDist.toFixed(1),
-          rawDist: perpWallDist,
-          hit,
-          mapX,
-          mapY
-        };
+        // 1. Si hay una superficie transparente (pared o puerta de cristal) frente al jugador
+        const nearestTrans = hitTransparents.slice().sort((a, b) => a.dist - b.dist)[0];
+        if (nearestTrans && (!hitBottom || nearestTrans.dist < hitBottom.dist) && nearestTrans.dist <= 2.8) {
+          const seg = nearestTrans.seg;
+          const isDoor = nearestTrans.isDoor;
+          this.facingTarget = {
+            name: seg.name,
+            type: isDoor ? 'door' : 'wall',
+            distance: nearestTrans.dist.toFixed(1),
+            rawDist: nearestTrans.dist,
+            hit: seg.type,
+            mapX: nearestTrans.mapX !== undefined ? nearestTrans.mapX : mapX,
+            mapY: nearestTrans.mapY !== undefined ? nearestTrans.mapY : mapY
+          };
+        } else if (hitOpenDoor && hitOpenDoor.dist <= 2.8) {
+          const seg = hitOpenDoor.seg;
+          this.facingTarget = {
+            name: seg.name,
+            type: 'door-open',
+            distance: hitOpenDoor.dist.toFixed(1),
+            rawDist: hitOpenDoor.dist,
+            hit: seg.type,
+            mapX: hitOpenDoor.mapX !== undefined ? hitOpenDoor.mapX : mapX,
+            mapY: hitOpenDoor.mapY !== undefined ? hitOpenDoor.mapY : mapY
+          };
+        } else {
+          const nearbyLintel = hitLintels.find(l => l.dist <= 2.8 && l.seg.name && l.seg.name.includes('Dintel'));
+          if (nearbyLintel && (!hitBottom.isDoor || hitBottom.dist > 2.8)) {
+            this.facingTarget = {
+              name: nearbyLintel.seg.name.replace('Dintel ', '') + ' (Abierta)',
+              type: 'door-open',
+              distance: nearbyLintel.dist.toFixed(1),
+              rawDist: nearbyLintel.dist,
+              hit: nearbyLintel.seg.type,
+              mapX: nearbyLintel.mapX,
+              mapY: nearbyLintel.mapY
+            };
+          } else if (hitBottom.seg.isJamb && hitBottom.dist <= 2.8) {
+            this.facingTarget = {
+              name: 'Puerta (Abierta)',
+              type: 'door-open',
+              distance: hitBottom.dist.toFixed(1),
+              rawDist: hitBottom.dist,
+              hit: hitBottom.seg.type,
+              mapX: hitBottom.mapX !== undefined ? hitBottom.mapX : mapX,
+              mapY: hitBottom.mapY !== undefined ? hitBottom.mapY : mapY
+            };
+          } else {
+            const seg = hitBottom.seg;
+            const isDoor = hitBottom.isDoor;
+            this.facingTarget = {
+              name: seg.name,
+              type: isDoor ? 'door' : (seg.type === 6 ? 'window' : 'wall'),
+              distance: hitBottom.dist.toFixed(1),
+              rawDist: hitBottom.dist,
+              hit: seg.type,
+              mapX: hitBottom.mapX !== undefined ? hitBottom.mapX : mapX,
+              mapY: hitBottom.mapY !== undefined ? hitBottom.mapY : mapY
+            };
+          }
+        }
       }
 
-      // Altura de la línea proyectada en pantalla
-      const lineHeight = Math.floor(h / Math.max(perpWallDist, 0.0001));
+      const eyeHeight = this.wallHeightScale / 2; // 1.5
 
-      // Píxeles de inicio y fin para dibujar la tira vertical
-      let drawStart = -lineHeight / 2 + halfH;
-      let drawEnd = lineHeight / 2 + halfH;
-
-      const clipStart = Math.max(0, Math.floor(drawStart));
-      const clipEnd = Math.min(h - 1, Math.floor(drawEnd));
-
-      // Cálculo de textura: this.textures[hit] es normalmente un diccionario { estilo: pixeles }
-      // (para poder mezclar estilos por segmento); si es un Uint32Array plano es una textura
-      // subida/override (imagen personalizada o de proyecto) que sustituye a todos los estilos.
-      const rawTex = this.textures[hit] || this.textures[1];
-      const tex = (rawTex instanceof Uint32Array) ? rawTex : (rawTex[hitStyle] || rawTex.castillo);
-      const texSize = this.textureSize;
-
-      // Coordenada X de la textura (0..1)
-      let wallX = Math.max(0, Math.min(0.999, wallHitCoord));
-      let texX = Math.floor(wallX * texSize);
-      if (hitSide === 0 && rayDirX > 0) texX = texSize - texX - 1;
-      if (hitSide === 1 && rayDirY < 0) texX = texSize - texX - 1;
+      // 1. Proyección de la pared/puerta de fondo (hitBottom)
+      const projBottom = h / Math.max(hitBottom.dist, 0.0001);
+      const bottomY = halfH + eyeHeight * projBottom; // suelo común
+      const doorTopYBottom = halfH - (this.doorHeightScale - eyeHeight) * projBottom;
+      const wallTopYBottom = halfH - (this.wallHeightScale - eyeHeight) * projBottom;
 
       // Factor de sombra por distancia y orientación (eje Y más sombreado para profundidad)
-      let shadeFactor = 1 / (1 + perpWallDist * 0.22);
-      if (hitSide === 1) shadeFactor *= 0.72; // Sombreado clásico Wolfenstein 3D
+      const shadeOf = (dist, side) => {
+        let s = 1 / (1 + dist * 0.22);
+        if (side === 1) s *= 0.72; // Sombreado clásico Wolfenstein 3D
+        return s;
+      };
+      const texXOf = (coord, side, texW = 64) => {
+        let tx = Math.floor(Math.max(0, Math.min(0.999, coord)) * texW);
+        if (side === 0 && rayDirX > 0) tx = texW - tx - 1;
+        if (side === 1 && rayDirY < 0) tx = texW - tx - 1;
+        return tx;
+      };
 
-      const step = texSize / lineHeight;
-      let texPos = (clipStart - halfH + lineHeight / 2) * step;
+      // Dibuja una franja vertical con una textura anclada a su geometría real en el mundo (0 a 3.0m para pared, 0 a 2.2m para puerta).
+      // Soporta Alpha Blending cuando los píxeles de la textura contienen canal alfa < 255 (cristal translúcido).
+      const blitTexBand = (topPx, bottomPx, texArray, texXParam, shadeParam, clampMinY = -Infinity, clampMaxY = Infinity) => {
+        const clipStart = Math.max(0, Math.floor(topPx), Math.floor(clampMinY));
+        const clipEnd = Math.min(h - 1, Math.floor(bottomPx), Math.floor(clampMaxY));
+        if (clipEnd < clipStart) return;
 
-      // Modo textura completa
-      if (this.textureMode === 'classic') {
+        const texW = texArray.width || 64;
+        const texH = texArray.height || (texArray.length === 64 * 192 ? 192 : 64);
+
+        const totalHeight = Math.max(0.0001, bottomPx - topPx);
+        const step = texH / totalHeight;
+        let texPos = (clipStart - topPx) * step;
+
         for (let y = clipStart; y <= clipEnd; y++) {
-          const texY = Math.min(texSize - 1, Math.max(0, Math.floor(texPos)));
+          const texY = Math.min(texH - 1, Math.max(0, Math.floor(texPos)));
           texPos += step;
+          const color = texArray[texY * texW + texXParam];
+          const a = (color >> 24) & 0xFF;
+          if (a === 0) continue; // Píxel totalmente transparente
 
-          const color = tex[texY * texSize + texX];
+          const r = Math.floor((color & 0xFF) * shadeParam);
+          const g = Math.floor(((color >> 8) & 0xFF) * shadeParam);
+          const b = Math.floor(((color >> 16) & 0xFF) * shadeParam);
 
-          // Aplicar sombreado rápido sobre los componentes R, G, B
-          const r = Math.floor((color & 0xFF) * shadeFactor);
-          const g = Math.floor(((color >> 8) & 0xFF) * shadeFactor);
-          const b = Math.floor(((color >> 16) & 0xFF) * shadeFactor);
+          if (a >= 254) {
+            // Opaco: asignación directa
+            pixels[y * w + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+          } else {
+            // Translúcido: mezcla alfa sobre el buffer existente
+            const prev = pixels[y * w + x];
+            const prevR = prev & 0xFF;
+            const prevG = (prev >> 8) & 0xFF;
+            const prevB = (prev >> 16) & 0xFF;
+            const alphaRatio = a / 255;
+            const invAlpha = 1 - alphaRatio;
 
-          pixels[y * w + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+            const finalR = Math.min(255, Math.floor(r * alphaRatio + prevR * invAlpha));
+            const finalG = Math.min(255, Math.floor(g * alphaRatio + prevG * invAlpha));
+            const finalB = Math.min(255, Math.floor(b * alphaRatio + prevB * invAlpha));
+
+            pixels[y * w + x] = (255 << 24) | (finalB << 16) | (finalG << 8) | finalR;
+          }
+        }
+      };
+
+      const blitFlatBand = (topPx, bottomPx, color, shadeParam, clampMinY = -Infinity, clampMaxY = Infinity) => {
+        const clipStart = Math.max(0, Math.floor(topPx), Math.floor(clampMinY));
+        const clipEnd = Math.min(h - 1, Math.floor(bottomPx), Math.floor(clampMaxY));
+        if (clipEnd < clipStart) return;
+        const r = Math.floor((color & 0xFF) * shadeParam);
+        const g = Math.floor(((color >> 8) & 0xFF) * shadeParam);
+        const b = Math.floor(((color >> 16) & 0xFF) * shadeParam);
+        const shaded = (255 << 24) | (b << 16) | (g << 8) | r;
+        for (let y = clipStart; y <= clipEnd; y++) pixels[y * w + x] = shaded;
+      };
+
+      const resolveTex = (type, style) => {
+        const raw = this.textures[type] || this.textures[1];
+        return (raw instanceof Uint32Array) ? raw : (raw[style] || raw.castillo);
+      };
+
+      // Unir todas las capas intermedias que están por delante del fondo opaco
+      const layers = [];
+
+      if (hitOpenDoor && hitOpenDoor.dist < hitBottom.dist) {
+        layers.push({ kind: 'openDoor', hit: hitOpenDoor, dist: hitOpenDoor.dist });
+      }
+
+      for (let i = 0; i < hitLintels.length; i++) {
+        const lHit = hitLintels[i];
+        if (lHit.dist < hitBottom.dist - 0.05) {
+          layers.push({ kind: 'lintel', hit: lHit, dist: lHit.dist });
+        }
+      }
+
+      for (let i = 0; i < hitTransparents.length; i++) {
+        const tHit = hitTransparents[i];
+        if (tHit.dist < hitBottom.dist - 0.05) {
+          layers.push({ kind: 'transparent', hit: tHit, dist: tHit.dist });
+        }
+      }
+
+      // Algoritmo del pintor: de más lejano a más cercano
+      layers.sort((a, b) => b.dist - a.dist);
+
+      if (this.textureMode === 'classic') {
+        // 1. Dibujar el fondo opaco (hitBottom: pared completa, jamba o puerta cerrada)
+        const bTex = resolveTex(hitBottom.seg.type, hitBottom.seg.style || 'castillo');
+        const bTexX = texXOf(hitBottom.wallX, hitBottom.side, bTex.width || 64);
+        const bShade = shadeOf(hitBottom.dist, hitBottom.side);
+
+        if (hitBottom.seg.isJamb) {
+          // Jamba lateral de vano de puerta (0 a 2.2m), continúa la textura de canto de 3m hacia abajo
+          blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
+        } else if (hitBottom.isDoor) {
+          // Puerta cerrada (0 a 2.2m)
+          blitTexBand(doorTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
+          // Dintel propio sobre la puerta cerrada en el mismo vano (2.2 a 3.0m)
+          const dLintelStyle = hitBottom.seg.lintelStyle || hitBottom.seg.style || 'castillo';
+          const dLintelTex = resolveTex(1, dLintelStyle);
+          const dLintelX = texXOf(hitBottom.wallX, hitBottom.side, dLintelTex.width || 64);
+          blitTexBand(wallTopYBottom, bottomY, dLintelTex, dLintelX, bShade, wallTopYBottom, doorTopYBottom + 1);
+        } else {
+          // Pared completa o ventana de 3.0m
+          blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, wallTopYBottom, bottomY);
+        }
+
+        // 2. Dibujar cada capa intermedia de más lejana a más cercana
+        for (let i = 0; i < layers.length; i++) {
+          const layer = layers[i];
+          if (layer.kind === 'openDoor') {
+            const od = layer.hit;
+            const projDoor = h / Math.max(od.dist, 0.0001);
+            const bottomYDoor = halfH + eyeHeight * projDoor;
+            const doorTopYDoor = halfH - (this.doorHeightScale - eyeHeight) * projDoor;
+            const odTex = resolveTex(od.seg.type, od.seg.style || 'castillo');
+            const odTexX = texXOf(od.wallX, od.side, odTex.width || 64);
+            const odShade = shadeOf(od.dist, od.side);
+            blitTexBand(doorTopYDoor, bottomYDoor, odTex, odTexX, odShade, doorTopYDoor, bottomYDoor);
+          } else if (layer.kind === 'lintel') {
+            const lHit = layer.hit;
+            const projL = h / Math.max(lHit.dist, 0.0001);
+            const wallTopYL = halfH - (this.wallHeightScale - eyeHeight) * projL;
+            const doorTopYL = halfH - (this.doorHeightScale - eyeHeight) * projL;
+            const bottomYL = halfH + eyeHeight * projL;
+
+            const lTex = resolveTex(lHit.seg.type, lHit.seg.style || 'castillo');
+            const lTexX = texXOf(lHit.wallX, lHit.side, lTex.width || 64);
+            const lShade = shadeOf(lHit.dist, lHit.side);
+            blitTexBand(wallTopYL, bottomYL, lTex, lTexX, lShade, wallTopYL, doorTopYL + 1);
+          } else if (layer.kind === 'transparent') {
+            const tHit = layer.hit;
+            const projT = h / Math.max(tHit.dist, 0.0001);
+            const wallTopYT = halfH - (this.wallHeightScale - eyeHeight) * projT;
+            const doorTopYT = halfH - (this.doorHeightScale - eyeHeight) * projT;
+            const bottomYT = halfH + eyeHeight * projT;
+
+            const tTex = resolveTex(tHit.seg.type, tHit.seg.style || 'cristal');
+            const tTexX = texXOf(tHit.wallX, tHit.side, tTex.width || 64);
+            const tShade = shadeOf(tHit.dist, tHit.side);
+
+            if (tHit.seg.isJamb) {
+              blitTexBand(wallTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT);
+            } else if (tHit.isDoor) {
+              // Puerta de cristal cerrada (0 a 2.2m)
+              blitTexBand(doorTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT);
+              // Dintel propio sobre la puerta de cristal (2.2 a 3.0m)
+              const dLintelStyle = tHit.seg.lintelStyle || tHit.seg.style || 'cristal';
+              const dLintelTex = resolveTex(1, dLintelStyle);
+              const dLintelX = texXOf(tHit.wallX, tHit.side, dLintelTex.width || 64);
+              blitTexBand(wallTopYT, bottomYT, dLintelTex, dLintelX, tShade, wallTopYT, doorTopYT + 1);
+            } else {
+              // Pared de cristal completa (0 a 3.0m)
+              blitTexBand(wallTopYT, bottomYT, tTex, tTexX, tShade, wallTopYT, bottomYT);
+            }
+          }
         }
       } else {
-        // Modo plano / líneas simples
-        const baseColor = hit >= 2 ? 0x00a5ff : 0x888888;
-        const r = Math.floor((baseColor & 0xFF) * shadeFactor);
-        const g = Math.floor(((baseColor >> 8) & 0xFF) * shadeFactor);
-        const b = Math.floor(((baseColor >> 16) & 0xFF) * shadeFactor);
-        const shaded = (255 << 24) | (b << 16) | (g << 8) | r;
+        // Modo plano
+        if (hitBottom.seg.isJamb) {
+          blitFlatBand(wallTopYBottom, bottomY, 0x555555, shadeOf(hitBottom.dist, hitBottom.side), doorTopYBottom, bottomY);
+        } else if (hitBottom.isDoor) {
+          blitFlatBand(doorTopYBottom, bottomY, 0x00a5ff, shadeOf(hitBottom.dist, hitBottom.side), doorTopYBottom, bottomY);
+          blitFlatBand(wallTopYBottom, bottomY, 0x888888, shadeOf(hitBottom.dist, hitBottom.side), wallTopYBottom, doorTopYBottom + 1);
+        } else {
+          blitFlatBand(wallTopYBottom, bottomY, 0x888888, shadeOf(hitBottom.dist, hitBottom.side), wallTopYBottom, bottomY);
+        }
 
-        for (let y = clipStart; y <= clipEnd; y++) {
-          pixels[y * w + x] = shaded;
+        for (let i = 0; i < layers.length; i++) {
+          const layer = layers[i];
+          if (layer.kind === 'openDoor') {
+            const od = layer.hit;
+            const projDoor = h / Math.max(od.dist, 0.0001);
+            const bottomYDoor = halfH + eyeHeight * projDoor;
+            const doorTopYDoor = halfH - (this.doorHeightScale - eyeHeight) * projDoor;
+            blitFlatBand(doorTopYDoor, bottomYDoor, 0x00a5ff, shadeOf(od.dist, od.side), doorTopYDoor, bottomYDoor);
+          } else if (layer.kind === 'lintel') {
+            const lHit = layer.hit;
+            const projL = h / Math.max(lHit.dist, 0.0001);
+            const wallTopYL = halfH - (this.wallHeightScale - eyeHeight) * projL;
+            const doorTopYL = halfH - (this.doorHeightScale - eyeHeight) * projL;
+            const bottomYL = halfH + eyeHeight * projL;
+            blitFlatBand(wallTopYL, bottomYL, 0x888888, shadeOf(lHit.dist, lHit.side), wallTopYL, doorTopYL + 1);
+          } else if (layer.kind === 'transparent') {
+            const tHit = layer.hit;
+            const projT = h / Math.max(tHit.dist, 0.0001);
+            const wallTopYT = halfH - (this.wallHeightScale - eyeHeight) * projT;
+            const doorTopYT = halfH - (this.doorHeightScale - eyeHeight) * projT;
+            const bottomYT = halfH + eyeHeight * projT;
+            const tShade = shadeOf(tHit.dist, tHit.side);
+            if (tHit.isDoor) {
+              blitFlatBand(doorTopYT, bottomYT, 0x2288bb, tShade, doorTopYT, bottomYT);
+            } else {
+              blitFlatBand(wallTopYT, bottomYT, 0x2288bb, tShade, wallTopYT, bottomYT);
+            }
+          }
         }
       }
     }
@@ -1138,8 +1561,6 @@ class RaycasterEngine {
           else if (code === 'DE') doorType = 3;
           else if (code === 'DS') doorType = 4;
           else if (code === 'DW') doorType = 5;
-          else if (code === 'DCH') doorType = 2;
-          else if (code === 'DCV') doorType = 3;
 
           const doorColor = this.doorInfo[doorType]?.color || '#e5a93b';
           if (isDoor) ctx.fillStyle = doorColor;
@@ -1168,14 +1589,12 @@ class RaycasterEngine {
               ctx.fillRect(px + cellSize - th, py, th, cellSize);
               break;
             case 'CH':
-            case 'DCH':
             case 'WCH': {
               const cy0 = py + Math.floor((cellSize - th) / 2);
               ctx.fillRect(px, cy0, cellSize, th);
               break;
             }
             case 'CV':
-            case 'DCV':
             case 'WCV': {
               const cx0 = px + Math.floor((cellSize - th) / 2);
               ctx.fillRect(cx0, py, th, cellSize);
@@ -1222,16 +1641,6 @@ class RaycasterEngine {
               break;
             }
             case 'ODE': {
-              ctx.fillStyle = this.doorInfo[3]?.color || '#2ecc71';
-              ctx.fillRect(px, py, cellSize, th);
-              break;
-            }
-            case 'ODCH': {
-              ctx.fillStyle = this.doorInfo[2]?.color || '#e74c3c';
-              ctx.fillRect(px, py, th, cellSize);
-              break;
-            }
-            case 'ODCV': {
               ctx.fillStyle = this.doorInfo[3]?.color || '#2ecc71';
               ctx.fillRect(px, py, cellSize, th);
               break;

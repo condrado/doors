@@ -59,6 +59,33 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       const customData = JSON.parse(savedCustom);
       if (customData.map && Array.isArray(customData.map)) {
+        // Saneo de puertas centradas obsoletas (DCH/DCV -> CH/CV)
+        customData.map.forEach((row, y) => {
+          if (Array.isArray(row)) {
+            row.forEach((cell, x) => {
+              if (Array.isArray(cell)) {
+                row[x] = cell.map(code => {
+                  if (code === 'DCH' || code === 'ODCH') {
+                    if (customData.wallStyleMap && customData.wallStyleMap[`${x},${y}`]) {
+                      customData.wallStyleMap[`${x},${y}`]['CH'] = customData.wallStyleMap[`${x},${y}`][code];
+                      delete customData.wallStyleMap[`${x},${y}`][code];
+                    }
+                    return 'CH';
+                  }
+                  if (code === 'DCV' || code === 'ODCV') {
+                    if (customData.wallStyleMap && customData.wallStyleMap[`${x},${y}`]) {
+                      customData.wallStyleMap[`${x},${y}`]['CV'] = customData.wallStyleMap[`${x},${y}`][code];
+                      delete customData.wallStyleMap[`${x},${y}`][code];
+                    }
+                    return 'CV';
+                  }
+                  return code;
+                });
+              }
+            });
+          }
+        });
+
         engine.map = customData.map;
         engine.mapWidth = customData.map[0].length;
         engine.mapHeight = customData.map.length;
@@ -545,6 +572,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Comprobar colisión con cada cara sólida (margen fino de 0.10 unidades)
     for (let s = 0; s < segments.length; s++) {
       const seg = segments[s];
+      // El dintel está en lo alto (por encima de la cabeza): no genera colisión física en el suelo
+      if (seg.isLintelOnly) continue;
+
       if (seg.axis === 'y') {
         const minX = seg.minX !== undefined ? seg.minX : mX;
         const maxX = seg.maxX !== undefined ? seg.maxX : (mX + 1.0);

@@ -358,6 +358,27 @@ body {
   width: 100%;
 }
 
+.wall-matrix-empty-slot {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.wall-matrix-empty-slot svg {
+  width: 100%;
+  height: 100%;
+  max-height: 30px;
+  display: block;
+}
+
+.wall-matrix-empty-slot .tile-bg {
+  fill: #141824;
+  rx: 3px;
+}
+
 .wall-tile-btn svg {
   width: 100%;
   height: 100%;
@@ -1492,11 +1513,14 @@ i[class^="ri-"], i[class*=" ri-"] {
 }
 
 .style-card img {
-  width: 64px;
-  height: 64px;
+  max-width: 64px;
+  max-height: 84px;
+  width: auto;
+  height: auto;
   border-radius: 6px;
   image-rendering: pixelated;
   border: 1px solid var(--border-color);
+  background: rgba(0, 0, 0, 0.25);
 }
 
 .style-card span {

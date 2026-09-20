@@ -50,6 +50,9 @@ class LevelEditor {
     // así que cambiar esto NO afecta a lo que ya existe en el mapa.
     this.wallStyle = 'castillo';
     this.doorStyle = 'castillo';
+    // Estilo del dintel: la franja de PARED que queda fija por encima de cada puerta
+    // (las puertas son más bajas que las paredes). Usa el catálogo de estilos de pared.
+    this.lintelStyle = 'castillo';
 
     // Estilo por segmento: { "x,y": { N: 'blanca', DW: 'negra', ... } }
     this.wallStyleMap = {};
@@ -63,9 +66,9 @@ class LevelEditor {
     this.hoverCell = { x: -1, y: -1 };
 
     // Colocación y Rotación de tabique (5x1)
-    this.placementMode = 'corner_CENTER_CROSS';
+    this.placementMode = 'N';
     this.rotation = 'H'; // 'H' (Horizontal ━) o 'V' (Vertical ┃)
-    this.hoverSubEdge = 'corner_CENTER_CROSS';
+    this.hoverSubEdge = 'N';
 
     // Modo de Zoom
     this.zoomMode = 'auto'; // 'auto' o 'manual'
@@ -122,6 +125,8 @@ class LevelEditor {
           // El pincel activo se recuerda tal cual quedó (último estilo usado), no afecta a lo ya colocado
           this.wallStyle = (data.activeWallStyle && WALL_STYLES[data.activeWallStyle]) ? data.activeWallStyle : 'castillo';
           this.doorStyle = (data.activeDoorStyle && DOOR_STYLES[data.activeDoorStyle]) ? data.activeDoorStyle : 'castillo';
+          this.lintelStyle = (data.activeLintelStyle && WALL_STYLES[data.activeLintelStyle]) ? data.activeLintelStyle : 'castillo';
+          this.migrateCenteredDoors(this.grid);
           return true;
         }
       }
@@ -129,6 +134,59 @@ class LevelEditor {
       console.warn('Error al cargar mapa guardado de localStorage:', e);
     }
     return false;
+  }
+
+  /**
+   * Sanea y migra la matriz del mapa convirtiendo cualquier puerta centrada obsoleta
+   * (DCH / DCV / ODCH / ODCV) en su equivalente de pared normal (CH / CV).
+   * También migra las claves asociadas en wallStyleMap si existían.
+   * Devuelve true si se realizó alguna migración.
+   */
+  migrateCenteredDoors(grid) {
+    if (!Array.isArray(grid)) return false;
+    let migratedCount = 0;
+    for (let y = 0; y < grid.length; y++) {
+      const row = grid[y];
+      if (!Array.isArray(row)) continue;
+      for (let x = 0; x < row.length; x++) {
+        const cell = row[x];
+        if (Array.isArray(cell)) {
+          let cellModified = false;
+          const newCell = cell.map(code => {
+            if (code === 'DCH' || code === 'ODCH') {
+              cellModified = true;
+              migratedCount++;
+              this.migrateSegmentStyle(x, y, code, 'CH');
+              return 'CH';
+            }
+            if (code === 'DCV' || code === 'ODCV') {
+              cellModified = true;
+              migratedCount++;
+              this.migrateSegmentStyle(x, y, code, 'CV');
+              return 'CV';
+            }
+            return code;
+          });
+          if (cellModified) {
+            row[x] = newCell;
+          }
+        }
+      }
+    }
+    return migratedCount > 0;
+  }
+
+  migrateSegmentStyle(x, y, oldCode, newCode) {
+    if (!this.wallStyleMap) return;
+    const key = `${x},${y}`;
+    if (!this.wallStyleMap[key]) return;
+    if (this.wallStyleMap[key][oldCode]) {
+      this.wallStyleMap[key][newCode] = this.wallStyleMap[key][oldCode];
+      delete this.wallStyleMap[key][oldCode];
+    }
+    if (this.wallStyleMap[key][oldCode + '_lintel']) {
+      delete this.wallStyleMap[key][oldCode + '_lintel'];
+    }
   }
 
   /**
@@ -206,7 +264,7 @@ class LevelEditor {
       }
     });
 
-    // Selector de categorías de paredes (Laterales, Centro, Uniones T)
+    // Selector de categorías de paredes (Laterales y Centro)
     document.querySelectorAll('.wall-cat-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.wall-cat-tab').forEach(t => t.classList.remove('active'));
@@ -215,15 +273,12 @@ class LevelEditor {
         const target = tab.dataset.tab;
         const pLaterales = document.getElementById('panelLaterales');
         const pCentro = document.getElementById('panelCentro');
-        const pUnionesT = document.getElementById('panelUnionesT');
 
         if (pLaterales) pLaterales.classList.add('hidden');
         if (pCentro) pCentro.classList.add('hidden');
-        if (pUnionesT) pUnionesT.classList.add('hidden');
 
         if (target === 'laterales' && pLaterales) pLaterales.classList.remove('hidden');
         else if (target === 'centro' && pCentro) pCentro.classList.remove('hidden');
-        else if (target === 'uniones-t' && pUnionesT) pUnionesT.classList.remove('hidden');
 
         this.saveUIState();
       });
@@ -538,6 +593,10 @@ class LevelEditor {
             case 'CS': return Math.hypot(0.5 - localX, Math.max(0, 0.5 - localY));
             case 'CW': return Math.hypot(Math.max(0, localX - 0.5), 0.5 - localY);
             case 'CE': return Math.hypot(Math.max(0, 0.5 - localX), 0.5 - localY);
+            case 'RNW': return Math.hypot(localX, localY);
+            case 'RNE': return Math.hypot(1 - localX, localY);
+            case 'RSW': return Math.hypot(localX, 1 - localY);
+            case 'RSE': return Math.hypot(1 - localX, 1 - localY);
             default: return 1;
           }
         };
@@ -633,17 +692,23 @@ class LevelEditor {
 
   /**
    * Etiqueta un código de segmento (borde/centro) recién colocado en (x,y) con el
-   * estilo de pincel activo en ese momento (this.wallStyle o this.doorStyle según
-   * sea pared o puerta). Las ventanas no tienen variantes de estilo, se ignoran.
+   * estilo de pincel activo en ese momento (this.wallStyle, this.doorStyle o
+   * this.lintelStyle según sea pared, puerta o dintel). Las ventanas no tienen
+   * variantes de estilo, se ignoran. Un código terminado en "_lintel" es el hueco
+   * de pared que queda fijo por encima de una puerta (las puertas son más bajas
+   * que las paredes) y usa SIEMPRE this.lintelStyle, aunque el código en sí
+   * empiece por "D".
    */
   setSegmentStyle(x, y, edgeCode) {
     // Ventanas (WN, WS, WE, WW, WCH, WCV): sin variantes de estilo, se ignoran.
     // OJO: el código de pared Oeste es exactamente 'W' (1 carácter) y NO debe
     // confundirse con los códigos de ventana, que siempre tienen 2+ caracteres.
-    if (edgeCode.length > 1 && edgeCode.startsWith('W')) return;
+    if (edgeCode.length > 1 && edgeCode.startsWith('W') && !edgeCode.endsWith('_lintel')) return;
     const key = `${x},${y}`;
     if (!this.wallStyleMap[key]) this.wallStyleMap[key] = {};
-    this.wallStyleMap[key][edgeCode] = edgeCode.startsWith('D') ? this.doorStyle : this.wallStyle;
+    const isLintel = edgeCode.endsWith('_lintel');
+    const isDoor = !isLintel && edgeCode.startsWith('D');
+    this.wallStyleMap[key][edgeCode] = isLintel ? this.lintelStyle : (isDoor ? this.doorStyle : this.wallStyle);
   }
 
   /**
@@ -704,6 +769,14 @@ class LevelEditor {
             else if (s === 'E') d = Math.abs(1 - lx);
             else if (s === 'CH') d = Math.abs(0.5 - ly);
             else if (s === 'CV') d = Math.abs(0.5 - lx);
+            else if (s === 'CN') d = Math.hypot(0.5 - lx, Math.max(0, ly - 0.5));
+            else if (s === 'CS') d = Math.hypot(0.5 - lx, Math.max(0, 0.5 - ly));
+            else if (s === 'CW') d = Math.hypot(Math.max(0, lx - 0.5), 0.5 - ly);
+            else if (s === 'CE') d = Math.hypot(Math.max(0, 0.5 - lx), 0.5 - ly);
+            else if (s === 'RNW') d = Math.hypot(lx, ly);
+            else if (s === 'RNE') d = Math.hypot(1 - lx, ly);
+            else if (s === 'RSW') d = Math.hypot(lx, 1 - ly);
+            else if (s === 'RSE') d = Math.hypot(1 - lx, 1 - ly);
             if (d < minDist) {
               minDist = d;
               bestIdx = i;
@@ -713,7 +786,9 @@ class LevelEditor {
         }
 
         if (idx !== -1) {
-          this.clearSegmentStyle(x, y, currentSegs[idx]);
+          const removedCode = currentSegs[idx];
+          this.clearSegmentStyle(x, y, removedCode);
+          if (removedCode.startsWith('D')) this.clearSegmentStyle(x, y, removedCode + '_lintel');
           currentSegs.splice(idx, 1);
           changed = true;
         }
@@ -788,11 +863,17 @@ class LevelEditor {
         if (idx !== -1) {
           currentSegs.splice(idx, 1);
           this.clearSegmentStyle(x, y, c);
+          if (c.startsWith('D')) this.clearSegmentStyle(x, y, c + '_lintel');
         }
       });
 
       currentSegs.push(codeToPlace);
       this.setSegmentStyle(x, y, codeToPlace);
+      // Las puertas son más bajas que las paredes: el hueco de pared que queda por
+      // encima (el "dintel") se etiqueta con el pincel de DINTEL activo en ese momento.
+      if (codeToPlace.startsWith('D')) {
+        this.setSegmentStyle(x, y, codeToPlace + '_lintel');
+      }
       changed = true;
     }
 
@@ -1047,8 +1128,6 @@ class LevelEditor {
       'DE': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
       'DS': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
       'DW': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
-      'DCH': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
-      'DCV': { bg: '#e5a93b', icon: 'door', border: '#f39c12' },
       'WN': { bg: '#54a0ff', icon: 'window', border: '#2e86de' },
       'WE': { bg: '#54a0ff', icon: 'window', border: '#2e86de' },
       'WS': { bg: '#54a0ff', icon: 'window', border: '#2e86de' },
@@ -1127,7 +1206,6 @@ class LevelEditor {
               if (acc) this.drawDoorBadge(ctx, px + cs - th / 2, py + cs / 2, acc.icon, badgeBorder, cs);
               break;
             case 'CH':
-            case 'DCH':
             case 'WCH': {
               const cy0 = py + Math.floor((cs - th) / 2);
               ctx.fillRect(px, cy0, cs, th);
@@ -1135,7 +1213,6 @@ class LevelEditor {
               break;
             }
             case 'CV':
-            case 'DCV':
             case 'WCV': {
               const cx0 = px + Math.floor((cs - th) / 2);
               ctx.fillRect(cx0, py, th, cs);
@@ -1164,6 +1241,22 @@ class LevelEditor {
               const cx0 = px + Math.floor((cs - th) / 2);
               const cy0 = py + Math.floor((cs - th) / 2);
               ctx.fillRect(cx0, cy0, (px + cs) - cx0, th);
+              break;
+            }
+            case 'RNW': {
+              ctx.fillRect(px, py, th, th);
+              break;
+            }
+            case 'RNE': {
+              ctx.fillRect(px + cs - th, py, th, th);
+              break;
+            }
+            case 'RSW': {
+              ctx.fillRect(px, py + cs - th, th, th);
+              break;
+            }
+            case 'RSE': {
+              ctx.fillRect(px + cs - th, py + cs - th, th, th);
               break;
             }
           }
@@ -1264,13 +1357,26 @@ class LevelEditor {
           ctx.lineWidth = 2;
           ctx.strokeRect(hpx + 3, hpy + 3, cs - 6, cs - 6);
         } else {
+          const hcx0 = hpx + Math.floor((cs - th) / 2);
+          const hcx1 = hcx0 + th;
+          const hcy0 = hpy + Math.floor((cs - th) / 2);
+          const hcy1 = hcy0 + th;
+
           switch (this.hoverSubEdge) {
             case 'N': ctx.fillRect(hpx, hpy, cs, th); break;
             case 'S': ctx.fillRect(hpx, hpy + cs - th, cs, th); break;
             case 'W': ctx.fillRect(hpx, hpy, th, cs); break;
             case 'E': ctx.fillRect(hpx + cs - th, hpy, th, cs); break;
-            case 'CH': ctx.fillRect(hpx, hpy + Math.floor((cs - th) / 2), cs, th); break;
-            case 'CV': ctx.fillRect(hpx + Math.floor((cs - th) / 2), hpy, th, cs); break;
+            case 'CH': ctx.fillRect(hpx, hcy0, cs, th); break;
+            case 'CV': ctx.fillRect(hcx0, hpy, th, cs); break;
+            case 'CN': ctx.fillRect(hcx0, hpy, th, hcy1 - hpy); break;
+            case 'CS': ctx.fillRect(hcx0, hcy0, th, (hpy + cs) - hcy0); break;
+            case 'CW': ctx.fillRect(hpx, hcy0, hcx1 - hpx, th); break;
+            case 'CE': ctx.fillRect(hcx0, hcy0, (hpx + cs) - hcx0, th); break;
+            case 'RNW': ctx.fillRect(hpx, hpy, th, th); break;
+            case 'RNE': ctx.fillRect(hpx + cs - th, hpy, th, th); break;
+            case 'RSW': ctx.fillRect(hpx, hpy + cs - th, th, th); break;
+            case 'RSE': ctx.fillRect(hpx + cs - th, hpy + cs - th, th, th); break;
           }
         }
       } else if (this.currentTool === 'eraser') {
@@ -1296,6 +1402,10 @@ class LevelEditor {
           case 'CS': ctx.fillRect(hcx0, hcy0, th, (hpy + cs) - hcy0); break;
           case 'CW': ctx.fillRect(hpx, hcy0, hcx1 - hpx, th); break;
           case 'CE': ctx.fillRect(hcx0, hcy0, (hpx + cs) - hcx0, th); break;
+          case 'RNW': ctx.fillRect(hpx, hpy, th, th); break;
+          case 'RNE': ctx.fillRect(hpx + cs - th, hpy, th, th); break;
+          case 'RSW': ctx.fillRect(hpx, hpy + cs - th, th, th); break;
+          case 'RSE': ctx.fillRect(hpx + cs - th, hpy + cs - th, th, th); break;
           default: break;
         }
       }
@@ -1367,6 +1477,7 @@ class LevelEditor {
     // Pincel activo en el editor (solo afecta a lo próximo que se coloque)
     if (this.wallStyle !== 'castillo') level.activeWallStyle = this.wallStyle;
     if (this.doorStyle !== 'castillo') level.activeDoorStyle = this.doorStyle;
+    if (this.lintelStyle !== 'castillo') level.activeLintelStyle = this.lintelStyle;
     return level;
   }
 
@@ -1493,36 +1604,31 @@ class LevelEditor {
         }
       }
 
-      // 5. Restaurar pestaña activa de colocación de paredes (laterales, centro, uniones-t)
-      if (state.activeWallTab) {
-        const tabBtn = document.querySelector(`.wall-cat-tab[data-tab="${state.activeWallTab}"]`);
-        if (tabBtn) {
-          document.querySelectorAll('.wall-cat-tab').forEach(t => t.classList.remove('active'));
-          tabBtn.classList.add('active');
-          ['panelLaterales', 'panelCentro', 'panelUnionesT'].forEach(id => {
-            const p = document.getElementById(id);
-            if (p) p.classList.add('hidden');
-          });
-          const targetId = state.activeWallTab === 'laterales' ? 'panelLaterales'
-                         : state.activeWallTab === 'centro' ? 'panelCentro' : 'panelUnionesT';
-          const targetEl = document.getElementById(targetId);
-          if (targetEl) targetEl.classList.remove('hidden');
-        }
+      // 5. Restaurar pestaña activa de colocación de paredes (laterales, centro)
+      const validWallTab = (state.activeWallTab === 'centro') ? 'centro' : 'laterales';
+      const tabBtn = document.querySelector(`.wall-cat-tab[data-tab="${validWallTab}"]`);
+      if (tabBtn) {
+        document.querySelectorAll('.wall-cat-tab').forEach(t => t.classList.remove('active'));
+        tabBtn.classList.add('active');
+        const pLaterales = document.getElementById('panelLaterales');
+        const pCentro = document.getElementById('panelCentro');
+        if (pLaterales) pLaterales.classList.toggle('hidden', validWallTab !== 'laterales');
+        if (pCentro) pCentro.classList.toggle('hidden', validWallTab !== 'centro');
       }
 
       // 6. Restaurar modo específico de pared (placementMode)
-      if (state.placementMode) {
-        this.placementMode = state.placementMode;
-        document.querySelectorAll('.wall-tile-btn, .wall-aux-btn').forEach(b => {
-          if (state.placementMode === 'empty' && b.dataset.action === 'select-floor') {
-            b.classList.add('active');
-          } else if (b.dataset.mode === state.placementMode) {
-            b.classList.add('active');
-          } else {
-            b.classList.remove('active');
-          }
-        });
-      }
+      const validModes = ['N', 'S', 'W', 'E', 'CH', 'CV', 'CN', 'CS', 'CW', 'CE', 'RNW', 'RNE', 'RSW', 'RSE', 'empty'];
+      const modeToRestore = validModes.includes(state.placementMode) ? state.placementMode : 'N';
+      this.placementMode = modeToRestore;
+      document.querySelectorAll('.wall-tile-btn, .wall-aux-btn').forEach(b => {
+        if (modeToRestore === 'empty' && b.dataset.action === 'select-floor') {
+          b.classList.add('active');
+        } else if (b.dataset.mode === modeToRestore) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
 
       // 7. Restaurar accesorio seleccionado
       if (state.selectedAccessory) {
@@ -1619,6 +1725,7 @@ class LevelEditor {
     this.wallStyleMap = (data.wallStyleMap && typeof data.wallStyleMap === 'object') ? data.wallStyleMap : {};
     this.wallStyle = (data.activeWallStyle && WALL_STYLES[data.activeWallStyle]) ? data.activeWallStyle : 'castillo';
     this.doorStyle = (data.activeDoorStyle && DOOR_STYLES[data.activeDoorStyle]) ? data.activeDoorStyle : 'castillo';
+    this.lintelStyle = (data.activeLintelStyle && WALL_STYLES[data.activeLintelStyle]) ? data.activeLintelStyle : 'castillo';
     this.updateStyleLabels();
 
     // Actualizar botones de chips de dimensiones rápidas
@@ -1627,6 +1734,11 @@ class LevelEditor {
       const r = parseInt(chip.dataset.rows, 10);
       chip.classList.toggle('active', c === this.cols && r === this.rows);
     });
+
+    const migrated = this.migrateCenteredDoors(this.grid);
+    if (migrated) {
+      this.showToast('ℹ️ Puertas centradas obsoletas convertidas en pared normal');
+    }
 
     this.resizeCanvas();
     this.render();
@@ -1754,21 +1866,34 @@ class LevelEditor {
 
     const btnWallStyle = document.getElementById('btnWallStyle');
     const btnDoorStyle = document.getElementById('btnDoorStyle');
+    const btnLintelStyle = document.getElementById('btnLintelStyle');
     if (btnWallStyle) btnWallStyle.addEventListener('click', () => this.openStyleModal('wall'));
     if (btnDoorStyle) btnDoorStyle.addEventListener('click', () => this.openStyleModal('door'));
+    if (btnLintelStyle) btnLintelStyle.addEventListener('click', () => this.openStyleModal('lintel'));
 
     this.updateStyleLabels();
   }
 
+  /**
+   * Metadatos de cada "pincel" de estilo: catálogo de estilos que ofrece, en qué
+   * propiedad de this se guarda el valor activo, cómo se llama en la UI y con qué
+   * texto se construye la miniatura de puerta (solo aplica a kind === 'door').
+   */
+  _styleKindInfo(kind) {
+    if (kind === 'wall') return { styles: WALL_STYLES, prop: 'wallStyle', label: 'Pared', isDoorKind: false };
+    if (kind === 'lintel') return { styles: WALL_STYLES, prop: 'lintelStyle', label: 'Dintel', isDoorKind: false };
+    return { styles: DOOR_STYLES, prop: 'doorStyle', label: 'Puerta', isDoorKind: true };
+  }
+
   openStyleModal(kind) {
     this.styleModalKind = kind;
-    const styles = kind === 'wall' ? WALL_STYLES : DOOR_STYLES;
-    const current = kind === 'wall' ? this.wallStyle : this.doorStyle;
+    const { styles, prop, label, isDoorKind } = this._styleKindInfo(kind);
+    const current = this[prop];
 
-    this.styleModalTitle.innerHTML = `<i class="ri-palette-line"></i> Estilo de ${kind === 'wall' ? 'Pared' : 'Puerta'}`;
+    this.styleModalTitle.innerHTML = `<i class="ri-palette-line"></i> Estilo de ${label}`;
     this.styleModalGrid.innerHTML = Object.entries(styles).map(([key, def]) => `
       <button class="style-card ${key === current ? 'active' : ''}" data-style="${key}">
-        <img src="${this.renderStylePreview(kind, def)}" alt="${def.label}">
+        <img src="${this.renderStylePreview(isDoorKind, def)}" alt="${def.label}">
         <span>${def.label}</span>
       </button>
     `).join('');
@@ -1781,29 +1906,30 @@ class LevelEditor {
   }
 
   /**
-   * Dibuja una miniatura 64x64 con la misma función procedural que usará el motor 3D
+   * Dibuja una miniatura con la misma función procedural que usará el motor 3D
+   * Puertas: 64x128 px (proporción 5:10). Paredes y dinteles: 64x192 px (proporción 5:15).
    */
-  renderStylePreview(kind, styleDef) {
-    const size = 64;
-    const pixels = kind === 'wall' ? styleDef.wall(size) : styleDef.door(size, { color: '#e5a93b', rune: 'N' });
+  renderStylePreview(isDoorKind, styleDef) {
+    const w = 64;
+    const h = isDoorKind ? 128 : 192;
+    const pixels = isDoorKind ? styleDef.door(w, h) : styleDef.wall(w, h);
     const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext('2d');
-    const imgData = ctx.createImageData(size, size);
+    const imgData = ctx.createImageData(w, h);
     new Uint32Array(imgData.data.buffer).set(pixels);
     ctx.putImageData(imgData, 0, 0);
     return canvas.toDataURL('image/png');
   }
 
   selectStyle(kind, styleKey) {
-    if (kind === 'wall') this.wallStyle = styleKey;
-    else this.doorStyle = styleKey;
+    const { styles, prop, label } = this._styleKindInfo(kind);
+    this[prop] = styleKey;
     this.updateStyleLabels();
     this.closeStyleModal();
     this.updateJSON();
-    const label = (kind === 'wall' ? WALL_STYLES : DOOR_STYLES)[styleKey].label;
-    this.showToast(`🖌️ Pincel de ${kind === 'wall' ? 'pared' : 'puerta'}: ${label} (se aplicará a lo próximo que coloques)`);
+    this.showToast(`🖌️ Pincel de ${label.toLowerCase()}: ${styles[styleKey].label} (se aplicará a lo próximo que coloques)`);
   }
 
   closeStyleModal() {
@@ -1813,8 +1939,10 @@ class LevelEditor {
   updateStyleLabels() {
     const wallLabelEl = document.getElementById('wallStyleLabel');
     const doorLabelEl = document.getElementById('doorStyleLabel');
+    const lintelLabelEl = document.getElementById('lintelStyleLabel');
     if (wallLabelEl) wallLabelEl.textContent = WALL_STYLES[this.wallStyle].label;
     if (doorLabelEl) doorLabelEl.textContent = DOOR_STYLES[this.doorStyle].label;
+    if (lintelLabelEl) lintelLabelEl.textContent = WALL_STYLES[this.lintelStyle].label;
   }
 
   showToast(msg) {
