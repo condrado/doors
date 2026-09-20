@@ -110,7 +110,7 @@ class RaycasterEngine {
       return cell.map(c => (c === 'DCH' || c === 'ODCH') ? 'CH' : (c === 'DCV' || c === 'ODCV') ? 'CV' : c);
     }
     if (cell === 1) return ['N', 'S', 'E', 'W'];
-    if (cell === 9) return 9;  // Mesa
+    if (cell === 9 || (cell >= 15 && cell <= 21)) return cell;  // Mesa (todas las variantes)
     if (cell >= 2 && cell <= 5) {
       return [(cell === 2) ? 'DN' : (cell === 3) ? 'DE' : (cell === 4) ? 'DS' : 'DW'];
     }
@@ -1167,31 +1167,74 @@ class RaycasterEngine {
     this.textures[23]['castillo']= this.textures[23]['mesa'];
 
     if (typeof Image !== 'undefined') {
-      const loadMesaTex = (src, types, squash = false) => {
+      // Carga mesa-t.png (tapa superior, squash a 64×64)
+      const loadMesaTop = (src) => {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = () => {
-          const srcH = img.naturalHeight || 64;
-          // squash=true (mesa-t): escala a 64×64
-          // squash=false (laterales): carga a tamaño nativo para que blitTexBand
-          //   use texH correcto y la ∩ (en el tercio inferior) quede en el tercio
-          //   inferior de la cara de la mesa, sin distorsión
-          const destH = squash ? 64 : srcH;
           const off = document.createElement('canvas');
-          off.width = 64; off.height = destH;
+          off.width = 64; off.height = 64;
           const octx = off.getContext('2d', { willReadFrequently: true });
-          octx.drawImage(img, 0, 0, 64, destH);
-          const arr = new Uint32Array(octx.getImageData(0, 0, 64, destH).data.buffer);
-          arr.width = 64; arr.height = destH;
-          for (const t of types) { this.textures[t]['mesa'] = arr; this.textures[t]['castillo'] = arr; }
+          octx.drawImage(img, 0, 0, 64, 64);
+          const arr = new Uint32Array(octx.getImageData(0, 0, 64, 64).data.buffer);
+          arr.width = 64; arr.height = 64;
+          this.textures[14]['mesa'] = arr;
+          this.textures[14]['castillo'] = arr;
         };
         img.src = src + '?t=' + Date.now();
       };
-      loadMesaTex('/src/engine/textures/custom/mesa-l.png',   [9]);
-      loadMesaTex('/src/engine/textures/custom/mesa-t.png',   [14], true);  // tapa: squash a 64×64
-      loadMesaTex('/src/engine/textures/custom/mesa-l-0.png', [15]);
-      loadMesaTex('/src/engine/textures/custom/mesa-l-i.png', [22]);
-      loadMesaTex('/src/engine/textures/custom/mesa-l-d.png', [23]);
+
+      // Carga mesa-l.png (cuerpo completo con 2 patas) y genera variantes
+      // recortando las columnas de pata izq (x=0-7) y/o der (x=56-63)
+      // en el tercio inferior (y >= H*2/3), donde aparecen las patas.
+      const loadMesaLateral = (src) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const H = img.naturalHeight || 192;
+          const off = document.createElement('canvas');
+          off.width = 64; off.height = H;
+          const octx = off.getContext('2d', { willReadFrequently: true });
+          octx.drawImage(img, 0, 0, 64, H);
+          const base = new Uint32Array(octx.getImageData(0, 0, 64, H).data.buffer);
+          base.width = 64; base.height = H;
+
+          // Tipo 9: cuerpo completo con las dos patas (sin modificar)
+          this.textures[9]['mesa'] = base;
+          this.textures[9]['castillo'] = base;
+
+          // yLeg: fila desde la que empiezan las columnas de pata
+          const yLeg = Math.floor(H * 2 / 3);
+
+          const makeVariant = (keepLeft, keepRight) => {
+            const arr = new Uint32Array(base.buffer.slice(0));
+            arr.width = 64; arr.height = H;
+            for (let y = yLeg; y < H; y++) {
+              for (let x = 0; x < 64; x++) {
+                const isLeft  = x < 8;
+                const isRight = x >= 56;
+                if ((isLeft && !keepLeft) || (isRight && !keepRight)) {
+                  arr[y * 64 + x] = 0; // transparente
+                }
+              }
+            }
+            return arr;
+          };
+
+          const noLegs    = makeVariant(false, false); // tipo 15: sin patas
+          const leftOnly  = makeVariant(true,  false); // tipo 22: pata izquierda
+          const rightOnly = makeVariant(false, true);  // tipo 23: pata derecha
+
+          [this.textures[15], this.textures[22], this.textures[23]].forEach((t, i) => {
+            const arr = [noLegs, leftOnly, rightOnly][i];
+            t['mesa'] = arr; t['castillo'] = arr;
+          });
+        };
+        img.src = src + '?t=' + Date.now();
+      };
+
+      loadMesaLateral('/src/engine/textures/custom/mesa-l.png');
+      loadMesaTop('/src/engine/textures/custom/mesa-t.png');
     }
   }
 
