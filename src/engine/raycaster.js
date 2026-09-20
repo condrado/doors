@@ -27,6 +27,7 @@ class RaycasterEngine {
     // Coincidencia exacta: 64px (dintel) + 128px (puerta) = 192px (pared).
     this.wallHeightScale = 3.0;
     this.doorHeightScale = 2.0;
+    this.tableHeightScale = 0.985;
 
     if (typeof window !== 'undefined') {
       window.activeRaycasterEngine = this;
@@ -62,6 +63,9 @@ class RaycasterEngine {
     // Buffer de imagen para renderizado rápido por píxel
     this.imgData = this.ctx.createImageData(this.width, this.height);
     this.pixels = new Uint32Array(this.imgData.data.buffer);
+
+    // Z-buffer: distancia perpendicular al hitBottom por columna, para oclusión en floor casting
+    this.zBuffer = new Float32Array(this.width);
 
     // Estilo por segmento, tal como lo pintó el Editor: { "x,y": { N: 'blanca', DW: 'negra', ... } }
     // Cada pared/puerta conserva su propio estilo; no hay un único "estilo del mapa".
@@ -106,6 +110,7 @@ class RaycasterEngine {
       return cell.map(c => (c === 'DCH' || c === 'ODCH') ? 'CH' : (c === 'DCV' || c === 'ODCV') ? 'CV' : c);
     }
     if (cell === 1) return ['N', 'S', 'E', 'W'];
+    if (cell === 9) return 9;  // Mesa
     if (cell >= 2 && cell <= 5) {
       return [(cell === 2) ? 'DN' : (cell === 3) ? 'DE' : (cell === 4) ? 'DS' : 'DW'];
     }
@@ -383,6 +388,31 @@ class RaycasterEngine {
     // simplemente encajan entre sí — porque eso es exactamente lo que son.
     const cellStyleEntry = this.wallStyleMap[`${mapX},${mapY}`];
     const styleOf = (code) => (cellStyleEntry && cellStyleEntry[code]) || 'castillo';
+
+    // MESAS: bloques bajos con distintas configuraciones de patas
+    // Tipos de textura lateral: 9=2patas, 15=0patas, 22=pata-izq, 23=pata-der
+    // La cara N vista desde fuera (norte) usa lógica espejada → izq/der invertidos respecto a S/W/E
+    const MESA_FACES = {
+       9: { N:  9, S:  9, W:  9, E:  9 }, // 4 patas
+      15: { N: 15, S: 15, W: 15, E: 15 }, // sin patas
+      16: { N: 23, S: 22, W:  9, E: 15 }, // ext izq (2 patas lado oeste)
+      17: { N: 22, S: 23, W: 15, E:  9 }, // ext der (2 patas lado este)
+      18: { N: 23, S: 15, W: 22, E: 15 }, // esq TL (1 pata NW)
+      19: { N: 22, S: 15, W: 15, E: 23 }, // esq TR (1 pata NE)
+      20: { N: 15, S: 22, W: 23, E: 15 }, // esq BL (1 pata SW)
+      21: { N: 15, S: 23, W: 15, E: 22 }, // esq BR (1 pata SE)
+    };
+    const mesaCode = typeof codes === 'number' ? codes : parseInt(codes, 10);
+    if (MESA_FACES[mesaCode]) {
+      const f = MESA_FACES[mesaCode];
+      faces.push(
+        { axis: 'y', pos: y0, minX: x0, maxX: x1, type: f.N, name: 'Mesa (N)', style: 'mesa', isTable: true },
+        { axis: 'y', pos: y1, minX: x0, maxX: x1, type: f.S, name: 'Mesa (S)', style: 'mesa', isTable: true },
+        { axis: 'x', pos: x0, minY: y0, maxY: y1, type: f.W, name: 'Mesa (O)', style: 'mesa', isTable: true },
+        { axis: 'x', pos: x1, minY: y0, maxY: y1, type: f.E, name: 'Mesa (E)', style: 'mesa', isTable: true }
+      );
+      return faces;
+    }
 
     // 0. BLOQUE SÓLIDO COMPLETO 1x1 (celda numérica 1 o ['N', 'S', 'E', 'W'])
     if (has('N') && has('S') && has('E') && has('W')) {
@@ -1072,6 +1102,97 @@ class RaycasterEngine {
 
     // Textura 6: Ventana medieval de 64x192 (dintel + hueco + antepecho, sin variantes)
     this.textures[6] = createWindowPixels(64, 192);
+
+    // Tipos de mesa:
+    // 9  = laterales 2 patas (mesa-l.png)
+    // 14 = superficie superior (mesa-t.png)
+    // 15 = laterales sin patas (mesa-l-0.png)
+    // 22 = laterales 1 pata izquierda (mesa-l-i.png)
+    // 23 = laterales 1 pata derecha  (mesa-l-d.png)
+    this.textures[9]  = {};
+    this.textures[14] = {};
+    this.textures[15] = {};
+    this.textures[22] = {};
+    this.textures[23] = {};
+
+    const makeMesaPixels = (width, height, drawLegs) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#6b4423';
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = '#4a2e17';
+      ctx.lineWidth = 2;
+      for (let y = 0; y < height; y += 16) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+      }
+      if (drawLegs === 'both' || drawLegs === 'left') {
+        ctx.fillStyle = '#3a2010';
+        ctx.fillRect(0, 0, 8, height);
+      }
+      if (drawLegs === 'both' || drawLegs === 'right') {
+        ctx.fillStyle = '#3a2010';
+        ctx.fillRect(width - 8, 0, 8, height);
+      }
+      const arr = new Uint32Array(ctx.getImageData(0, 0, width, height).data.buffer);
+      arr.width = width; arr.height = height;
+      return arr;
+    };
+
+    const makeMesaTopPixels = (width, height) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#a0693a';
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 1;
+      for (let y = 0; y < height; y += 8)
+        for (let x = 0; x < width; x += 8)
+          ctx.strokeRect(x, y, 8, 8);
+      const arr = new Uint32Array(ctx.getImageData(0, 0, width, height).data.buffer);
+      arr.width = width; arr.height = height;
+      return arr;
+    };
+
+    this.textures[9]['mesa']    = makeMesaPixels(64, 64, 'both');
+    this.textures[9]['castillo']= this.textures[1]['castillo'] || makeMesaPixels(64, 64, 'both');
+    this.textures[14]['mesa']   = makeMesaTopPixels(64, 64);
+    this.textures[14]['castillo']= this.textures[14]['mesa'];
+    this.textures[15]['mesa']   = makeMesaPixels(64, 64, 'none');
+    this.textures[15]['castillo']= this.textures[15]['mesa'];
+    this.textures[22]['mesa']   = makeMesaPixels(64, 64, 'left');
+    this.textures[22]['castillo']= this.textures[22]['mesa'];
+    this.textures[23]['mesa']   = makeMesaPixels(64, 64, 'right');
+    this.textures[23]['castillo']= this.textures[23]['mesa'];
+
+    if (typeof Image !== 'undefined') {
+      const loadMesaTex = (src, types, squash = false) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const srcH = img.naturalHeight || 64;
+          // squash=true (mesa-t): escala a 64×64
+          // squash=false (laterales): carga a tamaño nativo para que blitTexBand
+          //   use texH correcto y la ∩ (en el tercio inferior) quede en el tercio
+          //   inferior de la cara de la mesa, sin distorsión
+          const destH = squash ? 64 : srcH;
+          const off = document.createElement('canvas');
+          off.width = 64; off.height = destH;
+          const octx = off.getContext('2d', { willReadFrequently: true });
+          octx.drawImage(img, 0, 0, 64, destH);
+          const arr = new Uint32Array(octx.getImageData(0, 0, 64, destH).data.buffer);
+          arr.width = 64; arr.height = destH;
+          for (const t of types) { this.textures[t]['mesa'] = arr; this.textures[t]['castillo'] = arr; }
+        };
+        img.src = src + '?t=' + Date.now();
+      };
+      loadMesaTex('/src/engine/textures/custom/mesa-l.png',   [9]);
+      loadMesaTex('/src/engine/textures/custom/mesa-t.png',   [14], true);  // tapa: squash a 64×64
+      loadMesaTex('/src/engine/textures/custom/mesa-l-0.png', [15]);
+      loadMesaTex('/src/engine/textures/custom/mesa-l-i.png', [22]);
+      loadMesaTex('/src/engine/textures/custom/mesa-l-d.png', [23]);
+    }
   }
 
   /**
@@ -1339,6 +1460,7 @@ class RaycasterEngine {
 
       let hitBottom = null;
       let hitOpenDoor = null;
+      let hitTable = null;
       const hitLintels = [];
       const hitTransparents = [];
 
@@ -1364,9 +1486,13 @@ class RaycasterEngine {
             }
           }
         }
-        if (res.bestOpaqueBottom) {
+        // Las mesas no detienen la búsqueda, se renderizan después del fondo
+        if (res.bestOpaqueBottom && !res.bestOpaqueBottom.seg.isTable) {
           hitBottom = res.bestOpaqueBottom;
           return true;
+        }
+        if (res.bestOpaqueBottom && res.bestOpaqueBottom.seg.isTable && !hitTable) {
+          hitTable = res.bestOpaqueBottom;
         }
         return false;
       };
@@ -1493,11 +1619,24 @@ class RaycasterEngine {
 
       const eyeHeight = this.wallHeightScale / 2; // 1.5
 
+      // Si solo hay mesa y no hay otro opaco, usar mesa como hitBottom
+      if (!hitBottom && hitTable) {
+        hitBottom = hitTable;
+      }
+
+      if (!hitBottom) { this.zBuffer[x] = Infinity; continue; }
+
+      // Guardar distancia en z-buffer para oclusión de floor casting
+      this.zBuffer[x] = hitBottom.dist;
+
       // 1. Proyección de la pared/puerta de fondo (hitBottom)
       const projBottom = h / Math.max(hitBottom.dist, 0.0001);
       const bottomY = halfH + eyeHeight * projBottom; // suelo común
       const doorTopYBottom = halfH - (this.doorHeightScale - eyeHeight) * projBottom;
-      const wallTopYBottom = halfH - (this.wallHeightScale - eyeHeight) * projBottom;
+
+      // Si es una mesa, usar tableHeightScale; si no, usar wallHeightScale
+      const heightScale = hitBottom.seg && hitBottom.seg.isTable ? this.tableHeightScale : this.wallHeightScale;
+      const wallTopYBottom = halfH - (heightScale - eyeHeight) * projBottom;
 
       // Factor de sombra por distancia y orientación (eje Y más sombreado para profundidad)
       const shadeOf = (dist, side) => {
@@ -1578,6 +1717,11 @@ class RaycasterEngine {
       // Unir todas las capas intermedias que están por delante del fondo opaco
       const layers = [];
 
+      // Las mesas se renderizan encima del fondo opaco (o como fondo si no hay otro opaco)
+      if (hitTable && (!hitBottom || hitTable.dist < hitBottom.dist)) {
+        layers.push({ kind: 'table', hit: hitTable, dist: hitTable.dist });
+      }
+
       if (hitOpenDoor && hitOpenDoor.dist < hitBottom.dist) {
         layers.push({ kind: 'openDoor', hit: hitOpenDoor, dist: hitOpenDoor.dist });
       }
@@ -1601,11 +1745,12 @@ class RaycasterEngine {
 
       if (this.textureMode === 'classic') {
         // 1. Dibujar el fondo opaco (hitBottom: pared completa, jamba o puerta cerrada)
-        const bTex = resolveTex(hitBottom.seg.type, hitBottom.seg.style || 'castillo');
-        const bTexX = texXOf(hitBottom.wallX, hitBottom.side, bTex.width || 64);
-        const bShade = shadeOf(hitBottom.dist, hitBottom.side);
+        if (hitBottom) {
+          const bTex = resolveTex(hitBottom.seg.type, hitBottom.seg.style || 'castillo');
+          const bTexX = texXOf(hitBottom.wallX, hitBottom.side, bTex.width || 64);
+          const bShade = shadeOf(hitBottom.dist, hitBottom.side);
 
-        if (hitBottom.seg.isJamb) {
+          if (hitBottom.seg.isJamb) {
           // Jamba lateral de vano de puerta (0 a 2.2m), continúa la textura de canto de 3m hacia abajo
           blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
         } else if (hitBottom.isDoor) {
@@ -1620,11 +1765,21 @@ class RaycasterEngine {
           // Pared completa o ventana de 3.0m
           blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, wallTopYBottom, bottomY);
         }
+        }
 
         // 2. Dibujar cada capa intermedia de más lejana a más cercana
         for (let i = 0; i < layers.length; i++) {
           const layer = layers[i];
-          if (layer.kind === 'openDoor') {
+          if (layer.kind === 'table') {
+            const tblHit = layer.hit;
+            const projTbl = h / Math.max(tblHit.dist, 0.0001);
+            const bottomYTbl = halfH + eyeHeight * projTbl;
+            const tableTopYTbl = halfH - (this.tableHeightScale - eyeHeight) * projTbl;
+            const tblTex = resolveTex(tblHit.seg.type, tblHit.seg.style || 'castillo');
+            const tblTexX = texXOf(tblHit.wallX, tblHit.side, tblTex.width || 64);
+            const tblShade = shadeOf(tblHit.dist, tblHit.side);
+            blitTexBand(tableTopYTbl, bottomYTbl, tblTex, tblTexX, tblShade, tableTopYTbl, bottomYTbl);
+          } else if (layer.kind === 'openDoor') {
             const od = layer.hit;
             const projDoor = h / Math.max(od.dist, 0.0001);
             const bottomYDoor = halfH + eyeHeight * projDoor;
@@ -1673,18 +1828,30 @@ class RaycasterEngine {
         }
       } else {
         // Modo plano
-        if (hitBottom.seg.isJamb) {
+        if (hitBottom && hitBottom.seg.isTable) {
+          // Renderizar mesa con altura correcta
+          const projTbl = h / Math.max(hitBottom.dist, 0.0001);
+          const bottomYTbl = halfH + eyeHeight * projTbl;
+          const tableTopYTbl = halfH - (this.tableHeightScale - eyeHeight) * projTbl;
+          blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, shadeOf(hitBottom.dist, hitBottom.side), tableTopYTbl, bottomYTbl);
+        } else if (hitBottom && hitBottom.seg.isJamb) {
           blitFlatBand(wallTopYBottom, bottomY, 0x555555, shadeOf(hitBottom.dist, hitBottom.side), doorTopYBottom, bottomY);
-        } else if (hitBottom.isDoor) {
+        } else if (hitBottom && hitBottom.isDoor) {
           blitFlatBand(doorTopYBottom, bottomY, 0x00a5ff, shadeOf(hitBottom.dist, hitBottom.side), doorTopYBottom, bottomY);
           blitFlatBand(wallTopYBottom, bottomY, 0x888888, shadeOf(hitBottom.dist, hitBottom.side), wallTopYBottom, doorTopYBottom + 1);
-        } else {
+        } else if (hitBottom) {
           blitFlatBand(wallTopYBottom, bottomY, 0x888888, shadeOf(hitBottom.dist, hitBottom.side), wallTopYBottom, bottomY);
         }
 
         for (let i = 0; i < layers.length; i++) {
           const layer = layers[i];
-          if (layer.kind === 'openDoor') {
+          if (layer.kind === 'table') {
+            const tblHit = layer.hit;
+            const projTbl = h / Math.max(tblHit.dist, 0.0001);
+            const bottomYTbl = halfH + eyeHeight * projTbl;
+            const tableTopYTbl = halfH - (this.tableHeightScale - eyeHeight) * projTbl;
+            blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, shadeOf(tblHit.dist, tblHit.side), tableTopYTbl, bottomYTbl);
+          } else if (layer.kind === 'openDoor') {
             const od = layer.hit;
             const projDoor = h / Math.max(od.dist, 0.0001);
             const bottomYDoor = halfH + eyeHeight * projDoor;
@@ -1710,6 +1877,66 @@ class RaycasterEngine {
               blitFlatBand(wallTopYT, bottomYT, 0x2288bb, tShade, wallTopYT, bottomYT);
             }
           }
+        }
+      }
+    }
+
+    // 3. Floor casting: tapas de mesas (superficie horizontal a altura tableHeightScale)
+    const tableTopTex = (() => {
+      const t = this.textures[14];
+      if (!t) return null;
+      return (t instanceof Uint32Array) ? t : (t['mesa'] || t['castillo'] || null);
+    })();
+
+    if (tableTopTex) {
+      const eyeHeight = this.wallHeightScale / 2;
+      const surfaceH = this.tableHeightScale; // 0.33
+      const eyeAbove = eyeHeight - surfaceH;  // 1.17
+
+      for (let y = Math.ceil(halfH) + 1; y < h; y++) {
+        const rowOffset = y - halfH;
+        if (rowOffset <= 0) continue;
+        const rowDist = eyeAbove * h / rowOffset;
+
+        // Calcular el paso de avance en mundo por píxel horizontal
+        // (equivale a recalcular los dos rayos extremos del frustum para esta fila)
+        const rayDirX0 = dirX - planeX;
+        const rayDirY0 = dirY - planeY;
+        const rayDirX1 = dirX + planeX;
+        const rayDirY1 = dirY + planeY;
+
+        const floorStepX = rowDist * (rayDirX1 - rayDirX0) / w;
+        const floorStepY = rowDist * (rayDirY1 - rayDirY0) / w;
+
+        let floorX = posX + rowDist * rayDirX0;
+        let floorY_w = posY + rowDist * rayDirY0;
+
+        const rowPixelBase = y * w;
+
+        for (let x = 0; x < w; x++, floorX += floorStepX, floorY_w += floorStepY) {
+          // Oclusión: el punto está detrás de la pared de esta columna
+          if (rowDist >= this.zBuffer[x]) { continue; }
+
+          const cellX = Math.floor(floorX);
+          const cellY = Math.floor(floorY_w);
+
+          if (cellX < 0 || cellX >= this.mapWidth || cellY < 0 || cellY >= this.mapHeight) continue;
+
+          // Comprobar si la celda es una mesa (cualquier variante)
+          const cellCode = this.map[cellY] ? this.map[cellY][cellX] : undefined;
+          const cellNum = typeof cellCode === 'number' ? cellCode : parseInt(cellCode, 10);
+          const isMesaCell = cellNum === 9 || (cellNum >= 15 && cellNum <= 21);
+          if (!isMesaCell) continue;
+
+          const tx = Math.floor((floorX - cellX) * 64) & 63;
+          const ty = Math.floor((floorY_w - cellY) * 64) & 63;
+
+          const shade = Math.min(1, 1 / (1 + rowDist * 0.22));
+          const raw = tableTopTex[ty * 64 + tx];
+          const r = Math.floor((raw & 0xFF) * shade);
+          const g = Math.floor(((raw >> 8) & 0xFF) * shade);
+          const b = Math.floor(((raw >> 16) & 0xFF) * shade);
+          pixels[rowPixelBase + x] = (255 << 24) | (b << 16) | (g << 8) | r;
         }
       }
     }

@@ -693,6 +693,11 @@ body {
   color: var(--text-muted);
 }
 
+.table-sample {
+  background: #6b4423;
+  border: 2px solid #4a2e17;
+}
+
 .accessory-sample {
   background: rgba(229, 169, 59, 0.2);
   border: 1px solid #e5a93b;

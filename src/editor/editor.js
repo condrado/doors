@@ -82,6 +82,7 @@ class LevelEditor {
     this.currentTool = 'brush'; // 'brush', 'room', 'eraser'
     this.selectedTile = 1; // 1 = pared, 0 = suelo, 'accessories' = accesorios, 'player' = spawn
     this.selectedAccessory = 'door'; // 'door', 'window'
+    this.tableType = 9; // código de celda de mesa activo (9=4patas, 15=sin patas, 16-21=variantes)
     this.isMouseDown = false;
     this.roomStart = null;
     this.hoverCell = { x: -1, y: -1 };
@@ -158,6 +159,7 @@ class LevelEditor {
     this.setupDoorLinkEventListeners();
     this.setupTextureManager();
     this.setupStyleModals();
+    this.setupMesaModal();
     this.setupConfirmModal();
     this.restoreUIState();
     this.updateToolPanelsVisibility();
@@ -425,7 +427,7 @@ class LevelEditor {
         document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
         e.target.closest('.palette-item').classList.add('active');
         const val = e.target.value;
-        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'door' || val === 'window') ? val : parseInt(val, 10);
+        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'door' || val === 'window' || val === 'table') ? val : parseInt(val, 10);
         this.updateToolPanelsVisibility();
         this.render();
         this.saveUIState();
@@ -1004,6 +1006,11 @@ class LevelEditor {
         this.clearCellStyles(x, y);
         changed = true;
       }
+    } else if (this.selectedTile === 'table') {
+      if (this.grid[y][x] !== this.tableType) {
+        this.grid[y][x] = this.tableType;
+        changed = true;
+      }
     } else if (this.hoverSubEdge.startsWith('corner_')) {
       // Esquinas rápidas en bordes, centradas y cruces
       const c = this.hoverSubEdge.replace('corner_', '');
@@ -1463,6 +1470,25 @@ class LevelEditor {
         else if (cell === 3) segs = ['DE'];
         else if (cell === 4) segs = ['DS'];
         else if (cell === 5) segs = ['DW'];
+        else if (cell === 9 || (cell >= 15 && cell <= 21)) {
+          // Mesa (cualquier variante): dibuja tabla con indicador de patas
+          const legPos = { 9:[1,1,1,1], 15:[0,0,0,0], 16:[1,0,1,0], 17:[0,1,0,1], 18:[1,0,1,0], 19:[0,1,1,0], 20:[1,0,0,1], 21:[0,1,0,1] };
+          // [TL, TR, BL, BR]
+          const legCorners = { 9:[1,1,1,1], 15:[0,0,0,0], 16:[1,0,1,0], 17:[0,1,0,1], 18:[1,0,0,0], 19:[0,1,0,0], 20:[0,0,1,0], 21:[0,0,0,1] };
+          const lc = legCorners[cell] || [0,0,0,0];
+          ctx.fillStyle = '#6b4423';
+          ctx.fillRect(px + cs * 0.1, py + cs * 0.1, cs * 0.8, cs * 0.8);
+          ctx.strokeStyle = '#4a2e17';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px + cs * 0.1, py + cs * 0.1, cs * 0.8, cs * 0.8);
+          const lw = cs * 0.15;
+          ctx.fillStyle = '#3a2010';
+          if (lc[0]) ctx.fillRect(px + cs * 0.1, py + cs * 0.1, lw, lw);
+          if (lc[1]) ctx.fillRect(px + cs * 0.9 - lw, py + cs * 0.1, lw, lw);
+          if (lc[2]) ctx.fillRect(px + cs * 0.1, py + cs * 0.9 - lw, lw, lw);
+          if (lc[3]) ctx.fillRect(px + cs * 0.9 - lw, py + cs * 0.9 - lw, lw, lw);
+          continue;
+        }
 
         // Dibujar cada segmento fino en su lateral o centro
         const cellStyleEntry = this.wallStyleMap[`${x},${y}`];
@@ -1850,20 +1876,22 @@ class LevelEditor {
     const sectionElementPalette = document.getElementById('sectionElementPalette');
     const sectionWallPlacement = document.getElementById('sectionWallPlacement');
     const sectionAccessoryPlacement = document.getElementById('sectionAccessoryPlacement');
+    const sectionMesaPlacement = document.getElementById('sectionMesaPlacement');
     const sectionEraserInfo = document.getElementById('sectionEraserInfo');
 
     if (this.currentTool === 'eraser') {
       if (sectionElementPalette) sectionElementPalette.style.display = 'none';
       if (sectionWallPlacement) sectionWallPlacement.style.display = 'none';
       if (sectionAccessoryPlacement) sectionAccessoryPlacement.style.display = 'none';
+      if (sectionMesaPlacement) sectionMesaPlacement.style.display = 'none';
       if (sectionEraserInfo) sectionEraserInfo.style.display = '';
     } else {
-      // Modo pincel o habitación
       if (sectionEraserInfo) sectionEraserInfo.style.display = 'none';
       if (sectionElementPalette) sectionElementPalette.style.display = '';
 
       const isWall = (this.selectedTile === 1 || this.selectedTile === '1');
       const isAccessory = (this.selectedTile === 'accessories');
+      const isMesa = (this.selectedTile === 'table');
 
       if (sectionWallPlacement) {
         sectionWallPlacement.style.display = isWall ? '' : 'none';
@@ -1872,6 +1900,10 @@ class LevelEditor {
       if (sectionAccessoryPlacement) {
         sectionAccessoryPlacement.style.display = isAccessory ? '' : 'none';
         if (isAccessory) sectionAccessoryPlacement.classList.remove('collapsed');
+      }
+      if (sectionMesaPlacement) {
+        sectionMesaPlacement.style.display = isMesa ? '' : 'none';
+        if (isMesa) sectionMesaPlacement.classList.remove('collapsed');
       }
     }
   }
@@ -2901,6 +2933,51 @@ class LevelEditor {
     if (wallLabelEl) wallLabelEl.textContent = WALL_STYLES[this.wallStyle].label;
     if (doorLabelEl) doorLabelEl.textContent = DOOR_STYLES[this.doorStyle].label;
     if (lintelLabelEl) lintelLabelEl.textContent = WALL_STYLES[this.lintelStyle].label;
+  }
+
+  setupMesaModal() {
+    const MESA_TYPES = [
+      { code: 9,  label: '4 Patas',   desc: 'Mesa independiente',        svg: `<svg viewBox="0 0 40 40" width="60" height="60"><rect x="2" y="2" width="36" height="36" fill="#6b4423" rx="2"/><rect x="2" y="2" width="7" height="36" fill="#3a2010"/><rect x="31" y="2" width="7" height="36" fill="#3a2010"/></svg>` },
+      { code: 15, label: 'Sin Patas', desc: 'Interior de mesa grande',    svg: `<svg viewBox="0 0 40 40" width="60" height="60"><rect x="2" y="2" width="36" height="36" fill="#6b4423" rx="2"/></svg>` },
+      { code: 16, label: 'Ext. Izq',  desc: 'Extremo izquierdo (2 patas)', svg: `<svg viewBox="0 0 40 40" width="60" height="60"><rect x="2" y="2" width="36" height="36" fill="#6b4423" rx="2"/><rect x="2" y="2" width="7" height="36" fill="#3a2010"/></svg>` },
+      { code: 17, label: 'Ext. Der',  desc: 'Extremo derecho (2 patas)',  svg: `<svg viewBox="0 0 40 40" width="60" height="60"><rect x="2" y="2" width="36" height="36" fill="#6b4423" rx="2"/><rect x="31" y="2" width="7" height="36" fill="#3a2010"/></svg>` },
+      { code: 18, label: 'Esq. TL',   desc: 'Esquina arriba-izquierda',   svg: `<svg viewBox="0 0 40 40" width="60" height="60"><rect x="2" y="2" width="36" height="36" fill="#6b4423" rx="2"/><rect x="2" y="2" width="7" height="7" fill="#3a2010"/></svg>` },
+      { code: 19, label: 'Esq. TR',   desc: 'Esquina arriba-derecha',     svg: `<svg viewBox="0 0 40 40" width="60" height="60"><rect x="2" y="2" width="36" height="36" fill="#6b4423" rx="2"/><rect x="31" y="2" width="7" height="7" fill="#3a2010"/></svg>` },
+      { code: 20, label: 'Esq. BL',   desc: 'Esquina abajo-izquierda',    svg: `<svg viewBox="0 0 40 40" width="60" height="60"><rect x="2" y="2" width="36" height="36" fill="#6b4423" rx="2"/><rect x="2" y="31" width="7" height="7" fill="#3a2010"/></svg>` },
+      { code: 21, label: 'Esq. BR',   desc: 'Esquina abajo-derecha',      svg: `<svg viewBox="0 0 40 40" width="60" height="60"><rect x="2" y="2" width="36" height="36" fill="#6b4423" rx="2"/><rect x="31" y="31" width="7" height="7" fill="#3a2010"/></svg>` },
+    ];
+
+    this.mesaModalOverlay = document.getElementById('mesaModalOverlay');
+    const mesaModalGrid = document.getElementById('mesaModalGrid');
+    const mesaModalClose = document.getElementById('mesaModalClose');
+    const btnMesaType = document.getElementById('btnMesaType');
+    const mesaTypeLabel = document.getElementById('mesaTypeLabel');
+
+    if (!this.mesaModalOverlay) return;
+
+    mesaModalClose.addEventListener('click', () => { this.mesaModalOverlay.hidden = true; });
+    this.mesaModalOverlay.addEventListener('click', (e) => {
+      if (e.target === this.mesaModalOverlay) this.mesaModalOverlay.hidden = true;
+    });
+
+    if (btnMesaType) btnMesaType.addEventListener('click', () => {
+      mesaModalGrid.innerHTML = MESA_TYPES.map(t => `
+        <div class="style-card ${t.code === this.tableType ? 'active' : ''}" data-code="${t.code}" title="${t.desc}">
+          ${t.svg}
+          <span class="style-card-title">${t.label}</span>
+        </div>
+      `).join('');
+      mesaModalGrid.querySelectorAll('.style-card').forEach(card => {
+        card.addEventListener('click', () => {
+          this.tableType = parseInt(card.dataset.code, 10);
+          const found = MESA_TYPES.find(t => t.code === this.tableType);
+          if (mesaTypeLabel) mesaTypeLabel.textContent = found ? found.label : this.tableType;
+          this.mesaModalOverlay.hidden = true;
+          this.showToast(`🪵 Tipo de mesa: ${found ? found.label : this.tableType}`);
+        });
+      });
+      this.mesaModalOverlay.hidden = false;
+    });
   }
 
   setupConfirmModal() {
