@@ -232,13 +232,13 @@ class RaycasterEngine {
 
     switch (openCode) {
       case 'ODN':
-        return (py + pRad >= y0 && py - pRad <= y0 + 0.25 && px >= x0 - 0.1 && px <= x1 + 0.1);
+        return (py + pRad >= y0 && py - pRad <= y0 + 0.20 && px >= x0 - 0.1 && px <= x1 + 0.1);
       case 'ODS':
-        return (py + pRad >= y1 - 0.25 && py - pRad <= y1 && px >= x0 - 0.1 && px <= x1 + 0.1);
+        return (py + pRad >= y1 - 0.20 && py - pRad <= y1 && px >= x0 - 0.1 && px <= x1 + 0.1);
       case 'ODW':
-        return (px + pRad >= x0 && px - pRad <= x0 + 0.25 && py >= y0 - 0.1 && py <= y1 + 0.1);
+        return (px + pRad >= x0 && px - pRad <= x0 + 0.20 && py >= y0 - 0.1 && py <= y1 + 0.1);
       case 'ODE':
-        return (px + pRad >= x1 - 0.25 && px - pRad <= x1 && py >= y0 - 0.1 && py <= y1 + 0.1);
+        return (px + pRad >= x1 - 0.20 && px - pRad <= x1 && py >= y0 - 0.1 && py <= y1 + 0.1);
       default:
         return false;
     }
@@ -335,19 +335,27 @@ class RaycasterEngine {
     const y0 = mapY;
     const y1 = mapY + 1.0;
 
-    const cxA = mapX + 0.40;
-    const cxB = mapX + 0.60;
-    const cyA = mapY + 0.40;
-    const cyB = mapY + 0.60;
 
+    // Grosor de pared, dintel y puerta: 0.10 m (proporción 1/10 de la celda)
     const nyA = mapY;
-    const nyB = mapY + 0.20;
-    const syA = mapY + 0.80;
+    const nyB = mapY + 0.10;
+    const syA = mapY + 0.90;
     const syB = mapY + 1.0;
     const wxA = mapX;
-    const wxB = mapX + 0.20;
-    const exA = mapX + 0.80;
+    const wxB = mapX + 0.10;
+    const exA = mapX + 0.90;
     const exB = mapX + 1.0;
+
+    // Centros (0.45..0.55 = grosor 0.10 m centrado exactamente en el eje 0.50)
+    const cxA = mapX + 0.45;
+    const cxB = mapX + 0.55;
+    const cyA = mapY + 0.45;
+    const cyB = mapY + 0.55;
+
+    const odwxA = wxA;
+    const odwxB = wxB;
+    const odnyA = nyA;
+    const odnyB = nyB;
 
     const has = (c) => codes.includes(c);
 
@@ -372,7 +380,7 @@ class RaycasterEngine {
       return faces;
     }
 
-    // 1. PUERTAS CERRADAS (DN, DS, DW, DE)
+    // 1. PUERTAS CERRADAS (DN, DS, DW, DE) CON GROSOR DE 1/10 DE CELDA (0.10m)
     if (has('DN')) {
       const type = 2;
       const name = 'Puerta Norte';
@@ -381,6 +389,7 @@ class RaycasterEngine {
       const westConn = this.getWallConnection(mapX - 1, mapY, 'N');
       const eastConn = this.getWallConnection(mapX + 1, mapY, 'N');
 
+      // Hoja de la puerta (0.10m de grosor = 1/10 de celda)
       faces.push(
         { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style, lintelStyle },
         { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style, lintelStyle }
@@ -395,6 +404,7 @@ class RaycasterEngine {
       } else if (eastConn === 'open') {
         faces.push({ axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 10, isCap: true, isJamb: true, name: 'Jamba Este', style, lintelStyle });
       }
+      // Dintel superior (0.10m de grosor enrasado con las paredes)
       faces.push(
         { axis: 'y', pos: nyB, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Norte', style: lintelStyle },
         { axis: 'y', pos: nyA, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Norte', style: lintelStyle }
@@ -415,6 +425,7 @@ class RaycasterEngine {
       const westConn = this.getWallConnection(mapX - 1, mapY, 'S');
       const eastConn = this.getWallConnection(mapX + 1, mapY, 'S');
 
+      // Hoja de la puerta (0.10m de grosor = 1/10 de celda)
       faces.push(
         { axis: 'y', pos: syA, minX: x0, maxX: x1, type, name, style, lintelStyle },
         { axis: 'y', pos: syB, minX: x0, maxX: x1, type, name, style, lintelStyle }
@@ -429,6 +440,7 @@ class RaycasterEngine {
       } else if (eastConn === 'open') {
         faces.push({ axis: 'x', pos: x1, minY: syA, maxY: syB, type: 10, isCap: true, isJamb: true, name: 'Jamba Este', style, lintelStyle });
       }
+      // Dintel superior
       faces.push(
         { axis: 'y', pos: syA, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Sur', style: lintelStyle },
         { axis: 'y', pos: syB, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Sur', style: lintelStyle }
@@ -449,6 +461,7 @@ class RaycasterEngine {
       const northConn = this.getWallConnection(mapX, mapY - 1, 'W');
       const southConn = this.getWallConnection(mapX, mapY + 1, 'W');
 
+      // Hoja de la puerta (0.10m de grosor = 1/10 de celda)
       faces.push(
         { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style, lintelStyle },
         { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style, lintelStyle }
@@ -463,6 +476,7 @@ class RaycasterEngine {
       } else if (southConn === 'open') {
         faces.push({ axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 10, isCap: true, isJamb: true, name: 'Jamba Sur', style, lintelStyle });
       }
+      // Dintel superior
       faces.push(
         { axis: 'x', pos: wxB, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Oeste', style: lintelStyle },
         { axis: 'x', pos: wxA, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Oeste', style: lintelStyle }
@@ -483,6 +497,7 @@ class RaycasterEngine {
       const northConn = this.getWallConnection(mapX, mapY - 1, 'E');
       const southConn = this.getWallConnection(mapX, mapY + 1, 'E');
 
+      // Hoja de la puerta (0.10m de grosor = 1/10 de celda)
       faces.push(
         { axis: 'x', pos: exA, minY: y0, maxY: y1, type, name, style, lintelStyle },
         { axis: 'x', pos: exB, minY: y0, maxY: y1, type, name, style, lintelStyle }
@@ -497,6 +512,7 @@ class RaycasterEngine {
       } else if (southConn === 'open') {
         faces.push({ axis: 'y', pos: y1, minX: exA, maxX: exB, type: 10, isCap: true, isJamb: true, name: 'Jamba Sur', style, lintelStyle });
       }
+      // Dintel superior
       faces.push(
         { axis: 'x', pos: exA, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Este', style: lintelStyle },
         { axis: 'x', pos: exB, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Este', style: lintelStyle }
@@ -510,9 +526,14 @@ class RaycasterEngine {
     }
 
     // 2. MODELO DE SUBGRIS 5x5 PARA TODAS LAS PAREDES (ORDEN DE COLOCACIÓN ESTRICTO)
-    // Coordenadas submétricas de los 5 intervalos (0.20 cada uno)
-    const xCoords = [x0, x0 + 0.20, x0 + 0.40, x0 + 0.60, x0 + 0.80, x1];
-    const yCoords = [y0, y0 + 0.20, y0 + 0.40, y0 + 0.60, y0 + 0.80, y1];
+    // Coordenadas submétricas de los 5 intervalos (grosor 0.10 m = 1/10 de celda)
+    // Intervalo 0: 0.00 a 0.10 (Pared Oeste / Norte)
+    // Intervalo 1: 0.10 a 0.45 (Hueco)
+    // Intervalo 2: 0.45 a 0.55 (Eje Central CH / CV, centrado exactamente en 0.50)
+    // Intervalo 3: 0.55 a 0.90 (Hueco)
+    // Intervalo 4: 0.90 a 1.00 (Pared Este / Sur)
+    const xCoords = [x0, x0 + 0.10, x0 + 0.45, x0 + 0.55, x0 + 0.90, x1];
+    const yCoords = [y0, y0 + 0.10, y0 + 0.45, y0 + 0.55, y0 + 0.90, y1];
 
     const WALL_FOOTPRINTS = {
       'N':   { r0: 0, r1: 0, c0: 0, c1: 4, axis: 'H', edge: 'N' },
@@ -774,7 +795,7 @@ class RaycasterEngine {
       }
     }
 
-    // 6. PUERTAS ABIERTAS (HOJA ABATIDA A 90° CON DIMENSIONES IDÉNTICAS A CERRADA: 1.0x0.20)
+    // 6. PUERTAS ABIERTAS (HOJA ABATIDA A 90° CON GROSOR DE 1/10 DE CELDA: 1.0x0.10)
     // El estilo (y el estilo de dintel) se toma del código de la puerta CERRADA
     // --------------------------------------------------------------------------------------
     if (has('ODN')) {
@@ -785,11 +806,12 @@ class RaycasterEngine {
       const westConn = this.getWallConnection(mapX - 1, mapY, 'N');
       const eastConn = this.getWallConnection(mapX + 1, mapY, 'N');
 
+      // Hoja abatida (0.10m de grosor plegada contra el muro oeste)
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleN },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleN },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleN },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleN }
+        { axis: 'x', pos: odwxB, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleN },
+        { axis: 'x', pos: odwxA, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleN },
+        { axis: 'y', pos: y1, minX: odwxA, maxX: odwxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleN },
+        { axis: 'y', pos: y0, minX: odwxA, maxX: odwxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleN }
       );
       // Dintel en el vano original que queda despejado para el paso del jugador
       faces.push(
@@ -814,11 +836,12 @@ class RaycasterEngine {
       const westConn = this.getWallConnection(mapX - 1, mapY, 'S');
       const eastConn = this.getWallConnection(mapX + 1, mapY, 'S');
 
+      // Hoja abatida (0.10m de grosor plegada contra el muro oeste)
       faces.push(
-        { axis: 'x', pos: wxB, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleS },
-        { axis: 'x', pos: wxA, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleS },
-        { axis: 'y', pos: y0, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleS },
-        { axis: 'y', pos: y1, minX: wxA, maxX: wxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleS }
+        { axis: 'x', pos: odwxB, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleS },
+        { axis: 'x', pos: odwxA, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleS },
+        { axis: 'y', pos: y0, minX: odwxA, maxX: odwxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleS },
+        { axis: 'y', pos: y1, minX: odwxA, maxX: odwxB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleS }
       );
       faces.push(
         { axis: 'y', pos: syA, minX: x0, maxX: x1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Sur', style: lintelStyleS },
@@ -842,11 +865,12 @@ class RaycasterEngine {
       const northConn = this.getWallConnection(mapX, mapY - 1, 'W');
       const southConn = this.getWallConnection(mapX, mapY + 1, 'W');
 
+      // Hoja abatida (0.10m de grosor plegada contra el muro norte)
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleW },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleW },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleW },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleW }
+        { axis: 'y', pos: odnyB, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleW },
+        { axis: 'y', pos: odnyA, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleW },
+        { axis: 'x', pos: x1, minY: odnyA, maxY: odnyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleW },
+        { axis: 'x', pos: x0, minY: odnyA, maxY: odnyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleW }
       );
       faces.push(
         { axis: 'x', pos: wxB, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Oeste', style: lintelStyleW },
@@ -870,11 +894,12 @@ class RaycasterEngine {
       const northConn = this.getWallConnection(mapX, mapY - 1, 'E');
       const southConn = this.getWallConnection(mapX, mapY + 1, 'E');
 
+      // Hoja abatida (0.10m de grosor plegada contra el muro norte)
       faces.push(
-        { axis: 'y', pos: nyB, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleE },
-        { axis: 'y', pos: nyA, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleE },
-        { axis: 'x', pos: x0, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleE },
-        { axis: 'x', pos: x1, minY: nyA, maxY: nyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleE }
+        { axis: 'y', pos: odnyB, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleE },
+        { axis: 'y', pos: odnyA, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, lintelStyle: lintelStyleE },
+        { axis: 'x', pos: x0, minY: odnyA, maxY: odnyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleE },
+        { axis: 'x', pos: x1, minY: odnyA, maxY: odnyB, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleE }
       );
       faces.push(
         { axis: 'x', pos: exA, minY: y0, maxY: y1, type: 1, isLintelOnly: true, name: 'Dintel Puerta Este', style: lintelStyleE },
@@ -1550,7 +1575,9 @@ class RaycasterEngine {
         ctx.fillRect(px, py, cellSize - 1, cellSize - 1);
 
         const codes = this.getCellCodes(x, y);
-        const th = Math.max(2, Math.floor(cellSize * 0.2));
+        const th = Math.max(1, Math.floor(cellSize * 0.10));
+        const thDoor = th;
+        const dOffset = 0;
 
         for (let s = 0; s < codes.length; s++) {
           const code = codes[s];
@@ -1569,24 +1596,32 @@ class RaycasterEngine {
 
           switch (code) {
             case 'N':
-            case 'DN':
             case 'WN':
               ctx.fillRect(px, py, cellSize, th);
               break;
+            case 'DN':
+              ctx.fillRect(px, py + dOffset, cellSize, thDoor);
+              break;
             case 'S':
-            case 'DS':
             case 'WS':
               ctx.fillRect(px, py + cellSize - th, cellSize, th);
               break;
+            case 'DS':
+              ctx.fillRect(px, py + cellSize - th + dOffset, cellSize, thDoor);
+              break;
             case 'W':
-            case 'DW':
             case 'WW':
               ctx.fillRect(px, py, th, cellSize);
               break;
+            case 'DW':
+              ctx.fillRect(px + dOffset, py, thDoor, cellSize);
+              break;
             case 'E':
-            case 'DE':
             case 'WE':
               ctx.fillRect(px + cellSize - th, py, th, cellSize);
+              break;
+            case 'DE':
+              ctx.fillRect(px + cellSize - th + dOffset, py, thDoor, cellSize);
               break;
             case 'CH':
             case 'WCH': {
@@ -1624,25 +1659,25 @@ class RaycasterEngine {
               ctx.fillRect(cx0, cy0, (px + cellSize) - cx0, th);
               break;
             }
-            // Puertas Abiertas en Minimapa (Abatidas 90° con dimensiones idénticas a cerrada)
+            // Puertas Abiertas en Minimapa (Abatidas 90° con grosor de 1/10)
             case 'ODN': {
               ctx.fillStyle = this.doorInfo[2]?.color || '#e74c3c';
-              ctx.fillRect(px, py, th, cellSize);
+              ctx.fillRect(px, py, thDoor, cellSize);
               break;
             }
             case 'ODS': {
               ctx.fillStyle = this.doorInfo[4]?.color || '#3498db';
-              ctx.fillRect(px, py, th, cellSize);
+              ctx.fillRect(px, py, thDoor, cellSize);
               break;
             }
             case 'ODW': {
               ctx.fillStyle = this.doorInfo[5]?.color || '#f39c12';
-              ctx.fillRect(px, py, cellSize, th);
+              ctx.fillRect(px, py, cellSize, thDoor);
               break;
             }
             case 'ODE': {
               ctx.fillStyle = this.doorInfo[3]?.color || '#2ecc71';
-              ctx.fillRect(px, py, cellSize, th);
+              ctx.fillRect(px, py, cellSize, thDoor);
               break;
             }
           }

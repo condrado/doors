@@ -90,9 +90,9 @@ console.log('\n--- 1. Caso T: Eje Vertical CV primero, luego Pared Norte N ---')
   const cvCapNorth = faces.find(f => f.axis === 'y' && Math.abs(f.pos - 0) < 1e-4 && f.isCap);
   assert(!cvCapNorth, 'NO se genera canto de CV en Y = 0 (la pared N lo tapa)');
 
-  // Las caras laterales de CV deben empezar en Y = 0.20 (no en 0)
-  const cvWestFace = faces.find(f => f.axis === 'x' && Math.abs(f.pos - 0.40) < 1e-4);
-  assert(cvWestFace && Math.abs(cvWestFace.minY - 0.20) < 1e-4 && Math.abs(cvWestFace.maxY - 1.0) < 1e-4, 'Cara Oeste de CV empieza en Y = 0.20 y termina en 1.0');
+  // Las caras laterales de CV deben empezar en Y = 0.10 (no en 0)
+  const cvWestFace = faces.find(f => f.axis === 'x' && Math.abs(f.pos - 0.45) < 1e-4);
+  assert(cvWestFace && Math.abs(cvWestFace.minY - 0.10) < 1e-4 && Math.abs(cvWestFace.maxY - 1.0) < 1e-4, 'Cara Oeste de CV empieza en Y = 0.10 y termina en 1.0');
   assert(cvWestFace && cvWestFace.style === 'castillo', 'Cara de CV conserva estilo castillo');
 }
 
@@ -103,16 +103,16 @@ console.log('\n--- 2. Caso T inverso: Pared Norte N primero, luego Eje Vertical 
 
   // CV genera canto en Y = 0
   const cvCapNorth = faces.find(f => f.axis === 'y' && Math.abs(f.pos - 0) < 1e-4 && f.isCap);
-  assert(!!cvCapNorth && Math.abs(cvCapNorth.minX - 0.40) < 1e-4 && Math.abs(cvCapNorth.maxX - 0.60) < 1e-4, 'CV genera canto en Y = 0 (0.40 a 0.60)');
+  assert(!!cvCapNorth && Math.abs(cvCapNorth.minX - 0.45) < 1e-4 && Math.abs(cvCapNorth.maxX - 0.55) < 1e-4, 'CV genera canto en Y = 0 (0.45 a 0.55)');
 
   // N queda dividida a los lados de CV
-  const nLeft = faces.find(f => f.axis === 'y' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.minX - 0) < 1e-4 && Math.abs(f.maxX - 0.40) < 1e-4);
-  const nRight = faces.find(f => f.axis === 'y' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.minX - 0.60) < 1e-4 && Math.abs(f.maxX - 1.0) < 1e-4);
-  assert(!!nLeft && !!nRight, 'Pared N queda dividida a los lados de CV (0..0.40 y 0.60..1.0)');
+  const nLeft = faces.find(f => f.axis === 'y' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.minX - 0) < 1e-4 && Math.abs(f.maxX - 0.45) < 1e-4);
+  const nRight = faces.find(f => f.axis === 'y' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.minX - 0.55) < 1e-4 && Math.abs(f.maxX - 1.0) < 1e-4);
+  assert(!!nLeft && !!nRight, 'Pared N queda dividida a los lados de CV (0..0.45 y 0.55..1.0)');
 
   // Cara Oeste de CV expuesta a la sala
-  const cvWestFace = faces.find(f => f.axis === 'x' && Math.abs(f.pos - 0.40) < 1e-4);
-  assert(cvWestFace && Math.abs(cvWestFace.minY - 0.20) < 1e-4 && Math.abs(cvWestFace.maxY - 1.0) < 1e-4, 'Cara Oeste de CV expuesta a la sala desde Y = 0.20 hasta 1.0');
+  const cvWestFace = faces.find(f => f.axis === 'x' && Math.abs(f.pos - 0.45) < 1e-4);
+  assert(cvWestFace && Math.abs(cvWestFace.minY - 0.10) < 1e-4 && Math.abs(cvWestFace.maxY - 1.0) < 1e-4, 'Cara Oeste de CV expuesta a la sala desde Y = 0.10 hasta 1.0');
 }
 
 console.log('\n--- 3. Caso Esquina L: Pared N y Pared W ---');
@@ -120,12 +120,12 @@ console.log('\n--- 3. Caso Esquina L: Pared N y Pared W ---');
   raycaster.wallStyleMap = { '0,0': { 'N': 'blanca', 'W': 'castillo' } };
   const faces = raycaster.generateCellFaces(['N', 'W'], 0, 0);
 
-  // W fue puesta después de N, por lo que W posee el rincón [0..0.20, 0..0.20]
+  // W fue puesta después de N, por lo que W posee el rincón [0..0.10, 0..0.10]
   const wOuter = faces.find(f => f.axis === 'x' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.minY - 0) < 1e-4 && Math.abs(f.maxY - 1.0) < 1e-4);
   assert(!!wOuter, 'Cara exterior Oeste es continua de 0 a 1.0');
 
-  // En la unión interior (X = 0.20, Y = 0.20) no hay cara interna que divida el rincón
-  const internalFace = faces.find(f => f.axis === 'x' && Math.abs(f.pos - 0.20) < 1e-4 && f.minY < 0.20 && f.maxY <= 0.20);
+  // En la unión interior (X = 0.10, Y = 0.10) no hay cara interna que divida el rincón
+  const internalFace = faces.find(f => f.axis === 'x' && Math.abs(f.pos - 0.10) < 1e-4 && f.minY < 0.10 && f.maxY <= 0.10);
   assert(!internalFace, 'No hay cara interna separando N y W en el rincón');
 }
 
@@ -134,7 +134,7 @@ console.log('\n--- 4. Caso T interior: Semieje CN primero, luego Eje Horizontal 
   raycaster.wallStyleMap = { '0,0': { 'CN': 'castillo', 'CH': 'blanca' } };
   const faces = raycaster.generateCellFaces(['CN', 'CH'], 0, 0);
 
-  const cnCapInside = faces.find(f => f.axis === 'y' && Math.abs(f.pos - 0.60) < 1e-4 && f.style === 'castillo');
+  const cnCapInside = faces.find(f => f.axis === 'y' && Math.abs(f.pos - 0.55) < 1e-4 && f.style === 'castillo');
   assert(!cnCapInside, 'CN no genera canto dentro ni al sur de CH');
 }
 
@@ -144,11 +144,11 @@ console.log('\n--- 5. Caso Rincón 1x1: RNW ---');
   const faces = raycaster.generateCellFaces(['RNW'], 0, 0);
 
   assert(faces.length === 4, `RNW genera exactamente 4 caras (generadas: ${faces.length})`);
-  const hasNorth = faces.some(f => f.axis === 'y' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.maxX - 0.20) < 1e-4);
-  const hasSouth = faces.some(f => f.axis === 'y' && Math.abs(f.pos - 0.20) < 1e-4 && Math.abs(f.maxX - 0.20) < 1e-4);
-  const hasWest = faces.some(f => f.axis === 'x' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.maxY - 0.20) < 1e-4);
-  const hasEast = faces.some(f => f.axis === 'x' && Math.abs(f.pos - 0.20) < 1e-4 && Math.abs(f.maxY - 0.20) < 1e-4);
-  assert(hasNorth && hasSouth && hasWest && hasEast, 'RNW genera un cubo de 0.20 x 0.20 en la esquina NO');
+  const hasNorth = faces.some(f => f.axis === 'y' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.maxX - 0.10) < 1e-4);
+  const hasSouth = faces.some(f => f.axis === 'y' && Math.abs(f.pos - 0.10) < 1e-4 && Math.abs(f.maxX - 0.10) < 1e-4);
+  const hasWest = faces.some(f => f.axis === 'x' && Math.abs(f.pos - 0) < 1e-4 && Math.abs(f.maxY - 0.10) < 1e-4);
+  const hasEast = faces.some(f => f.axis === 'x' && Math.abs(f.pos - 0.10) < 1e-4 && Math.abs(f.maxY - 0.10) < 1e-4);
+  assert(hasNorth && hasSouth && hasWest && hasEast, 'RNW genera un cubo de 0.10 x 0.10 en la esquina NO');
   assert(faces.every(f => f.style === 'negra'), 'Todas las caras de RNW tienen estilo negra');
 }
 

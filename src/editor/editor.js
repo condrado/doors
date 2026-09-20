@@ -1136,7 +1136,10 @@ class LevelEditor {
       'WCV': { bg: '#54a0ff', icon: 'window', border: '#2e86de' }
     };
 
-    const th = Math.max(4, Math.floor(cs * 0.22));
+    // Grosor de pared, accesorio y puerta: 10% del tamaño de celda (proporción 1/10)
+    const th = Math.max(2, Math.floor(cs * 0.10));
+    const thDoor = th;
+    const dOffset = 0;
 
     // Dibujar celdas
     for (let y = 0; y < this.rows; y++) {
@@ -1182,28 +1185,40 @@ class LevelEditor {
 
           switch (s) {
             case 'N':
-            case 'DN':
             case 'WN':
               ctx.fillRect(px, py, cs, th);
               if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + th / 2, acc.icon, badgeBorder, cs);
               break;
+            case 'DN':
+              ctx.fillRect(px, py + dOffset, cs, thDoor);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + dOffset + thDoor / 2, acc.icon, badgeBorder, cs);
+              break;
             case 'S':
-            case 'DS':
             case 'WS':
               ctx.fillRect(px, py + cs - th, cs, th);
               if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs - th / 2, acc.icon, badgeBorder, cs);
               break;
+            case 'DS':
+              ctx.fillRect(px, py + cs - th + dOffset, cs, thDoor);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs - th + dOffset + thDoor / 2, acc.icon, badgeBorder, cs);
+              break;
             case 'W':
-            case 'DW':
             case 'WW':
               ctx.fillRect(px, py, th, cs);
               if (acc) this.drawDoorBadge(ctx, px + th / 2, py + cs / 2, acc.icon, badgeBorder, cs);
               break;
+            case 'DW':
+              ctx.fillRect(px + dOffset, py, thDoor, cs);
+              if (acc) this.drawDoorBadge(ctx, px + dOffset + thDoor / 2, py + cs / 2, acc.icon, badgeBorder, cs);
+              break;
             case 'E':
-            case 'DE':
             case 'WE':
               ctx.fillRect(px + cs - th, py, th, cs);
               if (acc) this.drawDoorBadge(ctx, px + cs - th / 2, py + cs / 2, acc.icon, badgeBorder, cs);
+              break;
+            case 'DE':
+              ctx.fillRect(px + cs - th + dOffset, py, thDoor, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs - th + dOffset + thDoor / 2, py + cs / 2, acc.icon, badgeBorder, cs);
               break;
             case 'CH':
             case 'WCH': {
@@ -1362,11 +1377,15 @@ class LevelEditor {
           const hcy0 = hpy + Math.floor((cs - th) / 2);
           const hcy1 = hcy0 + th;
 
+          const isDoorPreview = (this.selectedTile === 'door' || (this.selectedTile === 'accessories' && this.selectedAccessory === 'door') || (typeof this.selectedTile === 'number' && this.selectedTile >= 2));
+          const pTh = isDoorPreview ? thDoor : th;
+          const pOffset = isDoorPreview ? dOffset : 0;
+
           switch (this.hoverSubEdge) {
-            case 'N': ctx.fillRect(hpx, hpy, cs, th); break;
-            case 'S': ctx.fillRect(hpx, hpy + cs - th, cs, th); break;
-            case 'W': ctx.fillRect(hpx, hpy, th, cs); break;
-            case 'E': ctx.fillRect(hpx + cs - th, hpy, th, cs); break;
+            case 'N': ctx.fillRect(hpx, hpy + pOffset, cs, pTh); break;
+            case 'S': ctx.fillRect(hpx, hpy + cs - th + pOffset, cs, pTh); break;
+            case 'W': ctx.fillRect(hpx + pOffset, hpy, pTh, cs); break;
+            case 'E': ctx.fillRect(hpx + cs - th + pOffset, hpy, pTh, cs); break;
             case 'CH': ctx.fillRect(hpx, hcy0, cs, th); break;
             case 'CV': ctx.fillRect(hcx0, hpy, th, cs); break;
             case 'CN': ctx.fillRect(hcx0, hpy, th, hcy1 - hpy); break;
