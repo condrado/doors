@@ -16,6 +16,27 @@ const DOOR_STYLE_COLORS = {
   cristal: '#5fb8e8'
 };
 
+function getWallStyleColor(styleKey) {
+  if (WALL_STYLE_COLORS[styleKey]) return WALL_STYLE_COLORS[styleKey];
+  if (!styleKey) return WALL_STYLE_COLORS.castillo;
+  if (styleKey.includes('cristal')) return '#38bdf8';
+  if (styleKey.includes('blanca')) return '#f8fafc';
+  if (styleKey.includes('negra')) return '#1e293b';
+  let hash = 0;
+  for (let i = 0; i < styleKey.length; i++) hash = styleKey.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash % 360);
+  return `hsl(${hue}, 65%, 55%)`;
+}
+
+function getDoorStyleColor(styleKey) {
+  if (DOOR_STYLE_COLORS[styleKey]) return DOOR_STYLE_COLORS[styleKey];
+  if (!styleKey) return DOOR_STYLE_COLORS.castillo;
+  let hash = 0;
+  for (let i = 0; i < styleKey.length; i++) hash = styleKey.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash % 360);
+  return `hsl(${hue}, 65%, 55%)`;
+}
+
 // Tipos de textura del motor (RaycasterEngine.textures) disponibles para override por imagen
 const TEXTURE_SLOTS = [
   { type: 1, label: 'Pared' },
@@ -1449,11 +1470,11 @@ class LevelEditor {
           const s = segs[i];
           const acc = accessoryConfig[s];
           const segStyle = (cellStyleEntry && cellStyleEntry[s]) || 'castillo';
-          let wallColor = WALL_STYLE_COLORS[segStyle] || WALL_STYLE_COLORS.castillo;
+          let wallColor = getWallStyleColor(segStyle);
           let badgeBorder = acc ? acc.border : null;
           if (acc) {
             wallColor = acc.bg;
-            if (s.startsWith('D')) badgeBorder = DOOR_STYLE_COLORS[segStyle] || DOOR_STYLE_COLORS.castillo;
+            if (s.startsWith('D')) badgeBorder = getDoorStyleColor(segStyle);
           }
 
           const isPortal = s.startsWith('D') && !!(this.doorLinks && (this.doorLinks[`${x},${y},${s}`] || this.doorLinks[`${x},${y}`]));
@@ -1776,6 +1797,14 @@ class LevelEditor {
     if (this.doorLinks && Object.keys(this.doorLinks).length > 0) {
       level.doorLinks = this.doorLinks;
     }
+    // Texturas personalizadas definidas en el proyecto para esta sala / juego
+    if (this.currentProject && this.currentProject.customStyles) {
+      const hasWalls = Object.keys(this.currentProject.customStyles.walls || {}).length > 0;
+      const hasDoors = Object.keys(this.currentProject.customStyles.doors || {}).length > 0;
+      if (hasWalls || hasDoors) {
+        level.customStyles = this.currentProject.customStyles;
+      }
+    }
     // Pincel activo en el editor (solo afecta a lo próximo que se coloque)
     if (this.wallStyle !== 'castillo') level.activeWallStyle = this.wallStyle;
     if (this.doorStyle !== 'castillo') level.activeDoorStyle = this.doorStyle;
@@ -2050,6 +2079,26 @@ class LevelEditor {
     this.customTextures = (data.customTextures && typeof data.customTextures === 'object') ? data.customTextures : {};
     this.renderTextureGrid();
 
+    if (data.customStyles && typeof data.customStyles === 'object') {
+      if (!this.currentProject) this.currentProject = { customStyles: { walls: {}, doors: {} } };
+      if (!this.currentProject.customStyles) this.currentProject.customStyles = { walls: {}, doors: {} };
+      if (data.customStyles.walls) {
+        this.currentProject.customStyles.walls = {
+          ...(this.currentProject.customStyles.walls || {}),
+          ...data.customStyles.walls
+        };
+      }
+      if (data.customStyles.doors) {
+        this.currentProject.customStyles.doors = {
+          ...(this.currentProject.customStyles.doors || {}),
+          ...data.customStyles.doors
+        };
+      }
+      if (typeof loadCustomStyles === 'function') {
+        loadCustomStyles(this.currentProject.customStyles);
+      }
+    }
+
     this.wallStyleMap = (data.wallStyleMap && typeof data.wallStyleMap === 'object') ? data.wallStyleMap : {};
     this.wallStyle = (data.activeWallStyle && WALL_STYLES[data.activeWallStyle]) ? data.activeWallStyle : 'castillo';
     this.doorStyle = (data.activeDoorStyle && DOOR_STYLES[data.activeDoorStyle]) ? data.activeDoorStyle : 'castillo';
@@ -2080,6 +2129,10 @@ class LevelEditor {
    */
   playCurrentLevel() {
     this.saveProjectsToStorage();
+    try {
+      const levelObj = this.getLevelObject();
+      localStorage.setItem('customRaycasterMap', JSON.stringify(levelObj));
+    } catch (e) {}
     this.saveUIState();
     this.showToast('Cargando nivel en el motor 3D...');
     setTimeout(() => {
@@ -2182,6 +2235,10 @@ class LevelEditor {
    * Conecta los botones "Estilo de Pared" / "Estilo de Puerta" con el modal
    * selector, que muestra miniaturas generadas en vivo desde src/engine/textures.js
    */
+  /**
+   * Conecta los botones "Estilo de Pared" / "Estilo de Puerta" con el modal
+   * selector, que muestra miniaturas generadas y permite subir nuevos estilos PNG
+   */
   setupStyleModals() {
     this.styleModalOverlay = document.getElementById('styleModalOverlay');
     this.styleModalTitle = document.getElementById('styleModalTitle');
@@ -2197,7 +2254,538 @@ class LevelEditor {
     if (btnDoorStyle) btnDoorStyle.addEventListener('click', () => this.openStyleModal('door'));
     if (btnLintelStyle) btnLintelStyle.addEventListener('click', () => this.openStyleModal('lintel'));
 
+    // Botones del panel de nuevo estilo
+    this.btnToggleNewStylePanel = document.getElementById('btnToggleNewStylePanel');
+    this.newStylePanel = document.getElementById('newStylePanel');
+    this.inputNewStyleName = document.getElementById('inputNewStyleName');
+    this.inputNewStyleFile = document.getElementById('inputNewStyleFile');
+    this.dropZoneNewStyle = document.getElementById('dropZoneNewStyle');
+    this.btnSaveNewStyle = document.getElementById('btnSaveNewStyle');
+    this.btnCancelNewStyle = document.getElementById('btnCancelNewStyle');
+    this.newStyleCanvasPreview = document.getElementById('newStyleCanvasPreview');
+    this.newStyleEmptyState = document.getElementById('newStyleEmptyState');
+    this.chkAutoGenerateCap = document.getElementById('chkAutoGenerateCap');
+    this.newStylePreviewMeta = document.getElementById('newStylePreviewMeta');
+    this.newStyleKindBadge = document.getElementById('newStyleKindBadge');
+    this.newStyleWallOptions = document.getElementById('newStyleWallOptions');
+
+    // Elementos del Analizador de Calidad y Rendimiento
+    this.newStyleAnalysisCard = document.getElementById('newStyleAnalysisCard');
+    this.analysisStatusBadge = document.getElementById('analysisStatusBadge');
+    this.analysisPerfPill = document.getElementById('analysisPerfPill');
+    this.analysisOrigRes = document.getElementById('analysisOrigRes');
+    this.analysisAspect = document.getElementById('analysisAspect');
+    this.analysisNotes = document.getElementById('analysisNotes');
+
+    this.pendingStyleDataUrl = null;
+
+    if (this.btnToggleNewStylePanel) {
+      this.btnToggleNewStylePanel.addEventListener('click', () => {
+        const isVisible = this.newStylePanel.style.display !== 'none';
+        this.toggleNewStylePanel(!isVisible);
+      });
+    }
+
+    if (this.btnCancelNewStyle) {
+      this.btnCancelNewStyle.addEventListener('click', () => {
+        this.toggleNewStylePanel(false);
+      });
+    }
+
+    if (this.inputNewStyleName) {
+      this.inputNewStyleName.addEventListener('input', () => {
+        this.validateNewStyleForm();
+      });
+    }
+
+    if (this.inputNewStyleFile) {
+      this.inputNewStyleFile.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          this.processUploadedStyleImage(e.target.files[0]);
+        }
+      });
+    }
+
+    // Drag & Drop en la zona de subida
+    if (this.dropZoneNewStyle) {
+      ['dragenter', 'dragover'].forEach(eventName => {
+        this.dropZoneNewStyle.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.dropZoneNewStyle.classList.add('dragover');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        this.dropZoneNewStyle.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          this.dropZoneNewStyle.classList.remove('dragover');
+        });
+      });
+
+      this.dropZoneNewStyle.addEventListener('drop', (e) => {
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          this.processUploadedStyleImage(e.dataTransfer.files[0]);
+        }
+      });
+    }
+
+    if (this.btnSaveNewStyle) {
+      this.btnSaveNewStyle.addEventListener('click', () => {
+        this.saveNewCustomStyle();
+      });
+    }
+
     this.updateStyleLabels();
+    this.exportBaseTexturesToDisk();
+    this.syncTexturesFromDisk();
+  }
+
+  /**
+   * Exporta automáticamente las texturas base del motor a archivos PNG en el disco
+   */
+  async exportBaseTexturesToDisk() {
+    if (typeof window === 'undefined' || sessionStorage.getItem('doors_base_textures_saved')) return;
+    try {
+      if (typeof exportBaseTexturesAsPngDataUrls === 'function') {
+        const textures = exportBaseTexturesAsPngDataUrls();
+        const entries = Object.entries(textures);
+        for (const [relativePath, base64Data] of entries) {
+          fetch('/api/save-texture', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ relativePath, base64Data })
+          }).catch(() => {});
+        }
+        sessionStorage.setItem('doors_base_textures_saved', '1');
+      }
+    } catch (e) {
+      console.warn('Exportación de texturas base:', e);
+    }
+  }
+
+  /**
+   * Asegura que los estilos personalizados del proyecto actual estén registrados en el motor
+   */
+  syncCustomStylesFromProject() {
+    if (!this.currentProject) return;
+    if (this.currentProject.customStyles) {
+      if (typeof loadCustomStyles === 'function') {
+        loadCustomStyles(this.currentProject.customStyles);
+      }
+    }
+  }
+
+  toggleNewStylePanel(show) {
+    if (!this.newStylePanel) return;
+    this.newStylePanel.style.display = show ? 'block' : 'none';
+    if (show) {
+      this.resetNewStyleForm();
+      if (this.inputNewStyleName) this.inputNewStyleName.focus();
+    }
+  }
+
+  /**
+   * Sincroniza texturas físicas presentes en carpetas del disco a través de la API
+   */
+  async syncTexturesFromDisk() {
+    try {
+      const res = await fetch('/api/list-textures');
+      if (!res.ok) return;
+      const data = await res.json();
+      let updated = false;
+
+      if (!this.currentProject) this.currentProject = { customStyles: { walls: {}, doors: {} } };
+      if (!this.currentProject.customStyles) this.currentProject.customStyles = { walls: {}, doors: {} };
+      if (!this.currentProject.customStyles.walls) this.currentProject.customStyles.walls = {};
+      if (!this.currentProject.customStyles.doors) this.currentProject.customStyles.doors = {};
+
+      const defaultBasics = ['castillo', 'blanca', 'negra', 'cristal'];
+
+      if (data.walls && Array.isArray(data.walls)) {
+        data.walls.forEach(item => {
+          const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
+          const capFile = item.capFile || ('caps/' + item.name + '.png');
+          const capUrl = item.capUrl || ('/src/engine/textures/caps/' + item.name + '.png');
+          
+          registerWallStyle(item.name, {
+            label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
+            pngUrl: item.url,
+            file: item.file,
+            capFile: capFile,
+            capPngUrl: capUrl,
+            hasTransparency: isTrans,
+            isCustom: true
+          });
+
+          if (!defaultBasics.includes(item.name)) {
+            const existing = this.currentProject.customStyles.walls[item.name] || {};
+            // Limpiar dataUrl y capDataUrl en base64 para que el archivo del disco tenga prioridad absoluta
+            delete existing.dataUrl;
+            delete existing.capDataUrl;
+            this.currentProject.customStyles.walls[item.name] = {
+              ...existing,
+              label: existing.label || (item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' ')),
+              pngUrl: item.url,
+              file: item.file,
+              capFile: capFile,
+              capPngUrl: capUrl,
+              hasTransparency: isTrans,
+              isCustom: true
+            };
+            updated = true;
+          }
+        });
+      }
+      if (data.doors && Array.isArray(data.doors)) {
+        data.doors.forEach(item => {
+          const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
+          const capFile = item.capFile || ('caps/' + item.name + '.png');
+          const capUrl = item.capUrl || ('/src/engine/textures/caps/' + item.name + '.png');
+          
+          registerDoorStyle(item.name, {
+            label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
+            pngUrl: item.url,
+            file: item.file,
+            capFile: capFile,
+            capPngUrl: capUrl,
+            hasTransparency: isTrans,
+            isCustom: true
+          });
+
+          if (!defaultBasics.includes(item.name)) {
+            const existing = this.currentProject.customStyles.doors[item.name] || {};
+            delete existing.dataUrl;
+            delete existing.capDataUrl;
+            this.currentProject.customStyles.doors[item.name] = {
+              ...existing,
+              label: existing.label || (item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' ')),
+              pngUrl: item.url,
+              file: item.file,
+              capFile: capFile,
+              capPngUrl: capUrl,
+              hasTransparency: isTrans,
+              isCustom: true
+            };
+            updated = true;
+          }
+        });
+      }
+
+      if (updated) {
+        this.saveProjectsToStorage();
+        this.updateJSON();
+        this.updateStyleLabels();
+      }
+    } catch (e) {
+      // Entorno offline o sin endpoint disponible
+    }
+  }
+
+  resetNewStyleForm() {
+    this.pendingStyleDataUrl = null;
+    if (this.inputNewStyleName) this.inputNewStyleName.value = '';
+    if (this.inputNewStyleFile) this.inputNewStyleFile.value = '';
+    if (this.btnSaveNewStyle) this.btnSaveNewStyle.disabled = true;
+    if (this.newStyleEmptyState) this.newStyleEmptyState.style.display = 'flex';
+    if (this.newStyleCanvasPreview) this.newStyleCanvasPreview.style.display = 'none';
+    if (this.newStyleAnalysisCard) this.newStyleAnalysisCard.style.display = 'none';
+
+    const isDoor = (this.styleModalKind === 'door');
+    const targetW = 64;
+    const targetH = isDoor ? 128 : 192;
+    const kindLabel = isDoor ? 'Puerta' : (this.styleModalKind === 'lintel' ? 'Dintel' : 'Pared');
+
+    if (this.newStyleKindBadge) {
+      this.newStyleKindBadge.textContent = `${kindLabel} (${targetW}×${targetH} px) | Canto: 64×192 px ó 16×192 px`;
+    }
+    if (this.newStylePreviewMeta) {
+      this.newStylePreviewMeta.textContent = `${targetW} × ${targetH} px (${isDoor ? 'Hoja' : 'Frontal'})`;
+    }
+    const capHint = document.getElementById('newStyleCapHint');
+    if (capHint) {
+      capHint.textContent = `Canto (caps/): 64×192 px (HD) ó 16×192 px (20cm)`;
+    }
+    if (this.newStyleWallOptions) {
+      this.newStyleWallOptions.style.display = isDoor ? 'none' : 'block';
+    }
+  }
+
+  validateNewStyleForm() {
+    const hasName = this.inputNewStyleName && this.inputNewStyleName.value.trim().length > 0;
+    const hasImage = !!this.pendingStyleDataUrl;
+    if (this.btnSaveNewStyle) {
+      this.btnSaveNewStyle.disabled = !(hasName && hasImage);
+    }
+  }
+
+  /**
+   * Analiza la calidad, dimensiones y rendimiento de la imagen subida para el motor 3D
+   */
+  analyzeTextureImage(img, file, isDoor) {
+    if (!this.newStyleAnalysisCard) return;
+    const origW = img.naturalWidth || img.width;
+    const origH = img.naturalHeight || img.height;
+    const targetW = 64;
+    const targetH = isDoor ? 128 : 192;
+    const idealRatio = targetW / targetH; // 0.333 para paredes (1:3), 0.5 para puertas (1:2)
+    const actualRatio = origW / origH;
+    const ratioDiff = Math.abs(actualRatio - idealRatio);
+
+    if (this.analysisOrigRes) {
+      this.analysisOrigRes.textContent = `${origW} × ${origH} px`;
+    }
+
+    let aspectText = '';
+    if (actualRatio > 1.2) aspectText = 'Horizontal (Apaisada)';
+    else if (actualRatio >= 0.85 && actualRatio <= 1.15) aspectText = 'Cuadrada (1:1)';
+    else aspectText = `Vertical (${origW}:${origH})`;
+    if (this.analysisAspect) this.analysisAspect.textContent = aspectText;
+
+    let isOptimal = true;
+    const warnings = [];
+
+    // Verificación de tamaño excesivo o muy bajo
+    if (origW > 2048 || origH > 2048 || (file && file.size > 2 * 1024 * 1024)) {
+      const mb = file ? (file.size / (1024 * 1024)).toFixed(1) : '>2';
+      warnings.push(`Imagen de alta resolución (${mb} MB). Se normaliza a ${targetW}×${targetH} px para garantizar 60 FPS estables sin sobrecargar la memoria.`);
+      isOptimal = false;
+    } else if (origW < 32 || origH < (isDoor ? 64 : 96)) {
+      warnings.push(`Resolución reducida (${origW}×${origH} px). Podría percibirse desenfocada o pixelada al acercarse.`);
+      isOptimal = false;
+    }
+
+    // Verificación de proporción
+    if (ratioDiff > 0.15) {
+      warnings.push(`La proporción no es exactamente ${isDoor ? '1:2' : '1:3'}. El editor la escala adaptándola al formato nativo.`);
+      isOptimal = false;
+    }
+
+    if (this.pendingStyleHasTransparency) {
+      warnings.unshift('✨ Transparencia detectada: El motor 3D la tratará como superficie translúcida (efecto cristal/reja) permitiendo ver a través de ella.');
+    }
+
+    if (this.analysisStatusBadge) {
+      if (isOptimal) {
+        this.analysisStatusBadge.className = 'analysis-status-badge badge-optimal';
+        this.analysisStatusBadge.innerHTML = '<i class="ri-checkbox-circle-line"></i> Óptima para 3D';
+      } else {
+        this.analysisStatusBadge.className = 'analysis-status-badge badge-warning';
+        this.analysisStatusBadge.innerHTML = '<i class="ri-information-line"></i> Adaptada al Motor';
+      }
+    }
+
+    if (this.analysisNotes) {
+      if (warnings.length > 0) {
+        this.analysisNotes.textContent = warnings.join(' ');
+        this.analysisNotes.style.display = 'block';
+      } else {
+        this.analysisNotes.textContent = `Proporción y resolución excelentes. Normalizada a ${targetW}×${targetH} px con rendimiento óptimo a 60 FPS.`;
+        this.analysisNotes.style.display = 'block';
+      }
+    }
+
+    this.newStyleAnalysisCard.style.display = 'flex';
+  }
+
+  /**
+   * Lee la imagen del usuario, la escala a la proporción nativa en un canvas 2D
+   * y genera la vista previa
+   */
+  processUploadedStyleImage(file) {
+    if (!file || !file.type.startsWith('image/')) {
+      this.showToast('⚠️ Por favor selecciona un archivo de imagen válido (.png, .jpg, .webp)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const isDoor = (this.styleModalKind === 'door');
+        const targetW = 64;
+        const targetH = isDoor ? 128 : 192;
+
+        const canvas = this.newStyleCanvasPreview;
+        if (!canvas) return;
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        // Ajuste inteligente: dibujar cubriendo todo el área nativa
+        ctx.clearRect(0, 0, targetW, targetH);
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+
+        // Detectar si la imagen contiene canal alfa con transparencia o translucidez
+        const imgPixels = ctx.getImageData(0, 0, targetW, targetH).data;
+        let hasTrans = false;
+        for (let i = 3; i < imgPixels.length; i += 4) {
+          if (imgPixels[i] < 250) {
+            hasTrans = true;
+            break;
+          }
+        }
+        this.pendingStyleHasTransparency = hasTrans;
+        this.pendingStyleDataUrl = canvas.toDataURL('image/png');
+
+        // Mostrar canvas de vista previa
+        if (this.newStyleEmptyState) this.newStyleEmptyState.style.display = 'none';
+        canvas.style.display = 'block';
+
+        // Auto-asignar nombre a partir del archivo si está vacío
+        if (this.inputNewStyleName && !this.inputNewStyleName.value.trim()) {
+          const rawName = file.name.replace(/\.[^/.]+$/, '').replace(/[_\-]/g, ' ');
+          this.inputNewStyleName.value = rawName.charAt(0).toUpperCase() + rawName.slice(1);
+        }
+
+        this.analyzeTextureImage(img, file, isDoor);
+        this.validateNewStyleForm();
+        this.showToast('✅ Imagen cargada y adaptada a resolución nativa');
+      };
+      img.onerror = () => {
+        this.showToast('⚠️ No se pudo procesar la imagen seleccionada');
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Guarda el estilo personalizado en el proyecto actual y en el catálogo del motor
+   */
+  async saveNewCustomStyle() {
+    const name = this.inputNewStyleName ? this.inputNewStyleName.value.trim() : '';
+    if (!name || !this.pendingStyleDataUrl) {
+      this.showToast('⚠️ Debes ingresar un nombre y seleccionar una imagen');
+      return;
+    }
+
+    const kind = this.styleModalKind || 'wall';
+    const isDoor = (kind === 'door');
+    const targetFolder = isDoor ? 'doors' : 'walls';
+    const cleanSlug = name.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || ('custom_' + Date.now());
+    const styleKey = cleanSlug;
+    const relativeDiskPath = `src/engine/textures/${targetFolder}/${styleKey}.png`;
+
+    // Inicializar almacén de estilos personalizados en el proyecto si no existiera
+    if (!this.currentProject.customStyles) {
+      this.currentProject.customStyles = { walls: {}, doors: {} };
+    }
+    if (!this.currentProject.customStyles.walls) this.currentProject.customStyles.walls = {};
+    if (!this.currentProject.customStyles.doors) this.currentProject.customStyles.doors = {};
+
+    let capDataUrl = null;
+    if (!isDoor && this.chkAutoGenerateCap && this.chkAutoGenerateCap.checked) {
+      const capPixels = createCapFromWallImage(this.pendingStyleDataUrl, 64, 192);
+      const capCanvas = document.createElement('canvas');
+      capCanvas.width = 64;
+      capCanvas.height = 192;
+      const cctx = capCanvas.getContext('2d');
+      const imgData = cctx.createImageData(64, 192);
+      new Uint32Array(imgData.data.buffer).set(capPixels);
+      cctx.putImageData(imgData, 0, 0);
+      capDataUrl = capCanvas.toDataURL('image/png');
+    }
+
+    const tNow = Date.now();
+    const styleData = {
+      label: name,
+      isCustom: true,
+      hasTransparency: !!this.pendingStyleHasTransparency,
+      dataUrl: this.pendingStyleDataUrl,
+      capDataUrl: capDataUrl,
+      file: `${targetFolder}/${styleKey}.png`,
+      pngUrl: '/' + relativeDiskPath + '?t=' + tNow,
+      capFile: `caps/${styleKey}.png`,
+      capPngUrl: `/src/engine/textures/caps/${styleKey}.png?t=${tNow}`
+    };
+
+    if (isDoor) {
+      this.currentProject.customStyles.doors[styleKey] = styleData;
+      registerDoorStyle(styleKey, styleData);
+    } else {
+      this.currentProject.customStyles.walls[styleKey] = styleData;
+      registerWallStyle(styleKey, styleData);
+    }
+
+    // Guardar archivo físico PNG en el servidor de desarrollo (asíncrono)
+    const saveImgPromise = fetch('/api/save-texture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        relativePath: relativeDiskPath,
+        base64Data: this.pendingStyleDataUrl
+      })
+    }).catch(() => {});
+
+    // Si tiene canto generado, guardarlo también en disco en caps/
+    const saveCapPromise = capDataUrl ? fetch('/api/save-texture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        relativePath: `src/engine/textures/caps/${styleKey}.png`,
+        base64Data: capDataUrl
+      })
+    }).catch(() => {}) : Promise.resolve();
+
+    Promise.all([saveImgPromise, saveCapPromise]).then(() => {
+      this.syncTexturesFromDisk();
+    });
+
+    // Persistir proyecto en localStorage y actualizar de inmediato el visor JSON de la sala
+    this.saveProjectsToStorage();
+    this.updateJSON();
+
+    // Seleccionar el nuevo estilo de inmediato y actualizar modal
+    this.toggleNewStylePanel(false);
+    this.selectStyle(kind, styleKey);
+    this.openStyleModal(kind);
+
+    this.showToast(`✨ Estilo "${name}" guardado y añadido a la sala`);
+  }
+
+  /**
+   * Elimina un estilo personalizado creado por el usuario
+   */
+  deleteCustomStyle(kind, styleKey) {
+    const { styles } = this._styleKindInfo(kind);
+    const def = styles[styleKey];
+    const styleLabel = (def && def.label) || 'este estilo';
+
+    this.showConfirmDialog({
+      title: `¿Eliminar estilo "${styleLabel}"?`,
+      message: 'Este diseño personalizado se eliminará del catálogo de estilos y del JSON de esta sala.',
+      acceptText: 'Eliminar Estilo',
+      isDanger: true,
+      onAccept: () => {
+        if (this.currentProject && this.currentProject.customStyles) {
+          if (kind === 'door' && this.currentProject.customStyles.doors) {
+            delete this.currentProject.customStyles.doors[styleKey];
+          } else if (this.currentProject.customStyles.walls) {
+            delete this.currentProject.customStyles.walls[styleKey];
+          }
+        }
+
+        removeCustomStyle(kind, styleKey);
+
+        // Si estaba seleccionado, volver a 'castillo'
+        const { prop } = this._styleKindInfo(kind);
+        if (this[prop] === styleKey) {
+          this[prop] = 'castillo';
+          if (kind === 'door') this.lintelStyle = 'castillo';
+        }
+
+        this.saveProjectsToStorage();
+        this.updateStyleLabels();
+        this.updateJSON();
+        this.openStyleModal(kind);
+        this.showToast(`🗑️ Estilo "${styleLabel}" eliminado`);
+      }
+    });
   }
 
   /**
@@ -2213,19 +2801,51 @@ class LevelEditor {
 
   openStyleModal(kind) {
     this.styleModalKind = kind;
+    this.syncCustomStylesFromProject();
     const { styles, prop, label, isDoorKind } = this._styleKindInfo(kind);
     const current = this[prop];
 
     this.styleModalTitle.innerHTML = `<i class="ri-palette-line"></i> Estilo de ${label}`;
-    this.styleModalGrid.innerHTML = Object.entries(styles).map(([key, def]) => `
-      <button class="style-card ${key === current ? 'active' : ''}" data-style="${key}">
-        <img src="${this.renderStylePreview(isDoorKind, def)}" alt="${def.label}">
-        <span>${def.label}</span>
-      </button>
-    `).join('');
+
+    // Actualizar guía de medidas visible en la cabecera de la modal
+    const lblDimFrontalTitle = document.getElementById('lblDimFrontalTitle');
+    const valDimFrontal = document.getElementById('valDimFrontal');
+    if (lblDimFrontalTitle && valDimFrontal) {
+      if (isDoorKind) {
+        lblDimFrontalTitle.textContent = 'Hoja de Puerta:';
+        valDimFrontal.innerHTML = '64 × 128 px <small>(Proporción 1:2)</small>';
+      } else {
+        lblDimFrontalTitle.textContent = 'Frontal de Pared:';
+        valDimFrontal.innerHTML = '64 × 192 px <small>(Proporción 1:3)</small>';
+      }
+    }
+    
+    // Ocultar panel de nuevo estilo al abrir el modal
+    if (this.newStylePanel) this.newStylePanel.style.display = 'none';
+
+    this.styleModalGrid.innerHTML = Object.entries(styles).map(([key, def]) => {
+      const isCustom = !!def.isCustom;
+      const previewImg = def.dataUrl || def.pngUrl || this.renderStylePreview(isDoorKind, def);
+      return `
+        <div class="style-card ${key === current ? 'active' : ''}" data-style="${key}" title="${def.label}">
+          ${isCustom ? '<span class="style-card-badge">PNG</span>' : ''}
+          ${isCustom ? `<button class="style-card-delete-btn" data-delete-key="${key}" title="Eliminar este estilo"><i class="ri-delete-bin-line"></i></button>` : ''}
+          <img src="${previewImg}" alt="${def.label}">
+          <span class="style-card-title">${def.label}</span>
+        </div>
+      `;
+    }).join('');
 
     this.styleModalGrid.querySelectorAll('.style-card').forEach(card => {
-      card.addEventListener('click', () => this.selectStyle(kind, card.dataset.style));
+      card.addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.style-card-delete-btn');
+        if (deleteBtn) {
+          e.stopPropagation();
+          this.deleteCustomStyle(kind, deleteBtn.dataset.deleteKey);
+          return;
+        }
+        this.selectStyle(kind, card.dataset.style);
+      });
     });
 
     this.styleModalOverlay.hidden = false;
@@ -2236,6 +2856,7 @@ class LevelEditor {
    * Puertas: 64x128 px (proporción 5:10). Paredes y dinteles: 64x192 px (proporción 5:15).
    */
   renderStylePreview(isDoorKind, styleDef) {
+    if (styleDef.dataUrl) return styleDef.dataUrl;
     const w = 64;
     const h = isDoorKind ? 128 : 192;
     const pixels = isDoorKind ? styleDef.door(w, h) : styleDef.wall(w, h);
@@ -2263,9 +2884,9 @@ class LevelEditor {
     this.updateJSON();
 
     if (kind === 'door' && typeof WALL_STYLES !== 'undefined' && WALL_STYLES[styleKey]) {
-      this.showToast(`🚪 Puerta y dintel sincronizados: ${styles[styleKey].label}`);
+      this.showToast(`🚪 Puerta y dintel sincronizados: ${styles[styleKey]?.label || styleKey}`);
     } else {
-      this.showToast(`🖌️ Pincel de ${label.toLowerCase()}: ${styles[styleKey].label} (se aplicará a lo próximo que coloques)`);
+      this.showToast(`🖌️ Pincel de ${label.toLowerCase()}: ${styles[styleKey]?.label || styleKey} (se aplicará a lo próximo que coloques)`);
     }
   }
 
@@ -2452,6 +3073,7 @@ class LevelEditor {
     }
 
     this.currentMapId = this.currentProject.startingMapId;
+    this.syncCustomStylesFromProject();
     this.loadLevelData(this.currentProject.maps[this.currentMapId]);
     this.updateHeaderProject();
     this.renderMapDropdown();
@@ -3156,7 +3778,7 @@ class LevelEditor {
       this.currentProject.startingMapId = Object.keys(this.currentProject.maps)[0];
     }
     this.currentMapId = this.currentProject.startingMapId;
-
+    this.syncCustomStylesFromProject();
     this.loadLevelData(this.currentProject.maps[this.currentMapId]);
     this.updateHeaderProject();
     this.renderMapDropdown();

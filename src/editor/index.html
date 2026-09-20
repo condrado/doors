@@ -465,13 +465,114 @@
 
     <!-- Modal Selector de Estilo (Pared / Puerta) -->
     <div class="modal-overlay" id="styleModalOverlay" hidden>
-      <div class="modal-box">
+      <div class="modal-box style-modal-box">
         <div class="modal-header">
           <h3 id="styleModalTitle"><i class="ri-palette-line"></i> Estilo de Pared</h3>
-          <button class="modal-close-btn" id="styleModalClose"><i class="ri-close-line"></i></button>
+          <div class="modal-header-actions">
+            <button class="btn-subtle primary-btn" id="btnToggleNewStylePanel" title="Crear un nuevo estilo subiendo una imagen PNG">
+              <i class="ri-add-line"></i> Nuevo Estilo
+            </button>
+            <button class="modal-close-btn" id="styleModalClose" title="Cerrar"><i class="ri-close-line"></i></button>
+          </div>
         </div>
         <p class="modal-subtitle">Elige el diseño para lo próximo que coloques. Lo que ya está en el mapa conserva su
           estilo.</p>
+
+        <!-- Guía Visual de Medidas y Proporciones Oficiales -->
+        <div class="style-dimensions-guide" id="styleModalDimGuide">
+          <div class="dim-guide-item">
+            <span class="dim-guide-label"><i class="ri-aspect-ratio-line"></i> <strong id="lblDimFrontalTitle">Frontal de Pared:</strong></span>
+            <span class="dim-guide-value" id="valDimFrontal">64 × 192 px <small>(Proporción 1:3)</small></span>
+          </div>
+          <div class="dim-guide-divider"></div>
+          <div class="dim-guide-item">
+            <span class="dim-guide-label"><i class="ri-layout-right-line"></i> <strong>Canto / Jamba (Cap):</strong></span>
+            <span class="dim-guide-value" id="valDimCap">
+              <span class="badge-size">64 × 192 px</span> <small>(Detalle HD)</small>
+              <span class="size-sep">ó</span>
+              <span class="badge-size">16 × 192 px</span> <small>(Fiel a 20 cm)</small>
+            </span>
+          </div>
+        </div>
+
+        <!-- Panel Desplegable para Subir y Crear Nueva Textura PNG -->
+        <div class="new-style-panel" id="newStylePanel" style="display: none;">
+          <div class="new-style-header">
+            <h4><i class="ri-image-add-line"></i> Subir Textura Personalizada (PNG)</h4>
+            <span class="style-kind-badge" id="newStyleKindBadge">Pared (64x192 px)</span>
+          </div>
+
+          <div class="new-style-body">
+            <div class="new-style-form-col">
+              <div class="input-group full-width">
+                <label for="inputNewStyleName"><i class="ri-edit-line"></i> Nombre del Estilo:</label>
+                <input type="text" id="inputNewStyleName" placeholder="Ej: Ladrillo Rojo, Madera Roble..." maxlength="30">
+              </div>
+
+              <div class="style-dropzone-wrap">
+                <label for="inputNewStyleFile" class="style-upload-dropzone" id="dropZoneNewStyle">
+                  <i class="ri-upload-cloud-2-line"></i>
+                  <span class="dropzone-title">Haz clic o arrastra tu imagen aquí</span>
+                  <span class="dropzone-subtitle">Formatos recomendados: .PNG, .JPG o .WebP</span>
+                  <input type="file" id="inputNewStyleFile" accept="image/png, image/jpeg, image/webp" hidden>
+                </label>
+              </div>
+
+              <div class="new-style-options" id="newStyleWallOptions">
+                <label class="checkbox-label" title="Crea automáticamente una jamba/canto a juego con los bordes de la pared">
+                  <input type="checkbox" id="chkAutoGenerateCap" checked>
+                  <span>Generar canto/jamba a juego automáticamente</span>
+                </label>
+                <div class="cap-dim-note">
+                  <i class="ri-information-line"></i> Medidas para cantos en <code>caps/</code>: <strong>64×192 px</strong> (alta definición) ó <strong>16×192 px</strong> (proporción física de 20 cm).
+                </div>
+              </div>
+            </div>
+
+            <!-- Previsualización de la Textura en Proporción Nativa -->
+            <div class="new-style-preview-col">
+              <span class="preview-title"><i class="ri-eye-line"></i> Textura en Motor:</span>
+              <div class="new-style-preview-frame" id="newStylePreviewFrame">
+                <div class="preview-empty-state" id="newStyleEmptyState">
+                  <i class="ri-image-line"></i>
+                  <span>Sin imagen</span>
+                </div>
+                <canvas id="newStyleCanvasPreview" width="64" height="192" style="display: none;"></canvas>
+              </div>
+              <span class="preview-meta" id="newStylePreviewMeta">64 × 192 px</span>
+              <span class="preview-cap-hint" id="newStyleCapHint">Canto: 64×192 px ó 16×192 px</span>
+            </div>
+          </div>
+
+          <!-- Tarjeta de Diagnóstico y Rendimiento de Textura -->
+          <div class="style-analysis-card" id="newStyleAnalysisCard" style="display: none;">
+            <div class="analysis-card-header">
+              <span class="analysis-status-badge badge-optimal" id="analysisStatusBadge">
+                <i class="ri-checkbox-circle-line"></i> Óptima
+              </span>
+              <span class="analysis-perf-pill" id="analysisPerfPill"><i class="ri-speed-up-line"></i> 60 FPS Estable</span>
+            </div>
+            <div class="analysis-grid">
+              <div class="analysis-stat">
+                <span class="stat-label">Resolución de origen:</span>
+                <span class="stat-value" id="analysisOrigRes">-</span>
+              </div>
+              <div class="analysis-stat">
+                <span class="stat-label">Formato / Proporción:</span>
+                <span class="stat-value" id="analysisAspect">-</span>
+              </div>
+            </div>
+            <p class="analysis-notes" id="analysisNotes"></p>
+          </div>
+
+          <div class="new-style-actions">
+            <button class="btn-subtle" id="btnCancelNewStyle"><i class="ri-close-line"></i> Cancelar</button>
+            <button class="btn-subtle primary-btn" id="btnSaveNewStyle" disabled>
+              <i class="ri-check-line"></i> Guardar y Usar Estilo
+            </button>
+          </div>
+        </div>
+
         <div class="style-modal-grid" id="styleModalGrid"></div>
       </div>
     </div>

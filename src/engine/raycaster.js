@@ -28,6 +28,10 @@ class RaycasterEngine {
     this.wallHeightScale = 3.0;
     this.doorHeightScale = 2.0;
 
+    if (typeof window !== 'undefined') {
+      window.activeRaycasterEngine = this;
+    }
+
     // Mapa de la sala: 7x7 celdas
     // 0: Vacío / Suelo
     // 1: Muro de piedra
@@ -940,8 +944,63 @@ class RaycasterEngine {
     this.textures[1] = {};
     this.textures[10] = {};
     Object.keys(WALL_STYLES).forEach(style => {
-      this.textures[1][style] = WALL_STYLES[style].wall(64, 192);
-      this.textures[10][style] = WALL_STYLES[style].cap(64, 192);
+      const def = WALL_STYLES[style];
+      this.textures[1][style] = def.wall(64, 192);
+      this.textures[10][style] = def.cap(64, 192);
+
+      // Si el estilo tiene imagen física (pngUrl), cargarla asíncronamente para sustitución limpia
+      if (def.pngUrl && typeof Image !== 'undefined') {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const off = document.createElement('canvas');
+          off.width = 64;
+          off.height = 192;
+          const octx = off.getContext('2d', { willReadFrequently: true });
+          octx.drawImage(img, 0, 0, 64, 192);
+          const arr = new Uint32Array(octx.getImageData(0, 0, 64, 192).data.buffer);
+          arr.width = 64;
+          arr.height = 192;
+          let hasTrans = false;
+          for (let i = 0; i < arr.length; i++) {
+            if (((arr[i] >> 24) & 0xFF) < 250) {
+              hasTrans = true;
+              break;
+            }
+          }
+          arr.hasTransparency = hasTrans;
+          if (def) def.hasTransparency = hasTrans;
+          this.textures[1][style] = arr;
+        };
+        img.src = def.pngUrl;
+      }
+
+      // Cargar también imagen física del canto/jamba (capPngUrl o /src/engine/textures/caps/${style}.png)
+      const capUrl = def.capPngUrl || (def.capFile ? ('/src/engine/textures/' + def.capFile) : ('/src/engine/textures/caps/' + style + '.png'));
+      if (capUrl && typeof Image !== 'undefined') {
+        const cImg = new Image();
+        cImg.crossOrigin = 'anonymous';
+        cImg.onload = () => {
+          const off = document.createElement('canvas');
+          off.width = 64;
+          off.height = 192;
+          const octx = off.getContext('2d', { willReadFrequently: true });
+          octx.drawImage(cImg, 0, 0, 64, 192);
+          const arr = new Uint32Array(octx.getImageData(0, 0, 64, 192).data.buffer);
+          arr.width = 64;
+          arr.height = 192;
+          let hasTrans = false;
+          for (let i = 0; i < arr.length; i++) {
+            if (((arr[i] >> 24) & 0xFF) < 250) {
+              hasTrans = true;
+              break;
+            }
+          }
+          arr.hasTransparency = hasTrans;
+          this.textures[10][style] = arr;
+        };
+        cImg.src = capUrl;
+      }
     });
 
     this.textures[2] = {};
@@ -950,14 +1009,106 @@ class RaycasterEngine {
     this.textures[5] = {};
     this.textures[11] = {};
     Object.keys(DOOR_STYLES).forEach(style => {
+      const def = DOOR_STYLES[style];
       [2, 3, 4, 5].forEach(type => {
-        this.textures[type][style] = DOOR_STYLES[style].door(64, 128);
+        this.textures[type][style] = def.door(64, 128);
       });
-      this.textures[11][style] = DOOR_STYLES[style].cap(64, 192);
+      this.textures[11][style] = def.cap(64, 192);
+
+      if (def.pngUrl && typeof Image !== 'undefined') {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          const off = document.createElement('canvas');
+          off.width = 64;
+          off.height = 128;
+          const octx = off.getContext('2d', { willReadFrequently: true });
+          octx.drawImage(img, 0, 0, 64, 128);
+          const arr = new Uint32Array(octx.getImageData(0, 0, 64, 128).data.buffer);
+          arr.width = 64;
+          arr.height = 128;
+          let hasTrans = false;
+          for (let i = 0; i < arr.length; i++) {
+            if (((arr[i] >> 24) & 0xFF) < 250) {
+              hasTrans = true;
+              break;
+            }
+          }
+          arr.hasTransparency = hasTrans;
+          if (def) def.hasTransparency = hasTrans;
+          [2, 3, 4, 5].forEach(type => {
+            this.textures[type][style] = arr;
+          });
+        };
+        img.src = def.pngUrl;
+      }
+
+      const doorCapUrl = def.capPngUrl || (def.capFile ? ('/src/engine/textures/' + def.capFile) : ('/src/engine/textures/caps/' + style + '.png'));
+      if (doorCapUrl && typeof Image !== 'undefined') {
+        const cImg = new Image();
+        cImg.crossOrigin = 'anonymous';
+        cImg.onload = () => {
+          const off = document.createElement('canvas');
+          off.width = 64;
+          off.height = 192;
+          const octx = off.getContext('2d', { willReadFrequently: true });
+          octx.drawImage(cImg, 0, 0, 64, 192);
+          const arr = new Uint32Array(octx.getImageData(0, 0, 64, 192).data.buffer);
+          arr.width = 64;
+          arr.height = 192;
+          let hasTrans = false;
+          for (let i = 0; i < arr.length; i++) {
+            if (((arr[i] >> 24) & 0xFF) < 250) {
+              hasTrans = true;
+              break;
+            }
+          }
+          arr.hasTransparency = hasTrans;
+          this.textures[11][style] = arr;
+        };
+        cImg.src = doorCapUrl;
+      }
     });
 
     // Textura 6: Ventana medieval de 64x192 (dintel + hueco + antepecho, sin variantes)
     this.textures[6] = createWindowPixels(64, 192);
+  }
+
+  /**
+   * Comprueba dinámicamente si un estilo o textura contiene píxeles transparentes/translúcidos (alfa < 250).
+   * Si es transparente, el rayo DDA no se detiene en ella, acumulándola en hitTransparents
+   * para dibujarla con mezcla alfa (visión a través de cristal/rejilla).
+   */
+  isStyleTransparent(style, type = 1) {
+    if (!style) return false;
+    if (typeof style === 'string' && /^(cristal|glass|trans|reja|enrejado)/i.test(style)) {
+      return true;
+    }
+    if (typeof WALL_STYLES !== 'undefined' && WALL_STYLES[style] && WALL_STYLES[style].hasTransparency !== undefined) {
+      if (WALL_STYLES[style].hasTransparency) return true;
+    }
+    if (typeof DOOR_STYLES !== 'undefined' && DOOR_STYLES[style] && DOOR_STYLES[style].hasTransparency !== undefined) {
+      if (DOOR_STYLES[style].hasTransparency) return true;
+    }
+    const texObj = this.textures[type] || this.textures[1];
+    if (texObj) {
+      const pixels = (texObj instanceof Uint32Array) ? texObj : texObj[style];
+      if (pixels && pixels.length) {
+        if (pixels.hasTransparency !== undefined) {
+          return pixels.hasTransparency;
+        }
+        let hasTrans = false;
+        for (let i = 0; i < pixels.length; i++) {
+          if (((pixels[i] >> 24) & 0xFF) < 250) {
+            hasTrans = true;
+            break;
+          }
+        }
+        pixels.hasTransparency = hasTrans;
+        return hasTrans;
+      }
+    }
+    return false;
   }
 
   /**
@@ -1007,14 +1158,14 @@ class RaycasterEngine {
     }
     const base = '/src/engine/textures/';
     const files = {
-      1: 'wall.png',
-      2: 'door_n.png',
-      3: 'door_e.png',
-      4: 'door_s.png',
-      5: 'door_w.png',
-      6: 'window.png',
-      10: 'cap.png',
-      11: 'door_cap.png'
+      1: 'walls/castillo.png',
+      2: 'doors/castillo.png',
+      3: 'doors/castillo.png',
+      4: 'doors/castillo.png',
+      5: 'doors/castillo.png',
+      6: 'windows/ventana.png',
+      10: 'caps/castillo.png',
+      11: 'caps/castillo.png'
     };
     return Promise.all(
       Object.entries(files).map(([type, file]) => this.loadTextureImage(Number(type), base + file))
@@ -1038,12 +1189,15 @@ class RaycasterEngine {
 
   /**
    * Intersecta un rayo con los segmentos de una celda.
-   * Separa el impacto inferior (suelo a 2.2m o 3.0m: puertas/paredes)
-   * del impacto en dintel (2.2m a 3.0m: isLintelOnly).
+   * Separa el impacto inferior opaco (paredes/puertas que detienen el rayo DDA)
+   * de los impactos translúcidos (superficies transparentes que se acumulan para renderizado multicapa)
+   * y del impacto en dintel (2.2m a 3.0m: isLintelOnly).
    */
   _intersectCellSegments(segments, posX, posY, rayDirX, rayDirY, mapX, mapY, minDist = 0.001) {
-    let bestBottom = null;
+    let bestOpaqueBottom = null;
     let bestLintel = null;
+    const transparentHits = [];
+    const openDoorHits = [];
 
     for (let s = 0; s < segments.length; s++) {
       const seg = segments[s];
@@ -1079,21 +1233,25 @@ class RaycasterEngine {
       const isLintel = !!seg.isLintelOnly;
       const isOpenDoor = !!seg.isOpenDoor;
       const isDoor = ((seg.type >= 2 && seg.type <= 5) || seg.type === 11 || seg.isJamb) && !isLintel;
-      const isTransparent = (seg.style === 'cristal');
+      const isTransparent = !isLintel && !isOpenDoor && this.isStyleTransparent(seg.style, seg.type);
       const hitData = { seg, dist, wallX, side, isDoor, isLintel, isOpenDoor, isTransparent, mapX, mapY };
 
       if (isLintel) {
         if (!bestLintel || dist < bestLintel.dist) {
           bestLintel = hitData;
         }
+      } else if (isOpenDoor) {
+        openDoorHits.push(hitData);
+      } else if (isTransparent) {
+        transparentHits.push(hitData);
       } else {
-        if (!bestBottom || dist < bestBottom.dist) {
-          bestBottom = hitData;
+        if (!bestOpaqueBottom || dist < bestOpaqueBottom.dist) {
+          bestOpaqueBottom = hitData;
         }
       }
     }
 
-    return { bestBottom, bestLintel };
+    return { bestOpaqueBottom, bestLintel, transparentHits, openDoorHits };
   }
 
   /**
@@ -1190,27 +1348,25 @@ class RaycasterEngine {
             hitLintels.push(res.bestLintel);
           }
         }
-        if (res.bestBottom) {
-          if (res.bestBottom.isOpenDoor) {
-            if (!hitOpenDoor || res.bestBottom.dist < hitOpenDoor.dist) {
-              hitOpenDoor = res.bestBottom;
+        if (res.openDoorHits && res.openDoorHits.length > 0) {
+          for (let i = 0; i < res.openDoorHits.length; i++) {
+            const od = res.openDoorHits[i];
+            if (!hitOpenDoor || od.dist < hitOpenDoor.dist) {
+              hitOpenDoor = od;
             }
-            // La hoja abatida de una puerta abierta sólo cubre de 0 a 2.2m.
-            // Arriba (2.2 a 3.0m) la vista continúa libre hacia la pared del fondo,
-            // por lo que NO detenemos el rayo DDA.
-            return false;
-          } else if (res.bestBottom.isTransparent) {
-            // Superficie translúcida (pared o puerta de cristal):
-            // Acumulamos el impacto para renderizarlo con alpha blending
-            // y dejamos que el rayo DDA continúe avanzando para ver qué hay detrás
-            if (!hitTransparents.some(t => Math.abs(t.dist - res.bestBottom.dist) < 0.01)) {
-              hitTransparents.push(res.bestBottom);
-            }
-            return false;
-          } else {
-            hitBottom = res.bestBottom;
-            return true;
           }
+        }
+        if (res.transparentHits && res.transparentHits.length > 0) {
+          for (let i = 0; i < res.transparentHits.length; i++) {
+            const th = res.transparentHits[i];
+            if (!hitTransparents.some(t => Math.abs(t.dist - th.dist) < 0.01)) {
+              hitTransparents.push(th);
+            }
+          }
+        }
+        if (res.bestOpaqueBottom) {
+          hitBottom = res.bestOpaqueBottom;
+          return true;
         }
         return false;
       };
@@ -1349,10 +1505,11 @@ class RaycasterEngine {
         if (side === 1) s *= 0.72; // Sombreado clásico Wolfenstein 3D
         return s;
       };
+      // Coordenada horizontal de la textura (corregida para evitar inversión/espejado)
       const texXOf = (coord, side, texW = 64) => {
         let tx = Math.floor(Math.max(0, Math.min(0.999, coord)) * texW);
-        if (side === 0 && rayDirX > 0) tx = texW - tx - 1;
-        if (side === 1 && rayDirY < 0) tx = texW - tx - 1;
+        if (side === 0 && rayDirX < 0) tx = texW - tx - 1;
+        if (side === 1 && rayDirY > 0) tx = texW - tx - 1;
         return tx;
       };
 

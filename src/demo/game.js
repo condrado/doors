@@ -253,6 +253,11 @@ window.addEventListener('DOMContentLoaded', () => {
     if (mapData.customTextures) {
       engine.applyCustomTextures(mapData.customTextures);
     }
+
+    if (mapData.customStyles && typeof loadCustomStyles === 'function') {
+      loadCustomStyles(mapData.customStyles);
+      engine.generateProceduralTextures();
+    }
   }
 
   // Detectar si venimos del Editor (?custom=1)
@@ -272,6 +277,86 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       console.warn('Error leyendo proyectos en demo:', e);
     }
+  }
+
+  // Sincronizar estilos y texturas personalizadas del proyecto
+  if (activeProject && activeProject.customStyles && typeof loadCustomStyles === 'function') {
+    loadCustomStyles(activeProject.customStyles);
+    engine.generateProceduralTextures();
+  }
+
+  // Sincronizar también texturas físicas descubiertas en carpetas (ej. cristal-c.png)
+  if (typeof fetch === 'function') {
+    fetch('/api/list-textures')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        let needsRegen = false;
+
+        // Limpiar dataUrls obsoletos en customStyles si ahora hay archivos físicos en disco
+        if (activeProject && activeProject.customStyles) {
+          if (data.walls && activeProject.customStyles.walls) {
+            data.walls.forEach(item => {
+              if (activeProject.customStyles.walls[item.name]) {
+                activeProject.customStyles.walls[item.name].pngUrl = item.url;
+                activeProject.customStyles.walls[item.name].capPngUrl = item.capUrl;
+                delete activeProject.customStyles.walls[item.name].capDataUrl;
+                delete activeProject.customStyles.walls[item.name].dataUrl;
+              }
+            });
+          }
+          if (data.doors && activeProject.customStyles.doors) {
+            data.doors.forEach(item => {
+              if (activeProject.customStyles.doors[item.name]) {
+                activeProject.customStyles.doors[item.name].pngUrl = item.url;
+                activeProject.customStyles.doors[item.name].capPngUrl = item.capUrl;
+                delete activeProject.customStyles.doors[item.name].capDataUrl;
+                delete activeProject.customStyles.doors[item.name].dataUrl;
+              }
+            });
+          }
+        }
+
+        if (data.walls && typeof registerWallStyle === 'function') {
+          data.walls.forEach(item => {
+            const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
+            const capFile = item.capFile || ('caps/' + item.name + '.png');
+            const capUrl = item.capUrl || ('/src/engine/textures/caps/' + item.name + '.png');
+            // Siempre registrar/actualizar con la URL fresca del disco (incluyendo query ?t=)
+            registerWallStyle(item.name, {
+              label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
+              pngUrl: item.url,
+              file: item.file,
+              capFile: capFile,
+              capPngUrl: capUrl,
+              hasTransparency: isTrans,
+              isCustom: true
+            });
+            needsRegen = true;
+          });
+        }
+        if (data.doors && typeof registerDoorStyle === 'function') {
+          data.doors.forEach(item => {
+            const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
+            const capFile = item.capFile || ('caps/' + item.name + '.png');
+            const capUrl = item.capUrl || ('/src/engine/textures/caps/' + item.name + '.png');
+            registerDoorStyle(item.name, {
+              label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
+              pngUrl: item.url,
+              file: item.file,
+              capFile: capFile,
+              capPngUrl: capUrl,
+              hasTransparency: isTrans,
+              isCustom: true
+            });
+            needsRegen = true;
+          });
+        }
+        if (needsRegen) {
+          engine.generateProceduralTextures();
+        }
+      })
+      .catch(() => {});
   }
 
   if (activeProject && activeProject.maps && Object.keys(activeProject.maps).length > 0) {

@@ -1,25 +1,29 @@
-# Texturas del Proyecto
+# Texturas del Proyecto (PNG)
 
-Coloca aquí imágenes (PNG recomendado, cualquier formato que soporte `<img>`) con estos nombres exactos para sustituir el diseño por defecto (procedural) de cada elemento en toda la Demo 3D:
+Todas las texturas están organizadas de forma limpia en subcarpetas temáticas:
 
-| Archivo        | Sustituye a                  |
-|-----------------|-------------------------------|
-| `wall.png`      | Pared de piedra                |
-| `door_n.png`    | Puerta Norte                   |
-| `door_e.png`    | Puerta Este                    |
-| `door_s.png`    | Puerta Sur                     |
-| `door_w.png`    | Puerta Oeste                   |
-| `window.png`    | Ventana                        |
-| `cap.png`       | Canto / Jamba de pared          |
-| `door_cap.png`  | Canto / Jamba de puerta         |
+### 🧱 Paredes (`src/engine/textures/walls/` - 64x192 px)
+- `castillo.png`: Muro de piedra dungeon continuo.
+- `blanca.png`: Panel liso minimalista claro continuo.
+- `negra.png`: Panel mate oscuro.
+- `cristal.png`: Panel de vidrio translúcido continuo con destellos reflectantes.
 
-## Cómo funciona
+### 🚪 Puertas (`src/engine/textures/doors/` - 64x128 px)
+- `castillo.png`: Puerta de piedra con picaporte dorado.
+- `blanca.png`: Puerta lisa clara con picaporte plateado.
+- `negra.png`: Puerta lisa oscura con picaporte oscuro.
+- `cristal.png`: Puerta de vidrio translúcido con picaporte.
 
-- El motor (`RaycasterEngine`) genera primero sus texturas procedurales (siempre disponibles, sin depender de archivos externos) y luego intenta cargar estos archivos de forma asíncrona.
-- Si un archivo existe, la imagen se reescala automáticamente a 64x64 px y sustituye a la textura procedural correspondiente.
-- Si un archivo no existe, no pasa nada: simplemente se conserva el diseño procedural por defecto.
-- No hace falta tocar ningún código: basta con añadir, reemplazar o borrar el archivo con el nombre correcto.
+### 🪟 Ventanas (`src/engine/textures/windows/` - 64x192 px)
+- `ventana.png`: Ventana arquitectónica medieval con dintel, parteluz, cristal y antepecho.
 
-## Prioridad frente a las texturas por mapa
+### 📐 Cantos y Jambas (`src/engine/textures/caps/` - 64x192 px)
+- `castillo.png`: Jamba con estructura metálica y remaches.
+- `blanca.png`: Jamba lisa clara a juego.
+- `negra.png`: Jamba lisa oscura a juego.
+- `cristal.png`: Perfil translúcido a juego.
 
-Si además subes texturas específicas para un mapa concreto desde el **Editor de Niveles** (sección "Texturas Personalizadas"), esas texturas de mapa tienen prioridad y sustituyen a las de esta carpeta solo mientras ese mapa esté cargado.
+### 🎨 Personalizadas (`src/engine/textures/custom/`)
+- Aquí se guardan automáticamente las imágenes PNG que subas desde el botón **`[ + Nuevo Estilo ]`** de la modal de estilos del Editor.
+
+

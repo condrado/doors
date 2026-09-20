@@ -11,6 +11,8 @@ const MIME_TYPES = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.svg': 'image/svg+xml'
 };
@@ -52,6 +54,7 @@ try {
       normalized.includes('.git') ||
       normalized.includes('node_modules') ||
       normalized.includes('scratch') ||
+      normalized.includes('src/engine/textures') ||
       normalized.endsWith('.tmp')
     ) {
       return;
@@ -113,6 +116,98 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Endpoint API para guardar texturas PNG en disco
+  if (req.method === 'POST' && reqUrl === '/api/save-texture') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { relativePath, base64Data } = JSON.parse(body);
+        if (!relativePath || !base64Data) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=UTF-8' });
+          res.end(JSON.stringify({ error: 'Faltan parámetros relativePath o base64Data' }));
+          return;
+        }
+
+        // Prevenir directory traversal
+        const normalized = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
+        const targetPath = path.join(__dirname, normalized);
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+
+        const base64Pure = base64Data.replace(/^data:image\/\w+;base64,/, '');
+        fs.writeFileSync(targetPath, Buffer.from(base64Pure, 'base64'));
+
+        console.log(`🖼️ [Textura guardada]: ${normalized}`);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=UTF-8' });
+        res.end(JSON.stringify({ success: true, path: normalized }));
+      } catch (err) {
+        console.error('Error guardando textura:', err);
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=UTF-8' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Endpoint API para listar texturas físicas presentes en carpetas
+  if (req.method === 'GET' && reqUrl === '/api/list-textures') {
+    try {
+      const baseDir = path.join(__dirname, 'src', 'engine', 'textures');
+      const categories = ['walls', 'doors', 'windows', 'caps'];
+      const result = { walls: [], doors: [], windows: [], caps: [] };
+
+      categories.forEach(cat => {
+        const catDir = path.join(baseDir, cat);
+        if (fs.existsSync(catDir)) {
+          const files = fs.readdirSync(catDir);
+          files.forEach(file => {
+            if (/\.(png|jpg|jpeg|webp)$/i.test(file)) {
+              const name = path.parse(file).name;
+              const catFilePath = path.join(catDir, file);
+              const capFilePath = path.join(baseDir, 'caps', file);
+              const hasCap = fs.existsSync(capFilePath);
+
+              let catMtime = Date.now();
+              try {
+                const statCat = fs.statSync(catFilePath);
+                catMtime = Math.floor(statCat.mtimeMs);
+              } catch {}
+
+              let capMtime = catMtime;
+              if (hasCap) {
+                try {
+                  const statCap = fs.statSync(capFilePath);
+                  capMtime = Math.floor(statCap.mtimeMs);
+                } catch {}
+              }
+
+              result[cat].push({
+                name,
+                file: `${cat}/${file}`,
+                url: `/src/engine/textures/${cat}/${file}?t=${catMtime}`,
+                capFile: hasCap ? `caps/${file}` : null,
+                capUrl: hasCap ? `/src/engine/textures/caps/${file}?t=${capMtime}` : null,
+                hasCap,
+                mtime: catMtime,
+                capMtime: hasCap ? capMtime : null
+              });
+            }
+          });
+        }
+      });
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
+      });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=UTF-8' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
   // Enrutamiento limpio y amigable
   if (reqUrl === '/' || reqUrl === '') {
     reqUrl = '/index.html';
@@ -153,7 +248,11 @@ const server = http.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': contentType });
         res.end(htmlStr);
       } else {
-        res.writeHead(200, { 'Content-Type': contentType });
+        const headers = { 'Content-Type': contentType };
+        if (/\.(png|jpg|jpeg|webp|gif|svg)$/i.test(ext)) {
+          headers['Cache-Control'] = 'no-cache, must-revalidate';
+        }
+        res.writeHead(200, headers);
         res.end(content);
       }
     }
