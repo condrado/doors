@@ -972,7 +972,7 @@ class RaycasterEngine {
         const off = document.createElement('canvas');
         off.width = w;
         off.height = h;
-        const octx = off.getContext('2d');
+        const octx = off.getContext('2d', { willReadFrequently: true });
         octx.drawImage(img, 0, 0, w, h);
         const arr = new Uint32Array(octx.getImageData(0, 0, w, h).data.buffer);
         arr.width = w;
@@ -987,10 +987,13 @@ class RaycasterEngine {
 
   /**
    * Intenta cargar overrides de textura por defecto del proyecto desde src/engine/textures/
-   * (wall.png, door_n.png, door_e.png, door_s.png, door_w.png, window.png, cap.png, door_cap.png).
-   * Los archivos que no existan se ignoran y se mantiene la textura procedural/de estilo activa.
+   * si window.ENABLE_STATIC_TEXTURE_FILES está habilitado.
+   * Por defecto, las texturas procedurales están completamente listas y no se realizan peticiones innecesarias.
    */
   loadDefaultTextureOverrides() {
+    if (typeof window === 'undefined' || !window.ENABLE_STATIC_TEXTURE_FILES) {
+      return Promise.resolve();
+    }
     const base = '/src/engine/textures/';
     const files = {
       1: 'wall.png',

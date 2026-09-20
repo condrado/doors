@@ -36,46 +36,50 @@
     <main class="workspace">
       <!-- Barra lateral de Herramientas y Paleta -->
       <aside class="sidebar tools-sidebar">
-        <!-- 1. Configuración del Mapa (Nombre, Dimensiones y Opciones) -->
+        <!-- 1. Configuración de Proyecto y Salas -->
         <section class="tool-section" id="sectionMapConfig">
-          <h2>
-            <span><i class="ri-settings-3-line"></i> Configuración de Mapa</span>
-            <span class="collapse-icon">▾</span>
-          </h2>
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-folder-settings-line"></i> Proyecto & Salas</span>
+              <span class="collapse-icon">▾</span>
+            </h2>
+          </div>
           <div class="dimension-controls">
-            <div class="input-group full-width">
-              <label for="inputMapName"><i class="ri-edit-line"></i> Nombre:</label>
-              <input type="text" id="inputMapName" value="Laberinto Personalizado" placeholder="Nombre del mapa...">
-            </div>
-            <div class="dim-row">
-              <div class="input-group compact">
-                <label for="inputCols">Cols (X):</label>
-                <input type="number" id="inputCols" min="5" max="50" value="12">
+            <!-- Barra Compacta de Proyecto -->
+            <div class="sidebar-project-bar">
+              <div class="sidebar-project-info">
+                <span class="sidebar-project-label"><i class="ri-folder-3-fill"></i> Proyecto:</span>
+                <span class="sidebar-project-name" id="sidebarProjectName">Mi Proyecto</span>
               </div>
-              <div class="input-group compact">
-                <label for="inputRows">Filas (Y):</label>
-                <input type="number" id="inputRows" min="5" max="50" value="12">
+              <button class="btn-icon-chip" id="btnOpenProjectsFromSidebar" title="Abrir Centro de Proyectos y Generador de Juego">
+                <i class="ri-settings-3-line"></i>
+              </button>
+            </div>
+
+            <!-- Selector Compacto de Sala / Mapa -->
+            <!-- Selector Compacto de Sala / Mapa -->
+            <div class="sidebar-map-bar">
+              <div class="sidebar-map-header">
+                <label for="selectActiveMap"><i class="ri-map-2-line"></i> Sala Activa:</label>
+                <span class="starting-map-pill" id="badgeStartingMap" title="Esta sala es el punto de inicio del juego"><i class="ri-flag-fill"></i> Inicial</span>
               </div>
-            </div>
-            <div class="quick-sizes compact">
-              <button class="btn-chip" data-cols="8" data-rows="8">8x8</button>
-              <button class="btn-chip" data-cols="12" data-rows="12">12x12</button>
-              <button class="btn-chip" data-cols="16" data-rows="16">16x16</button>
-              <button class="btn-chip" data-cols="20" data-rows="20">20x20</button>
-            </div>
-            <div class="resize-actions compact">
-              <button class="btn-subtle primary-btn" id="btnResizeMap" title="Aplicar nuevas dimensiones a la cuadrícula"><i class="ri-refresh-line"></i> Redimensionar</button>
-              <button class="btn-subtle" id="btnNewRoomOfSize" title="Crear sala limpia con muros alrededor"><i class="ri-add-box-line"></i> Sala Limpia</button>
+              <div class="sidebar-map-controls">
+                <select id="selectActiveMap" class="active-map-dropdown"></select>
+                <button class="btn-icon-chip" id="btnQuickNewMap" title="Añadir nueva sala"><i class="ri-add-line"></i></button>
+                <button class="btn-icon-chip" id="btnManageMapsInModal" title="Configuración de dimensiones, plantillas y salas en la modal"><i class="ri-settings-4-line"></i></button>
+              </div>
             </div>
           </div>
         </section>
 
         <!-- 2. Modo de Dibujo (Solo Iconos con Tooltip) -->
         <section class="tool-section" id="sectionDrawingMode">
-          <h2>
-            <span><i class="ri-tools-line"></i> Modo de Dibujo</span>
-            <span class="collapse-icon">▾</span>
-          </h2>
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-tools-line"></i> Modo de Dibujo</span>
+              <span class="collapse-icon">▾</span>
+            </h2>
+          </div>
           <div class="tool-icon-grid">
             <button class="tool-btn tool-icon-only active" data-tool="brush" id="toolBrush" title="Individual: Dibujar de 1 en 1 (casilla a casilla)">
               <i class="ri-pencil-fill"></i>
@@ -89,12 +93,28 @@
           </div>
         </section>
 
+        <!-- Información Modo Borrador (Visible exclusivamente cuando Borrador está activo) -->
+        <section class="tool-section eraser-info-section" id="sectionEraserInfo" style="display: none;">
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-eraser-line"></i> Modo Borrador</span>
+            </h2>
+          </div>
+          <div class="eraser-help-box">
+            <span class="eraser-help-icon"><i class="ri-delete-bin-line"></i></span>
+            <p><strong>Borrador activo</strong></p>
+            <p class="section-desc">Haz clic o arrastra sobre cualquier pared, puerta o accesorio en el mapa para eliminarlo.</p>
+          </div>
+        </section>
+
         <!-- 3. Elemento a Colocar (Compacto) -->
         <section class="tool-section" id="sectionElementPalette">
-          <h2>
-            <span><i class="ri-palette-line"></i> Elemento a Colocar</span>
-            <span class="collapse-icon">▾</span>
-          </h2>
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-palette-line"></i> Elemento a Colocar</span>
+              <span class="collapse-icon">▾</span>
+            </h2>
+          </div>
           <div class="palette-list compact">
             <label class="palette-item active" title="Pared o muro de piedra">
               <input type="radio" name="tileSelect" value="1" checked>
@@ -286,28 +306,22 @@
             <span>Pincel de Dintel: <strong id="lintelStyleLabel">Castillo</strong></span>
             <i class="ri-arrow-right-s-line style-picker-chevron"></i>
           </button>
+
+          <button class="style-picker-btn portal-picker-btn" id="btnOpenDoorLinksModal" title="Configurar las puertas que conectan con otros mapas del proyecto">
+            <span class="aux-icon"><i class="ri-portal-line"></i></span>
+            <span>Conexión de Puertas (Portales)</span>
+            <i class="ri-arrow-right-s-line style-picker-chevron"></i>
+          </button>
         </section>
 
-        <!-- 6. Plantillas rápidas (Plegadas por defecto para optimizar espacio) -->
-        <section class="tool-section collapsed" id="sectionPresets">
-          <h2>
-            <span><i class="ri-flashlight-line"></i> Plantillas Rápidas</span>
-            <span class="collapse-icon">▾</span>
-          </h2>
-          <div class="presets-list">
-            <button class="btn-preset" id="preset4Doors"><i class="ri-layout-4-line"></i> Sala 4 Puertas (Original 7x7)</button>
-            <button class="btn-preset" id="presetTwoRooms"><i class="ri-layout-2-line"></i> 2 Habitaciones Conectadas (14x8)</button>
-            <button class="btn-preset" id="presetMaze"><i class="ri-route-line"></i> Mini Laberinto (11x11)</button>
-            <button class="btn-subtle danger" id="btnClearMap"><i class="ri-delete-bin-line"></i> Limpiar / Vaciar Todo</button>
-          </div>
-        </section>
-
-        <!-- 7. Texturas Personalizadas (Plegado por defecto para optimizar espacio) -->
+        <!-- 6. Texturas Personalizadas (Plegado por defecto para optimizar espacio) -->
         <section class="tool-section collapsed" id="sectionTextures">
-          <h2>
-            <span><i class="ri-image-2-line"></i> Texturas Personalizadas</span>
-            <span class="collapse-icon">▾</span>
-          </h2>
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-image-2-line"></i> Texturas Personalizadas</span>
+              <span class="collapse-icon">▾</span>
+            </h2>
+          </div>
           <p class="section-desc">Sube una imagen por elemento para sustituir su diseño en la Demo 3D (se ajusta a 64x64 y viaja guardada con el mapa).</p>
           <div class="texture-grid" id="textureGrid"></div>
         </section>
@@ -368,6 +382,21 @@
     <!-- Toast de notificación -->
     <div class="toast" id="toastMessage">Nivel guardado correctamente</div>
 
+    <!-- Modal de Confirmación de Cambios / Acciones Destructivas -->
+    <div class="modal-overlay" id="confirmModalOverlay" hidden>
+      <div class="modal-box confirm-modal-box">
+        <div class="modal-header">
+          <h3 id="confirmModalTitle"><i class="ri-error-warning-line"></i> ¿Confirmar acción?</h3>
+          <button class="modal-close-btn" id="confirmModalClose"><i class="ri-close-line"></i></button>
+        </div>
+        <p class="modal-subtitle" id="confirmModalMessage">Esta acción modificará o vaciará el contenido actual del mapa.</p>
+        <div class="modal-confirm-actions">
+          <button class="btn-subtle" id="confirmModalCancel">Cancelar</button>
+          <button class="btn-subtle danger" id="confirmModalAccept">Aceptar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal Selector de Estilo (Pared / Puerta) -->
     <div class="modal-overlay" id="styleModalOverlay" hidden>
       <div class="modal-box">
@@ -377,6 +406,113 @@
         </div>
         <p class="modal-subtitle">Elige el diseño para lo próximo que coloques. Lo que ya está en el mapa conserva su estilo.</p>
         <div class="style-modal-grid" id="styleModalGrid"></div>
+      </div>
+    </div>
+
+    <!-- Modal Centro de Proyecto, Salas & Generador de Juego -->
+    <div class="modal-overlay" id="projectModalOverlay" hidden>
+      <div class="modal-box project-modal-box wide">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <h3 id="projectModalTitle"><i class="ri-dashboard-3-line"></i> Centro de Proyecto & Juego</h3>
+            <span class="modal-badge-proj" id="modalActiveProjectBadge">Mi Proyecto</span>
+          </div>
+          <button class="modal-close-btn" id="projectModalClose"><i class="ri-close-line"></i></button>
+        </div>
+
+        <!-- Pestañas de Navegación de la Modal -->
+        <div class="modal-tabs">
+          <button class="modal-tab-btn active" data-tab="tabProjects" id="btnTabProjects">
+            <i class="ri-folder-3-line"></i> Proyectos & Exportar Juego
+          </button>
+          <button class="modal-tab-btn" data-tab="tabMaps" id="btnTabMaps">
+            <i class="ri-map-2-line"></i> Salas del Proyecto (<span id="modalMapCountBadge">1</span>)
+          </button>
+        </div>
+
+        <!-- PESTAÑA 1: PROYECTOS & GENERADOR AUTÓNOMO -->
+        <div class="modal-tab-pane" id="paneProjects">
+          <div class="project-pane-section">
+            <div class="pane-section-header">
+              <h4><i class="ri-folders-line"></i> Tus Proyectos Guardados</h4>
+              <p>Cada proyecto es independiente. Pulsa en <strong>Generar Juego</strong> en el proyecto que quieras empaquetar en un archivo <code>.html</code> listo para jugar con doble clic.</p>
+            </div>
+
+            <div class="project-list" id="projectListContainer"></div>
+
+            <div class="project-modal-footer">
+              <button class="btn-subtle primary-btn" id="btnCreateNewProject"><i class="ri-add-line"></i> Nuevo Proyecto</button>
+              <label class="btn-subtle upload-label" id="lblImportProject">
+                <i class="ri-upload-2-line"></i> Importar Proyecto (.json)
+                <input type="file" id="inputImportProject" accept=".json" hidden>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- PESTAÑA 2: SALAS DEL PROYECTO ACTUAL -->
+        <div class="modal-tab-pane" id="paneMaps" style="display: none;">
+          <div class="pane-section-header-bar">
+            <div class="pane-section-header">
+              <h4><i class="ri-map-pin-2-line"></i> Salas en <strong id="modalProjectNameMaps">Mi Proyecto</strong></h4>
+              <p>Gestiona las salas de este mundo. Pulsa en <strong>Editar</strong> para configurar dimensiones y nombre, o en <strong>Dibujar</strong> para ir al lienzo.</p>
+            </div>
+            <button class="btn-subtle primary-btn" id="btnAddNewMapFromModal"><i class="ri-add-line"></i> Nueva Sala</button>
+          </div>
+
+          <div class="modal-map-list" id="modalMapListContainer"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Conexión de Puertas / Portales Inter-Mapa -->
+    <div class="modal-overlay" id="doorLinkModalOverlay" hidden>
+      <div class="modal-box doorlink-modal-box">
+        <div class="modal-header">
+          <h3 id="doorLinkModalTitle"><i class="ri-portal-line"></i> Conectar Puertas a otros Mapas</h3>
+          <button class="modal-close-btn" id="doorLinkModalClose"><i class="ri-close-line"></i></button>
+        </div>
+        <p class="modal-subtitle">Elige una puerta de esta sala para que al cruzarla transporte al jugador a otro mapa del proyecto.</p>
+
+        <div class="doorlink-content">
+          <div class="input-group full-width">
+            <label for="selectDoorToConfigure"><i class="ri-door-open-line"></i> Puerta a configurar en este mapa:</label>
+            <select id="selectDoorToConfigure" class="preset-dropdown"></select>
+          </div>
+
+          <div class="input-group full-width" style="margin-top: 10px;">
+            <label for="selectDoorTargetMap"><i class="ri-map-pin-line"></i> Mapa de Destino:</label>
+            <select id="selectDoorTargetMap" class="preset-dropdown">
+              <option value="none">-- Puerta normal (mismo mapa) --</option>
+            </select>
+          </div>
+
+          <div class="doorlink-arrival-box" id="doorLinkArrivalBox" style="display: none; margin-top: 10px;">
+            <div class="input-group full-width">
+              <label for="selectDoorArrivalMode"><i class="ri-compass-3-line"></i> Posición de llegada:</label>
+              <select id="selectDoorArrivalMode" class="preset-dropdown">
+                <option value="spawn">Punto de inicio (Spawn) del mapa de destino</option>
+                <option value="custom">Coordenadas exactas (X, Y)</option>
+              </select>
+            </div>
+            <div class="dim-row" id="rowCustomArrivalCoords" style="display: none; margin-top: 8px;">
+              <div class="input-group compact">
+                <label for="inputDoorTargetX">Coord X:</label>
+                <input type="number" id="inputDoorTargetX" step="0.5" value="1.5">
+              </div>
+              <div class="input-group compact">
+                <label for="inputDoorTargetY">Coord Y:</label>
+                <input type="number" id="inputDoorTargetY" step="0.5" value="1.5">
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-confirm-actions" style="margin-top: 16px;">
+            <button class="btn-subtle danger" id="btnRemoveDoorLink" style="display: none;"><i class="ri-delete-bin-line"></i> Desconectar</button>
+            <button class="btn-subtle" id="btnCancelDoorLink">Cerrar</button>
+            <button class="btn-subtle primary-btn" id="btnSaveDoorLink"><i class="ri-check-line"></i> Guardar Enlace</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

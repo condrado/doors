@@ -84,15 +84,59 @@ class LevelEditor {
     this.inputCols = document.getElementById('inputCols');
     this.inputRows = document.getElementById('inputRows');
     this.inputMapName = document.getElementById('inputMapName');
+    this.selectMapPreset = document.getElementById('selectMapPreset');
+    this.lastMapBackup = null;
+    this.previousPresetValue = 'custom';
 
-    const hasSavedMap = this.loadSavedMapIfExists();
-    if (!hasSavedMap) {
-      this.initDefaultMap();
-    }
+    // Gestión de Proyectos y Multimapas
+    this.projects = {};
+    this.currentProjectId = null;
+    this.currentProject = null;
+    this.currentMapId = null;
+    this.doorLinks = {};
+    this.expandedMapId = null;
+
+    this.headerProjectName = document.getElementById('headerProjectName');
+    this.sidebarProjectName = document.getElementById('sidebarProjectName');
+    this.btnOpenProjectsFromSidebar = document.getElementById('btnOpenProjectsFromSidebar');
+    this.btnOpenProjectsFromHeader = document.getElementById('btnOpenProjectsFromHeader');
+    this.selectActiveMap = document.getElementById('selectActiveMap');
+    this.badgeStartingMap = document.getElementById('badgeStartingMap');
+    this.btnQuickNewMap = document.getElementById('btnQuickNewMap');
+    this.btnManageMapsInModal = document.getElementById('btnManageMapsInModal');
+    this.btnNewMapInProject = document.getElementById('btnNewMapInProject');
+    this.btnDuplicateMap = document.getElementById('btnDuplicateMap');
+    this.btnSetStartingMap = document.getElementById('btnSetStartingMap');
+    this.btnDeleteMap = document.getElementById('btnDeleteMap');
+    this.btnOpenDoorLinksModal = document.getElementById('btnOpenDoorLinksModal');
+
+    // Elementos de la Modal de Proyectos y Salas
+    this.projectModalOverlay = document.getElementById('projectModalOverlay');
+    this.btnTabProjects = document.getElementById('btnTabProjects');
+    this.btnTabMaps = document.getElementById('btnTabMaps');
+    this.paneProjects = document.getElementById('paneProjects');
+    this.paneMaps = document.getElementById('paneMaps');
+    this.modalMapCountBadge = document.getElementById('modalMapCountBadge');
+    this.modalActiveProjectBadge = document.getElementById('modalActiveProjectBadge');
+    this.modalProjectNameMaps = document.getElementById('modalProjectNameMaps');
+    this.modalMapListContainer = document.getElementById('modalMapListContainer');
+    this.btnGenerateGameInModal = document.getElementById('btnGenerateGameInModal');
+    this.btnAddNewMapFromModal = document.getElementById('btnAddNewMapFromModal');
+    this.btnGenerateGame = document.getElementById('btnGenerateGame');
+    this.modalActiveRoomNameDisplay = document.getElementById('modalActiveRoomNameDisplay');
+    this.modalActiveRoomSpawnBadge = document.getElementById('modalActiveRoomSpawnBadge');
+
+    this.doorLinkModalOverlay = document.getElementById('doorLinkModalOverlay');
+
+    this.initProjectSystem();
     this.setupEventListeners();
+    this.setupProjectEventListeners();
+    this.setupDoorLinkEventListeners();
     this.setupTextureManager();
     this.setupStyleModals();
+    this.setupConfirmModal();
     this.restoreUIState();
+    this.updateToolPanelsVisibility();
     this.resizeCanvas();
     this.render();
     this.updateJSON();
@@ -220,6 +264,46 @@ class LevelEditor {
     this.player.y = midY + 0.5;
   }
 
+  /**
+   * Crea un objeto completo de mapa con sala base de 4 puertas
+   */
+  createDefaultMapObject(id, name, cols = 12, rows = 12) {
+    const grid = [];
+    for (let y = 0; y < rows; y++) {
+      const row = [];
+      for (let x = 0; x < cols; x++) {
+        const segs = [];
+        if (y === 0) segs.push('N');
+        if (y === rows - 1) segs.push('S');
+        if (x === 0) segs.push('W');
+        if (x === cols - 1) segs.push('E');
+        row.push(segs);
+      }
+      grid.push(row);
+    }
+    const midX = Math.floor(cols / 2);
+    const midY = Math.floor(rows / 2);
+    grid[0][midX] = ['DN'];
+    grid[midY][cols - 1] = ['DE'];
+    grid[rows - 1][midX] = ['DS'];
+    grid[midY][0] = ['DW'];
+
+    return {
+      id: id,
+      name: name,
+      width: cols,
+      height: rows,
+      playerStart: { x: midX + 0.5, y: midY + 0.5, angle: -Math.PI / 2 },
+      map: grid,
+      wallStyleMap: {},
+      customTextures: {},
+      doorLinks: {},
+      activeWallStyle: 'castillo',
+      activeDoorStyle: 'castillo',
+      activeLintelStyle: 'castillo'
+    };
+  }
+
   resizeCanvas() {
     if (this.zoomMode === 'auto') {
       const container = this.canvasContainer || document.getElementById('canvasContainer');
@@ -249,6 +333,8 @@ class LevelEditor {
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentTool = btn.dataset.tool;
+        this.updateToolPanelsVisibility();
+        this.render();
         this.saveUIState();
       });
     });
@@ -310,36 +396,13 @@ class LevelEditor {
     });
 
     // Paleta de elementos (auto-mostrar Colocación de Paredes o Accesorios según selección)
-    const sectionWallPlacement = document.getElementById('sectionWallPlacement');
-    const sectionAccessoryPlacement = document.getElementById('sectionAccessoryPlacement');
-
     document.querySelectorAll('input[name="tileSelect"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
         e.target.closest('.palette-item').classList.add('active');
         const val = e.target.value;
         this.selectedTile = (val === 'player' || val === 'accessories' || val === 'door' || val === 'window') ? val : parseInt(val, 10);
-
-        // Si pulso en Pared (1), mostrar solo Colocación de Paredes
-        if (sectionWallPlacement) {
-          if (val === '1' || val === 1) {
-            sectionWallPlacement.style.display = '';
-            sectionWallPlacement.classList.remove('collapsed');
-          } else {
-            sectionWallPlacement.style.display = 'none';
-          }
-        }
-
-        // Si pulso en Accesorios, mostrar solo Colocación de Accesorios
-        if (sectionAccessoryPlacement) {
-          if (val === 'accessories') {
-            sectionAccessoryPlacement.style.display = '';
-            sectionAccessoryPlacement.classList.remove('collapsed');
-          } else {
-            sectionAccessoryPlacement.style.display = 'none';
-          }
-        }
-
+        this.updateToolPanelsVisibility();
         this.render();
         this.saveUIState();
       });
@@ -358,45 +421,70 @@ class LevelEditor {
       });
     });
 
-    // Quick size chips (8x8, 12x12, 16x16, 20x20)
-    document.querySelectorAll('.btn-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        document.querySelectorAll('.btn-chip').forEach(c => c.classList.remove('active'));
-        chip.classList.add('active');
-        const c = parseInt(chip.dataset.cols, 10);
-        const r = parseInt(chip.dataset.rows, 10);
-        this.inputCols.value = c;
-        this.inputRows.value = r;
-        this.resizeGrid(c, r);
-      });
-    });
-
-    // Dimensiones del mapa: Botón Redimensionar
+    // Dimensiones del mapa: Botón Redimensionar con confirmación
     const triggerResize = () => {
-      const newCols = parseInt(this.inputCols.value, 10);
-      const newRows = parseInt(this.inputRows.value, 10);
-      if (isNaN(newCols) || isNaN(newRows) || newCols < 5 || newRows < 5 || newCols > 50 || newRows > 50) {
-        this.showToast('Las dimensiones deben estar entre 5 y 50 celdas');
-        return;
-      }
-      this.resizeGrid(newCols, newRows);
-    };
-
-    document.getElementById('btnResizeMap').addEventListener('click', triggerResize);
-
-    // Botón para crear nueva sala limpia del tamaño especificado
-    document.getElementById('btnNewRoomOfSize').addEventListener('click', () => {
+      if (!this.inputCols || !this.inputRows) return;
       const newCols = parseInt(this.inputCols.value, 10);
       const newRows = parseInt(this.inputRows.value, 10);
       if (isNaN(newCols) || isNaN(newRows) || newCols < 5 || newRows < 5 || newCols > 50 || newRows > 50) {
         this.showToast('⚠️ Las dimensiones deben estar entre 5 y 50 celdas');
         return;
       }
-      this.createNewRoomOfSize(newCols, newRows);
-    });
+      if (newCols === this.cols && newRows === this.rows) {
+        this.showToast('ℹ️ El mapa ya tiene este tamaño');
+        return;
+      }
 
-    // Permitir pulsar Enter en los inputs de ancho y alto
-    [this.inputCols, this.inputRows].forEach(input => {
+      const isShrinking = (newCols < this.cols || newRows < this.rows);
+      const hasContent = this.hasMapContent();
+
+      if (isShrinking && hasContent) {
+        this.showConfirmDialog({
+          title: '¿Redimensionar cuadrícula?',
+          message: `El mapa se reducirá de ${this.cols}x${this.rows} a ${newCols}x${newRows}. Las paredes o elementos que queden fuera del nuevo tamaño se recortarán.`,
+          acceptText: 'Redimensionar',
+          isDanger: true,
+          onAccept: () => {
+            this.backupCurrentMap();
+            this.resizeGrid(newCols, newRows);
+          },
+          onCancel: () => {
+            if (this.inputCols) this.inputCols.value = this.cols;
+            if (this.inputRows) this.inputRows.value = this.rows;
+            document.querySelectorAll('#sectionMapConfig .btn-chip').forEach(chip => {
+              const c = parseInt(chip.dataset.cols, 10);
+              const r = parseInt(chip.dataset.rows, 10);
+              chip.classList.toggle('active', c === this.cols && r === this.rows);
+            });
+          }
+        });
+      } else {
+        this.backupCurrentMap();
+        this.resizeGrid(newCols, newRows);
+      }
+    };
+
+    // Quick size chips (si existen en el sidebar)
+    if (this.inputCols && this.inputRows) {
+      document.querySelectorAll('#sectionMapConfig .btn-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const c = parseInt(chip.dataset.cols, 10);
+          const r = parseInt(chip.dataset.rows, 10);
+          if (c === this.cols && r === this.rows) return;
+          this.inputCols.value = c;
+          this.inputRows.value = r;
+          triggerResize();
+        });
+      });
+    }
+
+    const btnResizeMap = document.getElementById('btnResizeMap');
+    if (btnResizeMap) {
+      btnResizeMap.addEventListener('click', triggerResize);
+    }
+
+    // Permitir pulsar Enter en los inputs de ancho y alto si existen
+    [this.inputCols, this.inputRows].filter(Boolean).forEach(input => {
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           triggerResize();
@@ -407,6 +495,16 @@ class LevelEditor {
     // Campo de nombre del mapa
     if (this.inputMapName) {
       this.inputMapName.addEventListener('input', () => {
+        if (this.currentProject && this.currentMapId && this.currentProject.maps[this.currentMapId]) {
+          const newName = this.inputMapName.value.trim() || 'Sala';
+          this.currentProject.maps[this.currentMapId].name = newName;
+          if (this.modalActiveRoomNameDisplay) {
+            this.modalActiveRoomNameDisplay.textContent = newName;
+          }
+          this.renderMapDropdown();
+          const cardNameEl = document.querySelector(`.modal-map-card[data-map-id="${this.currentMapId}"] .modal-map-name`);
+          if (cardNameEl) cardNameEl.textContent = newName;
+        }
         this.updateJSON();
       });
     }
@@ -436,11 +534,77 @@ class LevelEditor {
       this.saveUIState();
     });
 
-    // Plantillas
-    document.getElementById('preset4Doors').addEventListener('click', () => this.applyPreset('4doors'));
-    document.getElementById('presetTwoRooms').addEventListener('click', () => this.applyPreset('twoRooms'));
-    document.getElementById('presetMaze').addEventListener('click', () => this.applyPreset('maze'));
-    document.getElementById('btnClearMap').addEventListener('click', () => this.clearMap());
+    // Selector de Plantillas Rápidas con Confirmación si hay contenido
+    if (this.selectMapPreset) {
+      this.previousPresetValue = this.selectMapPreset.value || 'custom';
+
+      this.selectMapPreset.addEventListener('change', (e) => {
+        const val = e.target.value;
+        if (val === 'custom') {
+          this.previousPresetValue = 'custom';
+          return;
+        }
+
+        const presetLabels = {
+          '4doors': '1. Sala 4 Puertas (7x7)',
+          'twoRooms': '2. 2 Salas Conectadas (14x8)',
+          'crossRooms': '3. 4 Habitaciones / Cruce (12x12)',
+          'hallway': '4. Pasillo Central y Cámaras (15x9)',
+          'maze': '5. Mini Laberinto (11x11)'
+        };
+        const label = presetLabels[val] || val;
+
+        const hasContent = this.hasMapContent();
+        if (hasContent) {
+          this.showConfirmDialog({
+            title: `¿Cargar plantilla?`,
+            message: `Vas a cargar "${label}". Se reemplazará el mapa actual y se perderá lo que hayas dibujado.`,
+            acceptText: 'Cargar Plantilla',
+            isDanger: true,
+            onAccept: () => {
+              this.backupCurrentMap();
+              this.previousPresetValue = val;
+              this.applyPreset(val);
+            },
+            onCancel: () => {
+              this.selectMapPreset.value = this.previousPresetValue || 'custom';
+            }
+          });
+        } else {
+          this.backupCurrentMap();
+          this.previousPresetValue = val;
+          this.applyPreset(val);
+        }
+      });
+    }
+
+    // Botón Vaciar Mapa con Confirmación
+    const btnClearMap = document.getElementById('btnClearMap');
+    if (btnClearMap) {
+      btnClearMap.addEventListener('click', () => {
+        this.showConfirmDialog({
+          title: '¿Vaciar el mapa actual?',
+          message: 'Se eliminarán todas las paredes, puertas y accesorios del interior conservando únicamente los muros perimetrales.',
+          acceptText: 'Vaciar Todo',
+          isDanger: true,
+          onAccept: () => {
+            this.backupCurrentMap();
+            this.clearMap();
+            this.showToast('🗑️ Mapa vaciado. (Pulsa Ctrl+Z si deseas deshacer)');
+          }
+        });
+      });
+    }
+
+    // Atajo de teclado Ctrl+Z para deshacer vaciado / plantilla
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (this.lastMapBackup) {
+          e.preventDefault();
+          this.restoreBackupMap();
+        }
+      }
+    });
 
     // Canvas Mouse Events
     this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
@@ -722,10 +886,14 @@ class LevelEditor {
   }
 
   /**
-   * Olvida todos los estilos de segmento guardados para la celda (x,y)
+   * Olvida todos los estilos de segmento guardados para la celda (x,y) y limpia enlaces de portal
    */
   clearCellStyles(x, y) {
     delete this.wallStyleMap[`${x},${y}`];
+    if (this.doorLinks) {
+      ['DN', 'DS', 'DE', 'DW'].forEach(d => delete this.doorLinks[`${x},${y},${d}`]);
+      delete this.doorLinks[`${x},${y}`];
+    }
   }
 
   applyToolAt(x, y) {
@@ -788,7 +956,13 @@ class LevelEditor {
         if (idx !== -1) {
           const removedCode = currentSegs[idx];
           this.clearSegmentStyle(x, y, removedCode);
-          if (removedCode.startsWith('D')) this.clearSegmentStyle(x, y, removedCode + '_lintel');
+          if (removedCode.startsWith('D')) {
+            this.clearSegmentStyle(x, y, removedCode + '_lintel');
+            if (this.doorLinks) {
+              delete this.doorLinks[`${x},${y},${removedCode}`];
+              delete this.doorLinks[`${x},${y}`];
+            }
+          }
           currentSegs.splice(idx, 1);
           changed = true;
         }
@@ -878,6 +1052,7 @@ class LevelEditor {
     }
 
     if (changed) {
+      if (this.selectMapPreset) this.selectMapPreset.value = 'custom';
       this.updateJSON();
     }
   }
@@ -903,6 +1078,7 @@ class LevelEditor {
         segs.forEach(s => this.setSegmentStyle(x, y, s));
       }
     }
+    if (this.selectMapPreset) this.selectMapPreset.value = 'custom';
   }
 
   resizeGrid(newCols, newRows) {
@@ -934,6 +1110,7 @@ class LevelEditor {
 
     if (this.inputCols) this.inputCols.value = newCols;
     if (this.inputRows) this.inputRows.value = newRows;
+    if (this.selectMapPreset) this.selectMapPreset.value = 'custom';
 
     // Ajustar jugador si quedó fuera
     if (this.player.x >= this.cols) this.player.x = this.cols / 2;
@@ -980,6 +1157,7 @@ class LevelEditor {
 
     if (this.inputCols) this.inputCols.value = newCols;
     if (this.inputRows) this.inputRows.value = newRows;
+    if (this.selectMapPreset) this.selectMapPreset.value = 'custom';
 
     this.resizeCanvas();
     this.render();
@@ -999,6 +1177,7 @@ class LevelEditor {
         this.grid[y][x] = segs;
       }
     }
+    if (this.selectMapPreset) this.selectMapPreset.value = 'custom';
     this.render();
     this.updateJSON();
     this.showToast('Mapa vaciado (paredes perimetrales conservadas)');
@@ -1006,19 +1185,20 @@ class LevelEditor {
 
   applyPreset(presetName) {
     this.wallStyleMap = {};
+
     if (presetName === '4doors') {
       this.cols = 7;
       this.rows = 7;
-      this.inputCols.value = 7;
-      this.inputRows.value = 7;
+      if (this.inputCols) this.inputCols.value = 7;
+      if (this.inputRows) this.inputRows.value = 7;
       if (this.inputMapName) this.inputMapName.value = 'Sala 4 Puertas (7x7)';
       this.initDefaultMap();
     } else if (presetName === 'twoRooms') {
       this.cols = 14;
       this.rows = 8;
-      this.inputCols.value = 14;
-      this.inputRows.value = 8;
-      if (this.inputMapName) this.inputMapName.value = '2 Habitaciones Conectadas (14x8)';
+      if (this.inputCols) this.inputCols.value = 14;
+      if (this.inputRows) this.inputRows.value = 8;
+      if (this.inputMapName) this.inputMapName.value = '2 Salas Conectadas (14x8)';
       this.grid = [];
       for (let y = 0; y < this.rows; y++) {
         const row = [];
@@ -1036,12 +1216,86 @@ class LevelEditor {
         }
         this.grid.push(row);
       }
+      this.grid[0][3] = ['DN']; // Entrada exterior
       this.player = { x: 2.5, y: 3.5, angle: 0 };
+    } else if (presetName === 'crossRooms') {
+      this.cols = 12;
+      this.rows = 12;
+      if (this.inputCols) this.inputCols.value = 12;
+      if (this.inputRows) this.inputRows.value = 12;
+      if (this.inputMapName) this.inputMapName.value = '4 Habitaciones / Cruce (12x12)';
+      this.grid = [];
+      for (let y = 0; y < this.rows; y++) {
+        const row = [];
+        for (let x = 0; x < this.cols; x++) {
+          const segs = [];
+          if (y === 0) segs.push('N');
+          if (y === this.rows - 1) segs.push('S');
+          if (x === 0) segs.push('W');
+          if (x === this.cols - 1) segs.push('E');
+
+          // Muro vertical central divisor entre x=5 y x=6
+          if (x === 5) {
+            if (y === 2 || y === 9) segs.push('DE'); // Puertas a salas este
+            else segs.push('E'); // Muro vertical
+          }
+
+          // Muro horizontal central divisor entre y=5 e y=6
+          if (y === 5) {
+            if (x === 2 || x === 9) segs.push('DS'); // Puertas a salas sur
+            else segs.push('S'); // Muro horizontal
+          }
+
+          row.push(segs);
+        }
+        this.grid.push(row);
+      }
+      this.grid[0][2] = ['DN']; // Entrada exterior norte
+      this.player = { x: 5.5, y: 5.5, angle: 0 };
+    } else if (presetName === 'hallway') {
+      this.cols = 15;
+      this.rows = 9;
+      if (this.inputCols) this.inputCols.value = 15;
+      if (this.inputRows) this.inputRows.value = 9;
+      if (this.inputMapName) this.inputMapName.value = 'Pasillo Central y Cámaras (15x9)';
+      this.grid = [];
+      for (let y = 0; y < this.rows; y++) {
+        const row = [];
+        for (let x = 0; x < this.cols; x++) {
+          const segs = [];
+          if (y === 0) segs.push('N');
+          if (y === this.rows - 1) segs.push('S');
+          if (x === 0) segs.push('W');
+          if (x === this.cols - 1) segs.push('E');
+
+          // Separador Norte de pasillo (en fila y=3, segmento 'S')
+          if (y === 3 && x >= 1 && x <= 13) {
+            if (x === 3 || x === 11) segs.push('DS'); // Puertas a salas norte
+            else segs.push('S'); // Muro
+          }
+
+          // Separador Sur de pasillo (en fila y=5, segmento 'N')
+          if (y === 5 && x >= 1 && x <= 13) {
+            if (x === 3 || x === 11) segs.push('DN'); // Puertas a salas sur
+            else segs.push('N'); // Muro
+          }
+
+          // Paredes divisorias entre salas norte y sur (en columna x=7)
+          if (x === 7 && (y === 1 || y === 2 || y === 6 || y === 7)) {
+            segs.push('E');
+          }
+
+          row.push(segs);
+        }
+        this.grid.push(row);
+      }
+      this.grid[4][0] = ['DW']; // Puerta entrada pasillo oeste
+      this.player = { x: 1.5, y: 4.5, angle: 0 };
     } else if (presetName === 'maze') {
       this.cols = 11;
       this.rows = 11;
-      this.inputCols.value = 11;
-      this.inputRows.value = 11;
+      if (this.inputCols) this.inputCols.value = 11;
+      if (this.inputRows) this.inputRows.value = 11;
       if (this.inputMapName) this.inputMapName.value = 'Mini Laberinto (11x11)';
       this.grid = [];
       for (let y = 0; y < this.rows; y++) {
@@ -1065,31 +1319,49 @@ class LevelEditor {
       this.player = { x: 1.5, y: 1.5, angle: 0 };
     }
 
+    if (this.selectMapPreset) {
+      this.selectMapPreset.value = presetName;
+    }
+
+    // Actualizar botones de chips de dimensiones rápidas
+    document.querySelectorAll('.btn-chip').forEach(chip => {
+      const c = parseInt(chip.dataset.cols, 10);
+      const r = parseInt(chip.dataset.rows, 10);
+      chip.classList.toggle('active', c === this.cols && r === this.rows);
+    });
+
     this.resizeCanvas();
     this.render();
     this.updateJSON();
-    this.showToast(`Plantilla "${presetName}" cargada`);
+    this.showToast(`Plantilla cargada: ${this.inputMapName ? this.inputMapName.value : presetName}`);
   }
 
-  drawDoorBadge(ctx, bx, by, iconType, color, cs) {
+  drawDoorBadge(ctx, bx, by, iconType, color, cs, isPortal = false) {
     const r = Math.floor(cs * 0.24);
+    if (isPortal) {
+      // Resplandor exterior portal mágico
+      ctx.beginPath();
+      ctx.arc(bx, by, r + 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(165, 94, 234, 0.45)';
+      ctx.fill();
+    }
     ctx.beginPath();
     ctx.arc(bx, by, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(15, 18, 25, 0.94)';
+    ctx.fillStyle = isPortal ? 'rgba(38, 12, 60, 0.95)' : 'rgba(15, 18, 25, 0.94)';
     ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = isPortal ? '#a55eea' : color;
+    ctx.lineWidth = isPortal ? 2 : 1.5;
     ctx.stroke();
 
     if (iconType === 'door') {
       // Icono vectorial limpio de puerta
       const dw = Math.floor(cs * 0.18);
       const dh = Math.floor(cs * 0.28);
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = isPortal ? '#e0b0ff' : '#fff';
       ctx.lineWidth = 1.3;
       ctx.strokeRect(bx - dw / 2, by - dh / 2, dw, dh);
-      // Pomo dorado
-      ctx.fillStyle = '#f39c12';
+      // Pomo
+      ctx.fillStyle = isPortal ? '#00ffff' : '#f39c12';
       ctx.beginPath();
       ctx.arc(bx + dw / 4, by, 1.5, 0, Math.PI * 2);
       ctx.fill();
@@ -1181,6 +1453,8 @@ class LevelEditor {
             if (s.startsWith('D')) badgeBorder = DOOR_STYLE_COLORS[segStyle] || DOOR_STYLE_COLORS.castillo;
           }
 
+          const isPortal = s.startsWith('D') && !!(this.doorLinks && (this.doorLinks[`${x},${y},${s}`] || this.doorLinks[`${x},${y}`]));
+
           ctx.fillStyle = wallColor;
 
           switch (s) {
@@ -1191,7 +1465,7 @@ class LevelEditor {
               break;
             case 'DN':
               ctx.fillRect(px, py + dOffset, cs, thDoor);
-              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + dOffset + thDoor / 2, acc.icon, badgeBorder, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + dOffset + thDoor / 2, acc.icon, badgeBorder, cs, isPortal);
               break;
             case 'S':
             case 'WS':
@@ -1200,7 +1474,7 @@ class LevelEditor {
               break;
             case 'DS':
               ctx.fillRect(px, py + cs - th + dOffset, cs, thDoor);
-              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs - th + dOffset + thDoor / 2, acc.icon, badgeBorder, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs / 2, py + cs - th + dOffset + thDoor / 2, acc.icon, badgeBorder, cs, isPortal);
               break;
             case 'W':
             case 'WW':
@@ -1209,7 +1483,7 @@ class LevelEditor {
               break;
             case 'DW':
               ctx.fillRect(px + dOffset, py, thDoor, cs);
-              if (acc) this.drawDoorBadge(ctx, px + dOffset + thDoor / 2, py + cs / 2, acc.icon, badgeBorder, cs);
+              if (acc) this.drawDoorBadge(ctx, px + dOffset + thDoor / 2, py + cs / 2, acc.icon, badgeBorder, cs, isPortal);
               break;
             case 'E':
             case 'WE':
@@ -1218,7 +1492,7 @@ class LevelEditor {
               break;
             case 'DE':
               ctx.fillRect(px + cs - th + dOffset, py, thDoor, cs);
-              if (acc) this.drawDoorBadge(ctx, px + cs - th + dOffset + thDoor / 2, py + cs / 2, acc.icon, badgeBorder, cs);
+              if (acc) this.drawDoorBadge(ctx, px + cs - th + dOffset + thDoor / 2, py + cs / 2, acc.icon, badgeBorder, cs, isPortal);
               break;
             case 'CH':
             case 'WCH': {
@@ -1468,7 +1742,10 @@ class LevelEditor {
    * Genera el objeto JSON del nivel
    */
   getLevelObject() {
-    const mapName = (this.inputMapName && this.inputMapName.value.trim()) ? this.inputMapName.value.trim() : 'Laberinto Personalizado';
+    const existingName = (this.currentProject && this.currentMapId && this.currentProject.maps[this.currentMapId])
+      ? this.currentProject.maps[this.currentMapId].name
+      : null;
+    const mapName = existingName || this.mapName || (this.inputMapName && this.inputMapName.value.trim()) || 'Sala Principal';
     const level = {
       name: mapName,
       width: this.cols,
@@ -1476,7 +1753,7 @@ class LevelEditor {
       playerStart: {
         x: Number(this.player.x.toFixed(2)),
         y: Number(this.player.y.toFixed(2)),
-        angle: 0
+        angle: (typeof this.player.angle === 'number') ? this.player.angle : -Math.PI / 2
       },
       legend: {
         0: 'Suelo libre / pasillo',
@@ -1493,6 +1770,9 @@ class LevelEditor {
     if (Object.keys(this.wallStyleMap).length > 0) {
       level.wallStyleMap = this.wallStyleMap;
     }
+    if (this.doorLinks && Object.keys(this.doorLinks).length > 0) {
+      level.doorLinks = this.doorLinks;
+    }
     // Pincel activo en el editor (solo afecta a lo próximo que se coloque)
     if (this.wallStyle !== 'castillo') level.activeWallStyle = this.wallStyle;
     if (this.doorStyle !== 'castillo') level.activeDoorStyle = this.doorStyle;
@@ -1503,11 +1783,7 @@ class LevelEditor {
   updateJSON() {
     const data = this.getLevelObject();
     this.jsonOutput.value = JSON.stringify(data, null, 2);
-    try {
-      localStorage.setItem('customRaycasterMap', JSON.stringify(data));
-    } catch (e) {
-      console.warn('Error al guardar el mapa en localStorage:', e);
-    }
+    this.saveProjectsToStorage();
   }
 
   /**
@@ -1530,6 +1806,41 @@ class LevelEditor {
       jsonSidebar.classList.remove('collapsed');
       if (iconToggleJson) iconToggleJson.className = 'ri-arrow-right-s-line';
       if (btnToggleJsonSidebar) btnToggleJsonSidebar.title = 'Colapsar panel JSON (40px)';
+    }
+  }
+
+  /**
+   * Controla la visibilidad de los paneles inferiores según la herramienta activa.
+   * Con el borrador, oculta las opciones de colocación inferiores para evitar confusiones.
+   * Con pincel o habitación, restaura la paleta y los paneles de pared/accesorios tal y como estaban.
+   */
+  updateToolPanelsVisibility() {
+    const sectionElementPalette = document.getElementById('sectionElementPalette');
+    const sectionWallPlacement = document.getElementById('sectionWallPlacement');
+    const sectionAccessoryPlacement = document.getElementById('sectionAccessoryPlacement');
+    const sectionEraserInfo = document.getElementById('sectionEraserInfo');
+
+    if (this.currentTool === 'eraser') {
+      if (sectionElementPalette) sectionElementPalette.style.display = 'none';
+      if (sectionWallPlacement) sectionWallPlacement.style.display = 'none';
+      if (sectionAccessoryPlacement) sectionAccessoryPlacement.style.display = 'none';
+      if (sectionEraserInfo) sectionEraserInfo.style.display = '';
+    } else {
+      // Modo pincel o habitación
+      if (sectionEraserInfo) sectionEraserInfo.style.display = 'none';
+      if (sectionElementPalette) sectionElementPalette.style.display = '';
+
+      const isWall = (this.selectedTile === 1 || this.selectedTile === '1');
+      const isAccessory = (this.selectedTile === 'accessories');
+
+      if (sectionWallPlacement) {
+        sectionWallPlacement.style.display = isWall ? '' : 'none';
+        if (isWall) sectionWallPlacement.classList.remove('collapsed');
+      }
+      if (sectionAccessoryPlacement) {
+        sectionAccessoryPlacement.style.display = isAccessory ? '' : 'none';
+        if (isAccessory) sectionAccessoryPlacement.classList.remove('collapsed');
+      }
     }
   }
 
@@ -1610,18 +1921,10 @@ class LevelEditor {
           this.selectedTile = (state.selectedTile === 'player' || state.selectedTile === 'accessories')
             ? state.selectedTile
             : parseInt(state.selectedTile, 10);
-
-          const sectionWallPlacement = document.getElementById('sectionWallPlacement');
-          const sectionAccessoryPlacement = document.getElementById('sectionAccessoryPlacement');
-
-          if (sectionWallPlacement) {
-            sectionWallPlacement.style.display = (state.selectedTile === '1' || state.selectedTile === 1) ? '' : 'none';
-          }
-          if (sectionAccessoryPlacement) {
-            sectionAccessoryPlacement.style.display = (state.selectedTile === 'accessories') ? '' : 'none';
-          }
         }
       }
+
+      this.updateToolPanelsVisibility();
 
       // 5. Restaurar pestaña activa de colocación de paredes (laterales, centro)
       const validWallTab = (state.activeWallTab === 'centro') ? 'centro' : 'laterales';
@@ -1734,8 +2037,11 @@ class LevelEditor {
 
     if (this.inputCols) this.inputCols.value = this.cols;
     if (this.inputRows) this.inputRows.value = this.rows;
-    if (data.name && this.inputMapName) {
-      this.inputMapName.value = data.name;
+    if (data.name) {
+      this.mapName = data.name;
+      if (this.inputMapName) {
+        this.inputMapName.value = data.name;
+      }
     }
 
     this.customTextures = (data.customTextures && typeof data.customTextures === 'object') ? data.customTextures : {};
@@ -1745,6 +2051,7 @@ class LevelEditor {
     this.wallStyle = (data.activeWallStyle && WALL_STYLES[data.activeWallStyle]) ? data.activeWallStyle : 'castillo';
     this.doorStyle = (data.activeDoorStyle && DOOR_STYLES[data.activeDoorStyle]) ? data.activeDoorStyle : 'castillo';
     this.lintelStyle = (data.activeLintelStyle && WALL_STYLES[data.activeLintelStyle]) ? data.activeLintelStyle : 'castillo';
+    this.doorLinks = (data.doorLinks && typeof data.doorLinks === 'object') ? data.doorLinks : {};
     this.updateStyleLabels();
 
     // Actualizar botones de chips de dimensiones rápidas
@@ -1759,6 +2066,7 @@ class LevelEditor {
       this.showToast('ℹ️ Puertas centradas obsoletas convertidas en pared normal');
     }
 
+    if (this.selectMapPreset) this.selectMapPreset.value = 'custom';
     this.resizeCanvas();
     this.render();
     this.updateJSON();
@@ -1768,8 +2076,7 @@ class LevelEditor {
    * Guarda el nivel actual en localStorage y abre la demo en primera persona
    */
   playCurrentLevel() {
-    const levelData = this.getLevelObject();
-    localStorage.setItem('customRaycasterMap', JSON.stringify(levelData));
+    this.saveProjectsToStorage();
     this.saveUIState();
     this.showToast('Cargando nivel en el motor 3D...');
     setTimeout(() => {
@@ -1879,9 +2186,6 @@ class LevelEditor {
     if (!this.styleModalOverlay) return;
 
     document.getElementById('styleModalClose').addEventListener('click', () => this.closeStyleModal());
-    this.styleModalOverlay.addEventListener('click', (e) => {
-      if (e.target === this.styleModalOverlay) this.closeStyleModal();
-    });
 
     const btnWallStyle = document.getElementById('btnWallStyle');
     const btnDoorStyle = document.getElementById('btnDoorStyle');
@@ -1962,6 +2266,1412 @@ class LevelEditor {
     if (wallLabelEl) wallLabelEl.textContent = WALL_STYLES[this.wallStyle].label;
     if (doorLabelEl) doorLabelEl.textContent = DOOR_STYLES[this.doorStyle].label;
     if (lintelLabelEl) lintelLabelEl.textContent = WALL_STYLES[this.lintelStyle].label;
+  }
+
+  setupConfirmModal() {
+    this.confirmModalOverlay = document.getElementById('confirmModalOverlay');
+    this.confirmModalTitle = document.getElementById('confirmModalTitle');
+    this.confirmModalMessage = document.getElementById('confirmModalMessage');
+    this.confirmModalAccept = document.getElementById('confirmModalAccept');
+    this.confirmModalCancel = document.getElementById('confirmModalCancel');
+    this.confirmModalClose = document.getElementById('confirmModalClose');
+
+    if (!this.confirmModalOverlay) return;
+
+    this.confirmModalClose?.addEventListener('click', () => this.closeConfirmDialog(false));
+    this.confirmModalCancel?.addEventListener('click', () => this.closeConfirmDialog(false));
+    this.confirmModalAccept?.addEventListener('click', () => this.closeConfirmDialog(true));
+  }
+
+  showConfirmDialog({ title, message, acceptText = 'Aceptar', isDanger = true, onAccept, onCancel }) {
+    if (!this.confirmModalOverlay) {
+      if (confirm(`${title}\n\n${message}`)) {
+        if (onAccept) onAccept();
+      } else {
+        if (onCancel) onCancel();
+      }
+      return;
+    }
+
+    if (this.confirmModalTitle) this.confirmModalTitle.innerHTML = `<i class="ri-error-warning-line"></i> ${title}`;
+    if (this.confirmModalMessage) this.confirmModalMessage.textContent = message;
+    if (this.confirmModalAccept) {
+      this.confirmModalAccept.textContent = acceptText;
+      this.confirmModalAccept.className = isDanger ? 'btn-subtle danger' : 'btn-subtle primary-btn';
+    }
+
+    this.onConfirmAccept = onAccept;
+    this.onConfirmCancel = onCancel;
+
+    this.confirmModalOverlay.hidden = false;
+  }
+
+  closeConfirmDialog(accepted = false) {
+    if (!this.confirmModalOverlay) return;
+    this.confirmModalOverlay.hidden = true;
+    const acceptCb = this.onConfirmAccept;
+    const cancelCb = this.onConfirmCancel;
+    this.onConfirmAccept = null;
+    this.onConfirmCancel = null;
+
+    if (accepted) {
+      if (acceptCb) acceptCb();
+    } else {
+      if (cancelCb) cancelCb();
+    }
+  }
+
+  backupCurrentMap() {
+    try {
+      this.lastMapBackup = JSON.parse(JSON.stringify(this.getLevelObject()));
+    } catch (e) {
+      console.warn('No se pudo crear backup del mapa:', e);
+    }
+  }
+
+  restoreBackupMap() {
+    if (!this.lastMapBackup) {
+      this.showToast('ℹ️ No hay ningún mapa anterior para restaurar');
+      return;
+    }
+    const backup = this.lastMapBackup;
+    this.lastMapBackup = null;
+    this.loadLevelData(backup);
+    this.showToast('↩️ Mapa anterior restaurado con éxito');
+  }
+
+  hasMapContent() {
+    if (!Array.isArray(this.grid)) return false;
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        const segs = this.grid[y] && this.grid[y][x];
+        if (!segs) continue;
+        if (Array.isArray(segs)) {
+          const isInterior = (x > 0 && x < this.cols - 1 && y > 0 && y < this.rows - 1);
+          if (isInterior && segs.length > 0) return true;
+          if (segs.some(s => s.startsWith('D') || s.startsWith('W') || s.startsWith('C') || s.startsWith('R'))) return true;
+        } else if (segs === 1) {
+          const isInterior = (x > 0 && x < this.cols - 1 && y > 0 && y < this.rows - 1);
+          if (isInterior) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /* ==========================================================================
+     SISTEMA DE PROYECTOS & MULTIMAPAS
+     ========================================================================== */
+
+  /**
+   * Inicializa el sistema de proyectos: carga desde localStorage o migra
+   * mapas antiguos a la estructura de proyectos v2.
+   */
+  initProjectSystem() {
+    try {
+      const savedProjects = localStorage.getItem('doors_projects_v2');
+      if (savedProjects) {
+        this.projects = JSON.parse(savedProjects);
+      }
+    } catch (e) {
+      console.warn('Error leyendo doors_projects_v2:', e);
+      this.projects = {};
+    }
+
+    if (!this.projects || typeof this.projects !== 'object' || Object.keys(this.projects).length === 0) {
+      this.projects = {};
+      let initialMap = null;
+      try {
+        const legacyMap = localStorage.getItem('customRaycasterMap');
+        if (legacyMap) {
+          const parsed = JSON.parse(legacyMap);
+          if (parsed && parsed.map && Array.isArray(parsed.map) && parsed.map.length > 0) {
+            initialMap = parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('Error migrando mapa legacy:', e);
+      }
+
+      const initialProjId = 'proj_' + Date.now();
+      const initialMapId = 'map_1';
+      if (!initialMap) {
+        initialMap = this.createDefaultMapObject(initialMapId, 'Sala Principal', 12, 12);
+      } else {
+        initialMap.id = initialMapId;
+        if (!initialMap.name) initialMap.name = 'Sala Principal';
+        if (!initialMap.doorLinks) initialMap.doorLinks = {};
+      }
+
+      this.projects[initialProjId] = {
+        id: initialProjId,
+        name: 'Mi Primer Proyecto',
+        version: 2,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        startingMapId: initialMapId,
+        maps: {
+          [initialMapId]: initialMap
+        }
+      };
+      this.currentProjectId = initialProjId;
+    } else {
+      const savedProjId = localStorage.getItem('doors_current_project_id');
+      if (savedProjId && this.projects[savedProjId]) {
+        this.currentProjectId = savedProjId;
+      } else {
+        this.currentProjectId = Object.keys(this.projects)[0];
+      }
+    }
+
+    this.currentProject = this.projects[this.currentProjectId];
+    if (!this.currentProject.maps || Object.keys(this.currentProject.maps).length === 0) {
+      const mId = 'map_1';
+      this.currentProject.maps = {
+        [mId]: this.createDefaultMapObject(mId, 'Sala Principal', 12, 12)
+      };
+      this.currentProject.startingMapId = mId;
+    }
+
+    if (!this.currentProject.startingMapId || !this.currentProject.maps[this.currentProject.startingMapId]) {
+      this.currentProject.startingMapId = Object.keys(this.currentProject.maps)[0];
+    }
+
+    this.currentMapId = this.currentProject.startingMapId;
+    this.loadLevelData(this.currentProject.maps[this.currentMapId]);
+    this.updateHeaderProject();
+    this.renderMapDropdown();
+    this.saveProjectsToStorage();
+  }
+
+  updateHeaderProject() {
+    if (!this.currentProject) return;
+    if (this.headerProjectName) {
+      this.headerProjectName.textContent = this.currentProject.name;
+    }
+    if (this.sidebarProjectName) {
+      this.sidebarProjectName.textContent = this.currentProject.name;
+    }
+    if (this.modalActiveProjectBadge) {
+      this.modalActiveProjectBadge.textContent = this.currentProject.name;
+    }
+    if (this.modalProjectNameMaps) {
+      this.modalProjectNameMaps.textContent = this.currentProject.name;
+    }
+    if (this.modalActiveRoomNameDisplay && this.currentMapId && this.currentProject.maps[this.currentMapId]) {
+      this.modalActiveRoomNameDisplay.textContent = this.currentProject.maps[this.currentMapId].name || 'Sala';
+    }
+    if (this.modalActiveRoomSpawnBadge && this.currentMapId) {
+      const isStart = (this.currentMapId === this.currentProject.startingMapId);
+      this.modalActiveRoomSpawnBadge.style.display = isStart ? '' : 'none';
+    }
+  }
+
+  saveProjectsToStorage() {
+    if (!this.currentProject || !this.currentMapId) return;
+    try {
+      const currentMapObj = this.currentProject.maps[this.currentMapId];
+      const levelData = this.getLevelObject();
+      levelData.id = this.currentMapId;
+      if (currentMapObj && currentMapObj.name) {
+        levelData.name = currentMapObj.name;
+      }
+      levelData.doorLinks = this.doorLinks || {};
+      this.currentProject.maps[this.currentMapId] = levelData;
+      this.currentProject.updatedAt = Date.now();
+
+      localStorage.setItem('doors_projects_v2', JSON.stringify(this.projects));
+      localStorage.setItem('doors_current_project_id', this.currentProjectId);
+      localStorage.setItem('doors_current_map_id', this.currentMapId);
+      localStorage.setItem('customRaycasterMap', JSON.stringify(levelData));
+    } catch (e) {
+      console.warn('Error al guardar proyectos en localStorage:', e);
+    }
+  }
+
+  setupProjectEventListeners() {
+    // Abrir modal desde la cabecera o el panel lateral
+    if (this.btnOpenProjectsFromSidebar) {
+      this.btnOpenProjectsFromSidebar.addEventListener('click', () => {
+        this.openProjectModal('tabProjects');
+      });
+    }
+
+    if (this.btnOpenProjectsFromHeader) {
+      this.btnOpenProjectsFromHeader.addEventListener('click', () => {
+        this.openProjectModal('tabProjects');
+      });
+    }
+
+    if (this.btnManageMapsInModal) {
+      this.btnManageMapsInModal.addEventListener('click', () => {
+        this.openProjectModal('tabMaps');
+      });
+    }
+
+    // Pestañas de la modal
+    if (this.btnTabProjects) {
+      this.btnTabProjects.addEventListener('click', () => {
+        this.switchModalTab('tabProjects');
+      });
+    }
+
+    if (this.btnTabMaps) {
+      this.btnTabMaps.addEventListener('click', () => {
+        this.switchModalTab('tabMaps');
+      });
+    }
+
+    const projClose = document.getElementById('projectModalClose');
+    if (projClose) projClose.addEventListener('click', () => this.closeProjectModal());
+
+    const btnNewProj = document.getElementById('btnCreateNewProject');
+    if (btnNewProj) {
+      btnNewProj.addEventListener('click', () => {
+        const name = prompt('Nombre para el nuevo proyecto:');
+        if (name !== null) {
+          this.createNewProject(name);
+        }
+      });
+    }
+
+    const inputImport = document.getElementById('inputImportProject');
+    if (inputImport) {
+      inputImport.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          this.importProjectJson(e.target.files[0]);
+          e.target.value = '';
+        }
+      });
+    }
+
+    if (this.selectActiveMap) {
+      this.selectActiveMap.addEventListener('change', (e) => {
+        this.switchMap(e.target.value);
+      });
+    }
+
+    if (this.btnQuickNewMap) {
+      this.btnQuickNewMap.addEventListener('click', () => {
+        this.createMapInProject();
+      });
+    }
+
+    if (this.btnAddNewMapFromModal) {
+      this.btnAddNewMapFromModal.addEventListener('click', () => {
+        this.createMapInProject();
+        this.renderModalMapList();
+      });
+    }
+
+    if (this.btnNewMapInProject) {
+      this.btnNewMapInProject.addEventListener('click', () => {
+        this.createMapInProject();
+      });
+    }
+
+    if (this.btnDuplicateMap) {
+      this.btnDuplicateMap.addEventListener('click', () => {
+        this.duplicateCurrentMap();
+      });
+    }
+
+    if (this.btnSetStartingMap) {
+      this.btnSetStartingMap.addEventListener('click', () => {
+        this.setStartingMap(this.currentMapId);
+      });
+    }
+
+    if (this.btnDeleteMap) {
+      this.btnDeleteMap.addEventListener('click', () => {
+        this.deleteCurrentMap();
+      });
+    }
+
+    if (this.btnGenerateGameInModal) {
+      this.btnGenerateGameInModal.addEventListener('click', () => {
+        this.generateStandaloneGame();
+      });
+    }
+
+    if (this.btnGenerateGame) {
+      this.btnGenerateGame.addEventListener('click', () => {
+        this.generateStandaloneGame();
+      });
+    }
+  }
+
+  openProjectModal(initialTab = 'tabProjects') {
+    this.saveProjectsToStorage();
+    this.updateHeaderProject();
+    this.switchModalTab(initialTab);
+    if (this.projectModalOverlay) this.projectModalOverlay.hidden = false;
+  }
+
+  closeProjectModal() {
+    if (this.projectModalOverlay) this.projectModalOverlay.hidden = true;
+  }
+
+  switchModalTab(tabName) {
+    if (tabName === 'tabMaps') {
+      if (this.btnTabMaps) this.btnTabMaps.classList.add('active');
+      if (this.btnTabProjects) this.btnTabProjects.classList.remove('active');
+      if (this.paneMaps) this.paneMaps.style.display = '';
+      if (this.paneProjects) this.paneProjects.style.display = 'none';
+      this.renderModalMapList();
+    } else {
+      if (this.btnTabProjects) this.btnTabProjects.classList.add('active');
+      if (this.btnTabMaps) this.btnTabMaps.classList.remove('active');
+      if (this.paneProjects) this.paneProjects.style.display = '';
+      if (this.paneMaps) this.paneMaps.style.display = 'none';
+      this.renderProjectList();
+    }
+  }
+
+  renderModalMapList() {
+    if (!this.modalMapListContainer || !this.currentProject) return;
+    const mapIds = Object.keys(this.currentProject.maps);
+    const startMapId = this.currentProject.startingMapId;
+
+    this.modalMapListContainer.innerHTML = mapIds.map(id => {
+      const m = this.currentProject.maps[id];
+      const isStart = (id === startMapId);
+      const isCurrent = (id === this.currentMapId);
+      const isExpanded = (this.expandedMapId === id);
+      const rows = m.map ? m.map.length : (m.rows || 12);
+      const cols = m.map && m.map[0] ? m.map[0].length : (m.cols || 12);
+      const doorCount = m.doorLinks ? Object.keys(m.doorLinks).length : 0;
+
+      return `
+        <div class="modal-map-card ${isCurrent ? 'active' : ''} ${isExpanded ? 'expanded' : ''}" data-map-id="${id}">
+          <div class="modal-map-card-header">
+            <div class="modal-map-info">
+              <div class="modal-map-title-row">
+                <span class="modal-map-name">${m.name || id}</span>
+                ${isStart ? '<span class="starting-map-pill"><i class="ri-flag-fill"></i> Spawn Inicial</span>' : ''}
+                ${isCurrent ? '<span class="project-active-badge"><i class="ri-pencil-line"></i> Activa en Editor</span>' : ''}
+              </div>
+              <div class="modal-map-meta">
+                <span><i class="ri-grid-line"></i> ${cols}x${rows}</span>
+                <span>•</span>
+                <span><i class="ri-door-open-line"></i> ${doorCount} ${doorCount === 1 ? 'conexión' : 'conexiones'}</span>
+              </div>
+            </div>
+            <div class="modal-map-actions">
+              ${isExpanded ? `
+                <button class="btn-subtle btn-modal-header-save" data-map-id="${id}" title="Guardar cambios de esta sala">
+                  <i class="ri-check-line"></i> Guardar
+                </button>
+                <button class="btn-subtle btn-modal-header-cancel" data-map-id="${id}" title="Descartar cambios y cancelar edición">
+                  <i class="ri-close-line"></i> Cancelar
+                </button>
+              ` : `
+                <button class="btn-subtle btn-modal-toggle-edit" data-map-id="${id}" title="Editar nombre, plantilla y dimensiones">
+                  <i class="ri-edit-line"></i> Editar
+                </button>
+                <button class="btn-subtle primary-btn btn-modal-switch-and-draw" data-map-id="${id}" title="Seleccionar sala y dibujar en el lienzo">
+                  <i class="ri-brush-line"></i> Dibujar
+                </button>
+              `}
+              <button class="btn-icon-chip btn-modal-start-map ${isStart ? 'active-flag' : ''}" data-map-id="${id}" title="${isStart ? 'Esta sala es el inicio del juego' : 'Definir como sala inicial (Spawn)'}">
+                <i class="${isStart ? 'ri-flag-fill' : 'ri-flag-line'}"></i>
+              </button>
+              <button class="btn-icon-chip btn-modal-duplicate-map" data-map-id="${id}" title="Duplicar esta sala"><i class="ri-file-copy-line"></i></button>
+              <button class="btn-icon-chip danger btn-modal-delete-map" data-map-id="${id}" ${mapIds.length <= 1 ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''} title="Eliminar sala"><i class="ri-delete-bin-line"></i></button>
+            </div>
+          </div>
+
+          ${isExpanded ? `
+            <div class="modal-map-edit-tray" data-map-id="${id}">
+              <div class="room-edit-grid">
+                <div class="room-edit-field">
+                  <label><i class="ri-edit-line"></i> Nombre de la Sala:</label>
+                  <input type="text" class="room-edit-name-input" data-map-id="${id}" value="${m.name || id}" placeholder="Nombre de la sala...">
+                </div>
+                <div class="room-edit-field">
+                  <label><i class="ri-flashlight-line"></i> Plantilla Predefinida:</label>
+                  <select class="room-edit-preset-select" data-map-id="${id}">
+                    <option value="custom" selected>Personalizada</option>
+                    <option value="4doors">1. Sala 4 Puertas (7x7)</option>
+                    <option value="twoRooms">2. 2 Salas Conectadas (14x8)</option>
+                    <option value="crossRooms">3. 4 Habitaciones / Cruce (12x12)</option>
+                    <option value="hallway">4. Pasillo Central y Cámaras (15x9)</option>
+                    <option value="maze">5. Mini Laberinto (11x11)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="room-edit-dim-row">
+                <div class="room-dim-inputs">
+                  <div class="input-group compact">
+                    <label>Cols (X):</label>
+                    <input type="number" class="room-edit-cols-input" data-map-id="${id}" min="5" max="50" value="${cols}">
+                  </div>
+                  <div class="input-group compact">
+                    <label>Filas (Y):</label>
+                    <input type="number" class="room-edit-rows-input" data-map-id="${id}" min="5" max="50" value="${rows}">
+                  </div>
+                </div>
+                <div class="quick-sizes-box">
+                  <span class="quick-sizes-label">Tamaños rápidos:</span>
+                  <div class="quick-sizes compact">
+                    <button class="btn-chip btn-room-chip ${cols===8 && rows===8 ? 'active':''}" data-cols="8" data-rows="8">8x8</button>
+                    <button class="btn-chip btn-room-chip ${cols===12 && rows===12 ? 'active':''}" data-cols="12" data-rows="12">12x12</button>
+                    <button class="btn-chip btn-room-chip ${cols===16 && rows===16 ? 'active':''}" data-cols="16" data-rows="16">16x16</button>
+                    <button class="btn-chip btn-room-chip ${cols===20 && rows===20 ? 'active':''}" data-cols="20" data-rows="20">20x20</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="room-edit-actions-row">
+                <div class="room-edit-actions-left">
+                  <button class="btn-subtle primary-btn btn-room-save" data-map-id="${id}" title="Confirmar y guardar el nombre y dimensiones">
+                    <i class="ri-check-line"></i> Guardar Cambios
+                  </button>
+                  <button class="btn-subtle btn-room-cancel" data-map-id="${id}" title="Descartar cambios y cerrar edición">
+                    <i class="ri-close-line"></i> Cancelar
+                  </button>
+                  <button class="btn-subtle danger btn-room-clear" data-map-id="${id}" title="Vaciar todo el interior del mapa conservando perímetro">
+                    <i class="ri-delete-bin-line"></i> Vaciar Sala
+                  </button>
+                </div>
+                <div class="room-edit-actions-right">
+                  <button class="btn-subtle btn-room-draw" data-map-id="${id}" title="Guardar cambios e ir directamente a dibujar en el lienzo">
+                    <i class="ri-brush-line"></i> Guardar y Dibujar
+                  </button>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    // Toggle expand/collapse edit tray
+    this.modalMapListContainer.querySelectorAll('.btn-modal-toggle-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.mapId;
+        if (this.expandedMapId === id) {
+          this.expandedMapId = null;
+        } else {
+          this.expandedMapId = id;
+        }
+        this.renderModalMapList();
+      });
+    });
+
+    // Switch map & draw (direct from card header)
+    this.modalMapListContainer.querySelectorAll('.btn-modal-switch-and-draw').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.switchMap(btn.dataset.mapId);
+        this.closeProjectModal();
+      });
+    });
+
+    // Enter key on name input to save
+    this.modalMapListContainer.querySelectorAll('.room-edit-name-input').forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const tray = input.closest('.modal-map-edit-tray');
+          const saveBtn = tray ? tray.querySelector('.btn-room-save') : null;
+          if (saveBtn) saveBtn.click();
+        }
+      });
+    });
+
+    // Preset select in tray
+    this.modalMapListContainer.querySelectorAll('.room-edit-preset-select').forEach(select => {
+      select.addEventListener('change', () => {
+        const id = select.dataset.mapId;
+        const val = select.value;
+        if (val === 'custom') return;
+        if (this.currentMapId !== id) {
+          this.switchMap(id);
+        }
+        const presetLabels = {
+          '4doors': '1. Sala 4 Puertas (7x7)',
+          'twoRooms': '2. 2 Salas Conectadas (14x8)',
+          'crossRooms': '3. 4 Habitaciones / Cruce (12x12)',
+          'hallway': '4. Pasillo Central y Cámaras (15x9)',
+          'maze': '5. Mini Laberinto (11x11)'
+        };
+        const label = presetLabels[val] || val;
+
+        const doApply = () => {
+          this.backupCurrentMap();
+          this.applyPreset(val);
+          this.saveProjectsToStorage();
+          this.renderModalMapList();
+        };
+
+        if (this.hasMapContent()) {
+          this.showConfirmDialog({
+            title: '¿Cargar plantilla?',
+            message: `Vas a cargar "${label}". Se reemplazará el mapa actual y se perderá lo que hayas dibujado.`,
+            acceptText: 'Cargar Plantilla',
+            isDanger: true,
+            onAccept: doApply,
+            onCancel: () => {
+              select.value = 'custom';
+            }
+          });
+        } else {
+          doApply();
+        }
+      });
+    });
+
+    // Quick size chips in tray
+    this.modalMapListContainer.querySelectorAll('.btn-room-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const tray = chip.closest('.modal-map-edit-tray');
+        if (!tray) return;
+        const colsInput = tray.querySelector('.room-edit-cols-input');
+        const rowsInput = tray.querySelector('.room-edit-rows-input');
+        if (colsInput) colsInput.value = chip.dataset.cols;
+        if (rowsInput) rowsInput.value = chip.dataset.rows;
+        tray.querySelectorAll('.btn-room-chip').forEach(c => c.classList.remove('active'));
+        chip.classList.add('active');
+      });
+    });
+
+    // Helper to commit changes
+    const commitRoomChanges = (id, tray, callback) => {
+      const nameInput = tray.querySelector('.room-edit-name-input');
+      const colsInput = tray.querySelector('.room-edit-cols-input');
+      const rowsInput = tray.querySelector('.room-edit-rows-input');
+      const newName = nameInput ? (nameInput.value.trim() || 'Sala') : 'Sala';
+      const newCols = colsInput ? parseInt(colsInput.value, 10) : this.cols;
+      const newRows = rowsInput ? parseInt(rowsInput.value, 10) : this.rows;
+
+      if (isNaN(newCols) || isNaN(newRows) || newCols < 5 || newRows < 5 || newCols > 50 || newRows > 50) {
+        this.showToast('⚠️ Las dimensiones deben estar entre 5 y 50');
+        return;
+      }
+
+      const targetMap = this.currentProject.maps[id];
+      if (!targetMap) return;
+
+      const currentCols = targetMap.map ? targetMap.map[0].length : 12;
+      const currentRows = targetMap.map ? targetMap.map.length : 12;
+      const isShrinking = (newCols < currentCols || newRows < currentRows);
+
+      const apply = () => {
+        targetMap.name = newName;
+        if (this.currentMapId === id) {
+          this.mapName = newName;
+          if (newCols !== this.cols || newRows !== this.rows) {
+            this.backupCurrentMap();
+            this.resizeGrid(newCols, newRows);
+          }
+        } else {
+          // If not active on canvas, switch to it to resize cleanly
+          this.switchMap(id);
+          if (newCols !== this.cols || newRows !== this.rows) {
+            this.backupCurrentMap();
+            this.resizeGrid(newCols, newRows);
+          }
+        }
+        targetMap.name = newName;
+        this.saveProjectsToStorage();
+        this.renderMapDropdown();
+        this.showToast(`💾 Cambios guardados en "${newName}"`);
+        if (callback) callback();
+      };
+
+      if (isShrinking) {
+        this.showConfirmDialog({
+          title: '¿Confirmar cambio de dimensiones?',
+          message: `El mapa se reducirá de ${currentCols}x${currentRows} a ${newCols}x${newRows}. Las paredes o elementos que queden fuera se recortarán.`,
+          acceptText: 'Guardar Cambios',
+          isDanger: true,
+          onAccept: apply
+        });
+      } else {
+        apply();
+      }
+    };
+
+    // Botón Guardar Cambios (desde bandeja o cabecera de tarjeta)
+    const handleSave = (id, tray) => {
+      if (!tray) return;
+      commitRoomChanges(id, tray, () => {
+        this.expandedMapId = null;
+        this.renderModalMapList();
+      });
+    };
+
+    this.modalMapListContainer.querySelectorAll('.btn-room-save').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.mapId;
+        const tray = btn.closest('.modal-map-edit-tray');
+        handleSave(id, tray);
+      });
+    });
+
+    this.modalMapListContainer.querySelectorAll('.btn-modal-header-save').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.mapId;
+        const card = btn.closest('.modal-map-card');
+        const tray = card ? card.querySelector('.modal-map-edit-tray') : null;
+        handleSave(id, tray);
+      });
+    });
+
+    // Botón Cancelar (desde bandeja o cabecera de tarjeta)
+    const handleCancel = () => {
+      this.expandedMapId = null;
+      this.renderModalMapList();
+      this.showToast('↩️ Edición cancelada');
+    };
+
+    this.modalMapListContainer.querySelectorAll('.btn-room-cancel').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleCancel();
+      });
+    });
+
+    this.modalMapListContainer.querySelectorAll('.btn-modal-header-cancel').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleCancel();
+      });
+    });
+
+    // Botón Guardar y Dibujar
+    this.modalMapListContainer.querySelectorAll('.btn-room-draw').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.mapId;
+        const tray = btn.closest('.modal-map-edit-tray');
+        if (!tray) return;
+        commitRoomChanges(id, tray, () => {
+          this.switchMap(id);
+          this.closeProjectModal();
+        });
+      });
+    });
+
+    // Clear room in tray
+    this.modalMapListContainer.querySelectorAll('.btn-room-clear').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.mapId;
+        if (this.currentMapId !== id) {
+          this.switchMap(id);
+        }
+        this.showConfirmDialog({
+          title: '¿Vaciar sala?',
+          message: 'Se borrarán todos los muros y accesorios interiores conservando el perímetro exterior.',
+          acceptText: 'Vaciar Sala',
+          isDanger: true,
+          onAccept: () => {
+            this.backupCurrentMap();
+            this.clearMap();
+            this.saveProjectsToStorage();
+            this.renderModalMapList();
+            this.showToast('🧹 Sala vaciada');
+          }
+        });
+      });
+    });
+
+    // Done button in tray
+    this.modalMapListContainer.querySelectorAll('.btn-room-done').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.mapId;
+        if (this.currentMapId !== id) {
+          this.switchMap(id);
+        }
+        this.closeProjectModal();
+      });
+    });
+
+    // Set starting room (spawn)
+    this.modalMapListContainer.querySelectorAll('.btn-modal-start-map').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.setStartingMap(btn.dataset.mapId);
+        this.renderModalMapList();
+      });
+    });
+
+    // Duplicate room
+    this.modalMapListContainer.querySelectorAll('.btn-modal-duplicate-map').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.duplicateMapById(btn.dataset.mapId);
+        this.renderModalMapList();
+      });
+    });
+
+    // Delete room
+    this.modalMapListContainer.querySelectorAll('.btn-modal-delete-map').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.deleteMapById(btn.dataset.mapId);
+      });
+    });
+
+    // Auto-scroll to expanded room card if opened
+    if (this.expandedMapId) {
+      const el = this.modalMapListContainer.querySelector('.modal-map-card.expanded');
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 60);
+      }
+    }
+  }
+
+  renderProjectList() {
+    const container = document.getElementById('projectListContainer');
+    if (!container) return;
+
+    const projIds = Object.keys(this.projects);
+    container.innerHTML = projIds.map(id => {
+      const p = this.projects[id];
+      const isActive = (id === this.currentProjectId);
+      const mapCount = p.maps ? Object.keys(p.maps).length : 0;
+      const updatedStr = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : 'Reciente';
+
+      return `
+        <div class="project-card ${isActive ? 'active' : ''}" data-project-id="${id}">
+          <div class="project-card-info">
+            <div class="project-card-title-row">
+              <h4 class="project-card-name">${p.name || 'Sin Nombre'}</h4>
+              ${isActive ? '<span class="project-active-badge"><i class="ri-check-line"></i> Activo</span>' : ''}
+            </div>
+            <div class="project-card-meta">
+              <span><i class="ri-map-2-line"></i> ${mapCount} ${mapCount === 1 ? 'mapa' : 'mapas'}</span>
+              <span>•</span>
+              <span><i class="ri-time-line"></i> ${updatedStr}</span>
+            </div>
+          </div>
+          <div class="project-card-actions">
+            ${!isActive ? `<button class="btn-subtle primary-btn btn-switch-proj" data-project-id="${id}" title="Abrir y editar este proyecto"><i class="ri-folder-open-line"></i> Abrir</button>` : ''}
+            <button class="btn-subtle btn-generate-game-proj" data-project-id="${id}" title="Generar archivo HTML autónomo para jugar a '${p.name || 'este proyecto'}'">
+              <i class="ri-rocket-2-line"></i> Generar Juego
+            </button>
+            <button class="btn-icon-chip btn-rename-proj" data-project-id="${id}" title="Renombrar proyecto"><i class="ri-edit-line"></i></button>
+            <button class="btn-icon-chip btn-export-proj" data-project-id="${id}" title="Descargar copia en JSON"><i class="ri-download-2-line"></i></button>
+            <button class="btn-icon-chip danger btn-delete-proj" data-project-id="${id}" ${projIds.length <= 1 ? 'disabled style="opacity:0.4;cursor:not-allowed;"' : ''} title="Eliminar proyecto"><i class="ri-delete-bin-line"></i></button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.btn-switch-proj').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.switchProject(btn.dataset.projectId);
+      });
+    });
+
+    container.querySelectorAll('.btn-generate-game-proj').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.generateStandaloneGame(btn.dataset.projectId);
+      });
+    });
+
+    container.querySelectorAll('.btn-rename-proj').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.promptRenameProject(btn.dataset.projectId);
+      });
+    });
+
+    container.querySelectorAll('.btn-export-proj').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.exportProjectJson(btn.dataset.projectId);
+      });
+    });
+
+    container.querySelectorAll('.btn-delete-proj').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.deleteProject(btn.dataset.projectId);
+      });
+    });
+  }
+
+  createNewProject(name = '') {
+    const projCount = Object.keys(this.projects).length + 1;
+    const projName = name.trim() || `Proyecto ${projCount}`;
+    const newProjId = 'proj_' + Date.now();
+    const defaultMapId = 'map_1';
+    const defaultMap = this.createDefaultMapObject(defaultMapId, 'Sala Principal', 12, 12);
+
+    this.saveProjectsToStorage();
+
+    this.projects[newProjId] = {
+      id: newProjId,
+      name: projName,
+      version: 2,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      startingMapId: defaultMapId,
+      maps: {
+        [defaultMapId]: defaultMap
+      }
+    };
+
+    this.switchProject(newProjId);
+    this.showToast(`✨ Nuevo proyecto creado: ${projName}`);
+  }
+
+  switchProject(projId) {
+    if (!this.projects[projId]) return;
+    this.saveProjectsToStorage();
+
+    this.currentProjectId = projId;
+    this.currentProject = this.projects[projId];
+    if (!this.currentProject.startingMapId || !this.currentProject.maps[this.currentProject.startingMapId]) {
+      this.currentProject.startingMapId = Object.keys(this.currentProject.maps)[0];
+    }
+    this.currentMapId = this.currentProject.startingMapId;
+
+    this.loadLevelData(this.currentProject.maps[this.currentMapId]);
+    this.updateHeaderProject();
+    this.renderMapDropdown();
+    this.closeProjectModal();
+    this.resizeCanvas();
+    this.render();
+    this.updateJSON();
+    this.showToast(`📂 Proyecto cargado: ${this.currentProject.name}`);
+  }
+
+  promptRenameProject(projId) {
+    const p = this.projects[projId];
+    if (!p) return;
+    const newName = prompt('Nombre para este proyecto:', p.name);
+    if (newName && newName.trim() && newName.trim() !== p.name) {
+      p.name = newName.trim();
+      p.updatedAt = Date.now();
+      this.updateHeaderProject();
+      this.saveProjectsToStorage();
+      this.renderProjectList();
+      this.showToast(`✏️ Proyecto renombrado a: ${p.name}`);
+    }
+  }
+
+  deleteProject(projId) {
+    const projIds = Object.keys(this.projects);
+    if (projIds.length <= 1) {
+      this.showToast('⚠️ No puedes eliminar el único proyecto existente');
+      return;
+    }
+    const p = this.projects[projId];
+    if (!p) return;
+
+    this.showConfirmDialog({
+      title: `¿Eliminar "${p.name}"?`,
+      message: 'Se eliminarán permanentemente todos los mapas y configuraciones de este proyecto.',
+      acceptText: 'Eliminar Proyecto',
+      isDanger: true,
+      onAccept: () => {
+        delete this.projects[projId];
+        if (this.currentProjectId === projId) {
+          const nextId = Object.keys(this.projects)[0];
+          this.switchProject(nextId);
+        } else {
+          this.saveProjectsToStorage();
+          this.renderProjectList();
+        }
+        this.showToast(`🗑️ Proyecto eliminado`);
+      }
+    });
+  }
+
+  exportProjectJson(projId) {
+    const p = this.projects[projId];
+    if (!p) return;
+    this.saveProjectsToStorage();
+    const jsonStr = JSON.stringify(p, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeName = p.name.replace(/[^a-zA-Z0-9_\-]/g, '_').toLowerCase();
+    a.download = `${safeName}_proyecto.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    this.showToast(`💾 Proyecto exportado en JSON`);
+  }
+
+  importProjectJson(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data || typeof data !== 'object') throw new Error('Archivo inválido');
+
+        if (data.maps && typeof data.maps === 'object') {
+          const newId = 'proj_' + Date.now();
+          data.id = newId;
+          data.name = (data.name || 'Proyecto Importado') + ' (Importado)';
+          data.updatedAt = Date.now();
+          this.projects[newId] = data;
+          this.switchProject(newId);
+          this.showToast('✅ ¡Proyecto importado con éxito!');
+        } else if (data.map && Array.isArray(data.map)) {
+          const newId = 'proj_' + Date.now();
+          const mapId = 'map_1';
+          data.id = mapId;
+          data.doorLinks = data.doorLinks || {};
+          this.projects[newId] = {
+            id: newId,
+            name: (data.name || 'Mapa Importado') + ' (Proyecto)',
+            version: 2,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            startingMapId: mapId,
+            maps: {
+              [mapId]: data
+            }
+          };
+          this.switchProject(newId);
+          this.showToast('✅ ¡Mapa importado como nuevo proyecto!');
+        } else {
+          throw new Error('El formato JSON no corresponde a un proyecto ni a un mapa válido.');
+        }
+      } catch (err) {
+        alert('Error al importar el proyecto JSON: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  /* ==========================================================================
+     GESTIÓN DE MAPAS DENTRO DEL PROYECTO
+     ========================================================================== */
+
+  renderMapDropdown() {
+    if (!this.selectActiveMap || !this.currentProject) return;
+    const mapIds = Object.keys(this.currentProject.maps);
+    this.selectActiveMap.innerHTML = mapIds.map(id => {
+      const m = this.currentProject.maps[id];
+      const isStart = (id === this.currentProject.startingMapId);
+      return `<option value="${id}" ${id === this.currentMapId ? 'selected' : ''}>${m.name || id} ${isStart ? '🚩' : ''}</option>`;
+    }).join('');
+
+    const isCurrentStarting = (this.currentMapId === this.currentProject.startingMapId);
+    if (this.badgeStartingMap) {
+      this.badgeStartingMap.style.display = isCurrentStarting ? '' : 'none';
+    }
+
+    if (this.modalMapCountBadge) {
+      this.modalMapCountBadge.textContent = mapIds.length;
+    }
+
+    if (this.modalActiveRoomNameDisplay && this.currentMapId && this.currentProject.maps[this.currentMapId]) {
+      this.modalActiveRoomNameDisplay.textContent = this.currentProject.maps[this.currentMapId].name || 'Sala';
+    }
+
+    if (this.modalActiveRoomSpawnBadge && this.currentMapId) {
+      this.modalActiveRoomSpawnBadge.style.display = isCurrentStarting ? '' : 'none';
+    }
+
+    if (this.btnDeleteMap) {
+      this.btnDeleteMap.disabled = (mapIds.length <= 1);
+      this.btnDeleteMap.title = (mapIds.length <= 1) ? 'No se puede eliminar el único mapa' : 'Eliminar este mapa del proyecto';
+    }
+  }
+
+  switchMap(mapId) {
+    if (!this.currentProject || !this.currentProject.maps[mapId]) return;
+    if (mapId === this.currentMapId) return;
+
+    this.saveProjectsToStorage();
+    this.currentMapId = mapId;
+    this.loadLevelData(this.currentProject.maps[mapId]);
+    this.renderMapDropdown();
+    this.resizeCanvas();
+    this.render();
+    this.updateJSON();
+    this.showToast(`🗺️ Sala activa: ${this.currentProject.maps[mapId].name}`);
+  }
+
+  createMapInProject() {
+    if (!this.currentProject) return;
+    const mapCount = Object.keys(this.currentProject.maps).length + 1;
+    const newMapId = 'map_' + Date.now();
+    const newMapName = `Sala ${mapCount}`;
+
+    this.saveProjectsToStorage();
+
+    const newMap = this.createDefaultMapObject(newMapId, newMapName, 12, 12);
+    this.currentProject.maps[newMapId] = newMap;
+    this.switchMap(newMapId);
+    this.expandedMapId = newMapId;
+    this.renderModalMapList();
+    this.showToast(`✨ Nueva sala creada: ${newMapName}`);
+  }
+
+  duplicateMapById(mapId) {
+    if (!this.currentProject || !this.currentProject.maps[mapId]) return;
+    this.saveProjectsToStorage();
+
+    const targetMap = this.currentProject.maps[mapId];
+    const newMapId = 'map_' + Date.now();
+    const duplicated = JSON.parse(JSON.stringify(targetMap));
+    duplicated.id = newMapId;
+    duplicated.name = `${targetMap.name || 'Sala'} (Copia)`;
+    this.currentProject.maps[newMapId] = duplicated;
+
+    this.switchMap(newMapId);
+    this.expandedMapId = newMapId;
+    this.renderModalMapList();
+    this.showToast(`📋 Sala duplicada: ${duplicated.name}`);
+  }
+
+  duplicateCurrentMap() {
+    this.duplicateMapById(this.currentMapId);
+  }
+
+  deleteMapById(mapId) {
+    if (!this.currentProject) return;
+    const mapIds = Object.keys(this.currentProject.maps);
+    if (mapIds.length <= 1) {
+      this.showToast('⚠️ No puedes eliminar el único mapa del proyecto');
+      return;
+    }
+
+    const targetName = this.currentProject.maps[mapId]?.name || 'esta sala';
+    this.showConfirmDialog({
+      title: `¿Eliminar "${targetName}"?`,
+      message: 'Esta acción borrará la sala y todas sus conexiones de puertas en este proyecto.',
+      acceptText: 'Eliminar Sala',
+      isDanger: true,
+      onAccept: () => {
+        delete this.currentProject.maps[mapId];
+        if (this.currentProject.startingMapId === mapId) {
+          this.currentProject.startingMapId = Object.keys(this.currentProject.maps)[0];
+        }
+        if (this.currentMapId === mapId) {
+          const remainingId = this.currentProject.startingMapId || Object.keys(this.currentProject.maps)[0];
+          this.currentMapId = remainingId;
+          this.loadLevelData(this.currentProject.maps[remainingId]);
+          this.resizeCanvas();
+          this.render();
+          this.updateJSON();
+        }
+        this.renderMapDropdown();
+        this.renderModalMapList();
+        this.saveProjectsToStorage();
+        this.showToast(`🗑️ Sala "${targetName}" eliminada`);
+      }
+    });
+  }
+
+  deleteCurrentMap() {
+    this.deleteMapById(this.currentMapId);
+  }
+
+  setStartingMap(mapId) {
+    if (!this.currentProject || !this.currentProject.maps[mapId]) return;
+    this.currentProject.startingMapId = mapId;
+    this.renderMapDropdown();
+    this.renderModalMapList();
+    this.saveProjectsToStorage();
+    this.showToast(`🚩 "${this.currentProject.maps[mapId].name}" marcada como mapa de inicio`);
+  }
+
+  /* ==========================================================================
+     CONEXIÓN DE PUERTAS (PORTALES INTER-MAPA)
+     ========================================================================== */
+
+  setupDoorLinkEventListeners() {
+    if (this.btnOpenDoorLinksModal) {
+      this.btnOpenDoorLinksModal.addEventListener('click', () => this.openDoorLinksModal());
+    }
+
+    const modalClose = document.getElementById('doorLinkModalClose');
+    const btnCancel = document.getElementById('btnCancelDoorLink');
+    if (modalClose) modalClose.addEventListener('click', () => this.closeDoorLinksModal());
+    if (btnCancel) btnCancel.addEventListener('click', () => this.closeDoorLinksModal());
+
+    const selectDoor = document.getElementById('selectDoorToConfigure');
+    const selectTargetMap = document.getElementById('selectDoorTargetMap');
+    const selectArrivalMode = document.getElementById('selectDoorArrivalMode');
+    const btnSave = document.getElementById('btnSaveDoorLink');
+    const btnRemove = document.getElementById('btnRemoveDoorLink');
+
+    if (selectDoor) {
+      selectDoor.addEventListener('change', () => this.onDoorSelectChanged());
+    }
+    if (selectTargetMap) {
+      selectTargetMap.addEventListener('change', () => this.onTargetMapChanged());
+    }
+    if (selectArrivalMode) {
+      selectArrivalMode.addEventListener('change', () => {
+        const isCustom = (selectArrivalMode.value === 'custom');
+        const row = document.getElementById('rowCustomArrivalCoords');
+        if (row) row.style.display = isCustom ? 'flex' : 'none';
+      });
+    }
+
+    if (btnSave) {
+      btnSave.addEventListener('click', () => this.saveDoorLink());
+    }
+    if (btnRemove) {
+      btnRemove.addEventListener('click', () => this.removeDoorLink());
+    }
+  }
+
+  scanCurrentMapDoors() {
+    const doors = [];
+    if (!this.grid || !Array.isArray(this.grid)) return doors;
+    const dirNames = { 'DN': 'Norte', 'DS': 'Sur', 'DE': 'Este', 'DW': 'Oeste' };
+
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        const cell = this.grid[y] && this.grid[y][x];
+        if (!cell) continue;
+        const segs = Array.isArray(cell) ? cell : (typeof cell === 'number' && cell >= 2 && cell <= 5 ? [['DN'],['DE'],['DS'],['DW']][cell-2] : []);
+        segs.forEach(s => {
+          if (s === 'DN' || s === 'DS' || s === 'DE' || s === 'DW') {
+            const key = `${x},${y},${s}`;
+            doors.push({
+              x,
+              y,
+              dir: s,
+              key,
+              label: `Puerta ${dirNames[s]} en [${x}, ${y}]`
+            });
+          }
+        });
+      }
+    }
+    return doors;
+  }
+
+  openDoorLinksModal() {
+    const doors = this.scanCurrentMapDoors();
+    const selectDoor = document.getElementById('selectDoorToConfigure');
+    const selectTargetMap = document.getElementById('selectDoorTargetMap');
+
+    if (doors.length === 0) {
+      this.showToast('⚠️ No hay ninguna puerta colocada en este mapa. Coloca una primero.');
+      return;
+    }
+
+    if (selectDoor) {
+      selectDoor.innerHTML = doors.map(d => {
+        const hasLink = !!(this.doorLinks && (this.doorLinks[d.key] || this.doorLinks[`${d.x},${d.y}`]));
+        return `<option value="${d.key}">${d.label} ${hasLink ? '🌀 (Conectada)' : ''}</option>`;
+      }).join('');
+    }
+
+    if (selectTargetMap && this.currentProject) {
+      const mapOptions = Object.keys(this.currentProject.maps).map(id => {
+        const m = this.currentProject.maps[id];
+        const isCurrent = (id === this.currentMapId);
+        return `<option value="${id}">${m.name || id} ${isCurrent ? '(Esta sala)' : ''}</option>`;
+      }).join('');
+      selectTargetMap.innerHTML = `
+        <option value="none">-- Puerta normal (sin conexión a otro mapa) --</option>
+        ${mapOptions}
+      `;
+    }
+
+    this.onDoorSelectChanged();
+    if (this.doorLinkModalOverlay) this.doorLinkModalOverlay.hidden = false;
+  }
+
+  closeDoorLinksModal() {
+    if (this.doorLinkModalOverlay) this.doorLinkModalOverlay.hidden = true;
+  }
+
+  onDoorSelectChanged() {
+    const selectDoor = document.getElementById('selectDoorToConfigure');
+    const selectTargetMap = document.getElementById('selectDoorTargetMap');
+    const selectArrivalMode = document.getElementById('selectDoorArrivalMode');
+    const rowCoords = document.getElementById('rowCustomArrivalCoords');
+    const btnRemove = document.getElementById('btnRemoveDoorLink');
+    const arrivalBox = document.getElementById('doorLinkArrivalBox');
+
+    if (!selectDoor) return;
+    const doorKey = selectDoor.value;
+    const parts = doorKey.split(',');
+    const fallbackKey = parts.length >= 2 ? `${parts[0]},${parts[1]}` : null;
+    const existingLink = (this.doorLinks && (this.doorLinks[doorKey] || (fallbackKey && this.doorLinks[fallbackKey])));
+
+    if (existingLink && selectTargetMap) {
+      selectTargetMap.value = existingLink.targetMapId || 'none';
+      if (arrivalBox) arrivalBox.style.display = (existingLink.targetMapId && existingLink.targetMapId !== 'none') ? 'block' : 'none';
+      if (selectArrivalMode) selectArrivalMode.value = existingLink.arrivalMode || 'spawn';
+      if (rowCoords) rowCoords.style.display = (existingLink.arrivalMode === 'custom') ? 'flex' : 'none';
+      const inX = document.getElementById('inputDoorTargetX');
+      const inY = document.getElementById('inputDoorTargetY');
+      if (inX) inX.value = (typeof existingLink.targetX === 'number') ? existingLink.targetX : 1.5;
+      if (inY) inY.value = (typeof existingLink.targetY === 'number') ? existingLink.targetY : 1.5;
+      if (btnRemove) btnRemove.style.display = 'inline-flex';
+    } else {
+      if (selectTargetMap) selectTargetMap.value = 'none';
+      if (arrivalBox) arrivalBox.style.display = 'none';
+      if (selectArrivalMode) selectArrivalMode.value = 'spawn';
+      if (rowCoords) rowCoords.style.display = 'none';
+      if (btnRemove) btnRemove.style.display = 'none';
+    }
+  }
+
+  onTargetMapChanged() {
+    const selectTargetMap = document.getElementById('selectDoorTargetMap');
+    const arrivalBox = document.getElementById('doorLinkArrivalBox');
+    const val = selectTargetMap ? selectTargetMap.value : 'none';
+    if (arrivalBox) {
+      arrivalBox.style.display = (val && val !== 'none') ? 'block' : 'none';
+    }
+  }
+
+  saveDoorLink() {
+    const selectDoor = document.getElementById('selectDoorToConfigure');
+    const selectTargetMap = document.getElementById('selectDoorTargetMap');
+    const selectArrivalMode = document.getElementById('selectDoorArrivalMode');
+    if (!selectDoor || !selectTargetMap) return;
+
+    const doorKey = selectDoor.value;
+    const targetMapId = selectTargetMap.value;
+
+    if (!this.doorLinks) this.doorLinks = {};
+
+    if (!targetMapId || targetMapId === 'none') {
+      delete this.doorLinks[doorKey];
+      const parts = doorKey.split(',');
+      if (parts.length >= 2) delete this.doorLinks[`${parts[0]},${parts[1]}`];
+      this.showToast('🚪 Puerta configurada como normal (sin portal)');
+    } else {
+      const arrivalMode = selectArrivalMode ? selectArrivalMode.value : 'spawn';
+      const inX = document.getElementById('inputDoorTargetX');
+      const inY = document.getElementById('inputDoorTargetY');
+      const targetX = inX ? parseFloat(inX.value) || 1.5 : 1.5;
+      const targetY = inY ? parseFloat(inY.value) || 1.5 : 1.5;
+
+      this.doorLinks[doorKey] = {
+        targetMapId,
+        arrivalMode,
+        targetX,
+        targetY
+      };
+      const targetName = (this.currentProject.maps[targetMapId] && this.currentProject.maps[targetMapId].name) || targetMapId;
+      this.showToast(`🌀 ¡Puerta conectada con "${targetName}"!`);
+    }
+
+    this.closeDoorLinksModal();
+    this.saveProjectsToStorage();
+    this.render();
+    this.updateJSON();
+  }
+
+  removeDoorLink() {
+    const selectDoor = document.getElementById('selectDoorToConfigure');
+    if (!selectDoor) return;
+    const doorKey = selectDoor.value;
+    if (this.doorLinks) {
+      delete this.doorLinks[doorKey];
+      const parts = doorKey.split(',');
+      if (parts.length >= 2) delete this.doorLinks[`${parts[0]},${parts[1]}`];
+    }
+    this.closeDoorLinksModal();
+    this.saveProjectsToStorage();
+    this.render();
+    this.updateJSON();
+    this.showToast('Portal desconectado. Ahora es una puerta normal.');
+  }
+
+  /* ==========================================================================
+     GENERADOR DE JUEGO AUTÓNOMO (HTML INDEPENDIENTE)
+     ========================================================================== */
+
+  async generateStandaloneGame(targetProjectId = null) {
+    this.saveProjectsToStorage();
+    const pid = targetProjectId || this.currentProjectId;
+    const projectToExport = this.projects[pid] || this.currentProject;
+    if (!projectToExport) {
+      this.showToast('⚠️ No se encontró el proyecto seleccionado');
+      return;
+    }
+
+    const projectName = projectToExport.name || 'Laberinto 3D';
+    const safeProjectName = projectName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+    this.showToast(`⏳ Empaquetando juego de "${projectName}"...`);
+
+    try {
+      const [styleRes, texturesRes, raycasterRes, gameRes, demoHtmlRes] = await Promise.all([
+        fetch('../demo/style.css'),
+        fetch('../engine/textures.js'),
+        fetch('../engine/raycaster.js'),
+        fetch('../demo/game.js'),
+        fetch('../demo/index.html')
+      ]);
+
+      const styleCss = await styleRes.text();
+      const texturesJs = await texturesRes.text();
+      const raycasterJs = await raycasterRes.text();
+      const gameJs = await gameRes.text();
+      const demoHtml = await demoHtmlRes.text();
+
+      const bodyMatch = demoHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+      let bodyContent = bodyMatch ? bodyMatch[1] : '';
+
+      bodyContent = bodyContent.replace(/<script\s+src="[^"]+"><\/script>/gi, '');
+
+      const customCss = `
+        /* Ocultar accesos a editor y hub en juego independiente */
+        #btnOpenEditor, #btnOpenHub { display: none !important; }
+        .header-info { display: flex; gap: 8px; align-items: center; }
+      `;
+
+      const standaloneHtml = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${projectName} - Juego 3D Autónomo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+${styleCss}
+${customCss}
+  </style>
+</head>
+<body>
+${bodyContent}
+
+  <!-- DATOS DEL PROYECTO INCLUIDOS DE FORMA AUTÓNOMA -->
+  <script>
+    window.STANDALONE_PROJECT = ${JSON.stringify(projectToExport, null, 2)};
+  </script>
+
+  <!-- MOTOR PROCEDURAL DE TEXTURAS -->
+  <script>
+${texturesJs}
+  </script>
+
+  <!-- MOTOR RAYCASTER 2.5D -->
+  <script>
+${raycasterJs}
+  </script>
+
+  <!-- LÓGICA DE JUEGO & TRANSICIONES DE MAPAS -->
+  <script>
+${gameJs}
+  </script>
+</body>
+</html>`;
+
+      const blob = new Blob([standaloneHtml], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${safeProjectName}_Juego.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      this.showToast(`🎮 ¡Juego "${projectName}" generado! Listo para jugar.`);
+    } catch (err) {
+      console.error('Error generando juego autónomo:', err);
+      alert('Error al generar el archivo autónomo: ' + err.message);
+    }
   }
 
   showToast(msg) {

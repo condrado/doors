@@ -13,7 +13,7 @@ function createCanvasCtx(w, h = w) {
     : { width: w, height: h, getContext: () => null };
   canvas.width = w;
   canvas.height = h;
-  return canvas.getContext ? canvas.getContext('2d') : null;
+  return canvas.getContext ? canvas.getContext('2d', { willReadFrequently: true }) : null;
 }
 
 function addNoise(ctx, w, h = w, amount = 10) {

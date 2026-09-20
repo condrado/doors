@@ -52,65 +52,117 @@ window.addEventListener('DOMContentLoaded', () => {
   let spawnX = player.posX;
   let spawnY = player.posY;
 
-  // Comprobar si hay un nivel personalizado enviado desde el editor
-  const urlParams = new URLSearchParams(window.location.search);
-  const savedCustom = localStorage.getItem('customRaycasterMap');
-  if (savedCustom && (urlParams.get('custom') === '1' || urlParams.has('custom'))) {
-    try {
-      const customData = JSON.parse(savedCustom);
-      if (customData.map && Array.isArray(customData.map)) {
-        // Saneo de puertas centradas obsoletas (DCH/DCV -> CH/CV)
-        customData.map.forEach((row, y) => {
-          if (Array.isArray(row)) {
-            row.forEach((cell, x) => {
-              if (Array.isArray(cell)) {
-                row[x] = cell.map(code => {
-                  if (code === 'DCH' || code === 'ODCH') {
-                    if (customData.wallStyleMap && customData.wallStyleMap[`${x},${y}`]) {
-                      customData.wallStyleMap[`${x},${y}`]['CH'] = customData.wallStyleMap[`${x},${y}`][code];
-                      delete customData.wallStyleMap[`${x},${y}`][code];
-                    }
-                    return 'CH';
-                  }
-                  if (code === 'DCV' || code === 'ODCV') {
-                    if (customData.wallStyleMap && customData.wallStyleMap[`${x},${y}`]) {
-                      customData.wallStyleMap[`${x},${y}`]['CV'] = customData.wallStyleMap[`${x},${y}`][code];
-                      delete customData.wallStyleMap[`${x},${y}`][code];
-                    }
-                    return 'CV';
-                  }
-                  return code;
-                });
+  // Soporte para proyectos multimapa:
+  // 1. window.STANDALONE_PROJECT (en juego exportado)
+  // 2. localStorage 'doors_projects_v2' (en demo con proyecto activo)
+  // 3. Fallback: customRaycasterMap (nivel individual)
+  let activeProject = null;
+  let activeMapData = null;
+  let currentMapId = null;
+  let isTransitioning = false;
+
+  function sanitizeMapGrid(mapData) {
+    if (!mapData || !mapData.map || !Array.isArray(mapData.map)) return;
+    mapData.map.forEach((row, y) => {
+      if (Array.isArray(row)) {
+        row.forEach((cell, x) => {
+          if (Array.isArray(cell)) {
+            row[x] = cell.map(code => {
+              if (code === 'DCH' || code === 'ODCH') {
+                if (mapData.wallStyleMap && mapData.wallStyleMap[`${x},${y}`]) {
+                  mapData.wallStyleMap[`${x},${y}`]['CH'] = mapData.wallStyleMap[`${x},${y}`][code];
+                  delete mapData.wallStyleMap[`${x},${y}`][code];
+                }
+                return 'CH';
               }
+              if (code === 'DCV' || code === 'ODCV') {
+                if (mapData.wallStyleMap && mapData.wallStyleMap[`${x},${y}`]) {
+                  mapData.wallStyleMap[`${x},${y}`]['CV'] = mapData.wallStyleMap[`${x},${y}`][code];
+                  delete mapData.wallStyleMap[`${x},${y}`][code];
+                }
+                return 'CV';
+              }
+              return code;
             });
           }
         });
-
-        engine.map = customData.map;
-        engine.mapWidth = customData.map[0].length;
-        engine.mapHeight = customData.map.length;
-        // Estilo con el que se pintó cada pared/puerta en el Editor (por segmento, no global)
-        engine.wallStyleMap = customData.wallStyleMap || {};
-        engine.clearSegmentsCache?.();
-
-        if (customData.playerStart) {
-          player.posX = customData.playerStart.x;
-          player.posY = customData.playerStart.y;
-          spawnX = player.posX;
-          spawnY = player.posY;
-        }
-
-        if (levelPill && levelNameText) {
-          levelPill.style.display = 'inline-block';
-          levelNameText.textContent = `${customData.name || 'Nivel Editor'} (${engine.mapWidth}x${engine.mapHeight})`;
-        }
-
-        if (customData.customTextures) {
-          engine.applyCustomTextures(customData.customTextures);
-        }
       }
-    } catch (err) {
-      console.warn('No se pudo cargar el mapa personalizado:', err);
+    });
+  }
+
+  function loadMapIntoGame(mapData) {
+    if (!mapData || !mapData.map) return;
+    sanitizeMapGrid(mapData);
+
+    engine.map = mapData.map;
+    engine.mapWidth = mapData.map[0].length;
+    engine.mapHeight = mapData.map.length;
+    engine.wallStyleMap = mapData.wallStyleMap || {};
+    engine.clearSegmentsCache?.();
+
+    if (mapData.playerStart) {
+      player.posX = (typeof mapData.playerStart.x === 'number') ? mapData.playerStart.x : (engine.mapWidth / 2);
+      player.posY = (typeof mapData.playerStart.y === 'number') ? mapData.playerStart.y : (engine.mapHeight / 2);
+      if (typeof mapData.playerStart.angle === 'number') {
+        player.angle = mapData.playerStart.angle;
+        player.dirX = Math.cos(player.angle);
+        player.dirY = Math.sin(player.angle);
+        player.planeX = -player.dirY * 0.66;
+        player.planeY = player.dirX * 0.66;
+      }
+      spawnX = player.posX;
+      spawnY = player.posY;
+    }
+
+    if (levelPill && levelNameText) {
+      levelPill.style.display = 'inline-block';
+      levelNameText.textContent = `${mapData.name || 'Sala'} (${engine.mapWidth}x${engine.mapHeight})`;
+    }
+
+    if (mapData.customTextures) {
+      engine.applyCustomTextures(mapData.customTextures);
+    }
+  }
+
+  // Detectar si venimos del Editor (?custom=1)
+  const urlParams = new URLSearchParams(window.location.search);
+  const isCustomMode = urlParams.get('custom') === '1';
+
+  // 1. Detección de proyecto embebido (Standalone) o en localStorage
+  if (window.STANDALONE_PROJECT && typeof window.STANDALONE_PROJECT === 'object') {
+    activeProject = window.STANDALONE_PROJECT;
+  } else {
+    try {
+      const activeProjId = localStorage.getItem('doors_current_project_id');
+      const allProjects = JSON.parse(localStorage.getItem('doors_projects_v2') || '{}');
+      if (activeProjId && allProjects[activeProjId]) {
+        activeProject = allProjects[activeProjId];
+      }
+    } catch (e) {
+      console.warn('Error leyendo proyectos en demo:', e);
+    }
+  }
+
+  if (activeProject && activeProject.maps && Object.keys(activeProject.maps).length > 0) {
+    const savedActiveMapId = localStorage.getItem('doors_current_map_id');
+    if (isCustomMode && savedActiveMapId && activeProject.maps[savedActiveMapId]) {
+      currentMapId = savedActiveMapId;
+    } else {
+      currentMapId = activeProject.startingMapId || Object.keys(activeProject.maps)[0];
+    }
+    activeMapData = activeProject.maps[currentMapId];
+    loadMapIntoGame(activeMapData);
+  } else {
+    // Fallback: Nivel individual guardado
+    const savedCustom = localStorage.getItem('customRaycasterMap');
+    if (savedCustom) {
+      try {
+        const customData = JSON.parse(savedCustom);
+        activeMapData = customData;
+        loadMapIntoGame(customData);
+      } catch (err) {
+        console.warn('No se pudo cargar el mapa personalizado:', err);
+      }
     }
   }
 
@@ -356,6 +408,88 @@ window.addEventListener('DOMContentLoaded', () => {
       } else {
         playDoorOpenSound();
         showDoorFeedback(`¡${res.name} abierta!`, '#f1c40f');
+      }
+    }
+  }
+
+  function playPortalTransitionSound() {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      // Resonancia de portal dimensional
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(220, now);
+      osc.frequency.exponentialRampToValueAtTime(580, now + 0.18);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.35);
+
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.42);
+    } catch (e) {}
+  }
+
+  function transitionToMap(targetMapId, linkInfo) {
+    if (isTransitioning) return;
+    if (!activeProject || !activeProject.maps || !activeProject.maps[targetMapId]) {
+      console.warn('Mapa destino no encontrado en el proyecto:', targetMapId);
+      return;
+    }
+
+    isTransitioning = true;
+    const transitionOverlay = document.getElementById('transitionOverlay');
+    if (transitionOverlay) transitionOverlay.classList.add('active');
+
+    playPortalTransitionSound();
+
+    setTimeout(() => {
+      const targetMap = activeProject.maps[targetMapId];
+      currentMapId = targetMapId;
+      activeMapData = targetMap;
+
+      loadMapIntoGame(targetMap);
+
+      if (linkInfo && linkInfo.arrivalMode === 'custom' && typeof linkInfo.targetX === 'number' && typeof linkInfo.targetY === 'number') {
+        player.posX = linkInfo.targetX;
+        player.posY = linkInfo.targetY;
+        spawnX = player.posX;
+        spawnY = player.posY;
+      }
+
+      showDoorFeedback(`Has entrado en: ${targetMap.name || targetMapId}`, '#9b59b6');
+
+      setTimeout(() => {
+        if (transitionOverlay) transitionOverlay.classList.remove('active');
+        setTimeout(() => {
+          isTransitioning = false;
+        }, 300);
+      }, 120);
+    }, 280);
+  }
+
+  function checkPortalThreshold() {
+    if (isTransitioning || !activeMapData || !activeMapData.doorLinks) return;
+    const links = activeMapData.doorLinks;
+
+    for (const [key, link] of Object.entries(links)) {
+      if (!link || !link.targetMapId) continue;
+      const parts = key.split(',');
+      const dx = parseInt(parts[0], 10);
+      const dy = parseInt(parts[1], 10);
+      if (isNaN(dx) || isNaN(dy)) continue;
+
+      const distSq = (player.posX - (dx + 0.5)) ** 2 + (player.posY - (dy + 0.5)) ** 2;
+      // Umbral de paso por la puerta
+      if (distSq < 0.32) {
+        transitionToMap(link.targetMapId, link);
+        break;
       }
     }
   }
@@ -694,6 +828,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (keys.moveBackward) {
       movePlayer(-player.moveSpeedBase * dt);
     }
+
+    // Comprobar umbral de portales / puertas conectadas a otros mapas
+    checkPortalThreshold();
 
     // Renderizar escena 3D y minimapa
     engine.render(player);

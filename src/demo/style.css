@@ -671,3 +671,18 @@ kbd {
   color: #535d74;
   padding: 4px;
 }
+
+/* Transición cinematográfica entre mapas (Fundido a negro) */
+.viewport-transition-overlay {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 50;
+}
+
+.viewport-transition-overlay.active {
+  opacity: 1;
+}
