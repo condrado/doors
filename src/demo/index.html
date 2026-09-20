@@ -86,6 +86,21 @@
           Haz clic en la pantalla para <strong>apuntar</strong> • <strong>[Clic Izq / Enter]</strong> abrir/cerrar puerta • <strong>[F]</strong> pantalla completa
         </div>
 
+        <!-- Indicador de Postura / Velocidad estilo DayZ -->
+        <div class="dayz-stance-indicator" id="dayzStanceHud" title="Modo de Desplazamiento (Shift)">
+          <div class="dayz-stance-icon-wrap">
+            <i class="ri-walk-line" id="dayzStanceIcon"></i>
+          </div>
+          <div class="dayz-stance-info">
+            <span class="dayz-stance-state" id="dayzStanceText">ANDAR</span>
+            <span class="dayz-chevrons" id="dayzChevrons">
+              <span class="chv c1 active">›</span>
+              <span class="chv c2">›</span>
+              <span class="chv c3">›</span>
+            </span>
+          </div>
+        </div>
+
         <!-- Overlay de transición de pantalla (Fundido entre mapas) -->
         <div class="viewport-transition-overlay" id="transitionOverlay"></div>
       </div>
@@ -99,6 +114,7 @@
             <div class="key-item"><kbd><i class="ri-cursor-line"></i> Ratón</kbd> <span>Mirar y apuntar en 360°</span></div>
             <div class="key-item"><kbd>W</kbd> / <kbd>S</kbd> <span>Avanzar / Retroceder</span></div>
             <div class="key-item"><kbd>A</kbd> / <kbd>D</kbd> <span>Desplazamiento Lateral (Strafe)</span></div>
+            <div class="key-item"><kbd>Shift</kbd> <span>Alternar Correr / Andar</span></div>
             <div class="key-item"><kbd>+</kbd> / <kbd>-</kbd> <span>Zoom Radar (Ampliar / Alejar)</span></div>
             <div class="key-item"><kbd>F</kbd> <span>Alternar Pantalla Completa</span></div>
           </div>
@@ -124,6 +140,12 @@
           </div>
           <div class="control-row">
             <button class="ctrl-btn backward" id="btnBackward" title="Retroceder (S)"><i class="ri-arrow-down-s-line"></i></button>
+          </div>
+          <div class="control-row">
+            <button class="ctrl-btn sprint-btn" id="btnToggleSprint" title="Alternar Correr / Andar (Mayúsculas / Shift)" type="button">
+              <i class="ri-walk-line" id="sprintIcon"></i>
+              <span id="sprintLabel">Andar [Shift]</span>
+            </button>
           </div>
         </div>
 

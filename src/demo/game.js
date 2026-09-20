@@ -108,6 +108,77 @@ window.addEventListener('DOMContentLoaded', () => {
   const pointerLockOverlay = document.getElementById('pointerLockOverlay');
   const promptHud = document.getElementById('promptHud');
 
+  // Estado de carrera / sprint (Shift / Mayúsculas)
+  let isRunning = false;
+  const btnToggleSprint = document.getElementById('btnToggleSprint');
+  const sprintIcon = document.getElementById('sprintIcon');
+  const sprintLabel = document.getElementById('sprintLabel');
+  const dayzStanceHud = document.getElementById('dayzStanceHud');
+  const dayzStanceIcon = document.getElementById('dayzStanceIcon');
+  const dayzStanceText = document.getElementById('dayzStanceText');
+  const dayzChevrons = document.getElementById('dayzChevrons');
+
+  function updateSprintUI() {
+    // 1. Botón en el panel inferior
+    if (btnToggleSprint) {
+      if (isRunning) {
+        btnToggleSprint.classList.add('running');
+        if (sprintIcon) sprintIcon.className = 'ri-run-line';
+        if (sprintLabel) sprintLabel.textContent = 'Corriendo [Shift]';
+      } else {
+        btnToggleSprint.classList.remove('running');
+        if (sprintIcon) sprintIcon.className = 'ri-walk-line';
+        if (sprintLabel) sprintLabel.textContent = 'Andando [Shift]';
+      }
+    }
+
+    // 2. Indicador táctico estilo DayZ en el Viewport
+    if (dayzStanceHud) {
+      if (isRunning) {
+        dayzStanceHud.classList.add('sprinting');
+        if (dayzStanceIcon) dayzStanceIcon.className = 'ri-run-line';
+        if (dayzStanceText) dayzStanceText.textContent = 'SPRINT';
+        if (dayzChevrons) {
+          dayzChevrons.innerHTML = `
+            <span class="chv c1 active">›</span>
+            <span class="chv c2 active">›</span>
+            <span class="chv c3 active">›</span>
+          `;
+        }
+      } else {
+        dayzStanceHud.classList.remove('sprinting');
+        if (dayzStanceIcon) dayzStanceIcon.className = 'ri-walk-line';
+        if (dayzStanceText) dayzStanceText.textContent = 'ANDAR';
+        if (dayzChevrons) {
+          dayzChevrons.innerHTML = `
+            <span class="chv c1 active">›</span>
+            <span class="chv c2">›</span>
+            <span class="chv c3">›</span>
+          `;
+        }
+      }
+    }
+  }
+
+  function toggleSprint() {
+    isRunning = !isRunning;
+    updateSprintUI();
+  }
+
+  if (btnToggleSprint) {
+    btnToggleSprint.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSprint();
+    });
+  }
+
+  if (dayzStanceHud) {
+    dayzStanceHud.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSprint();
+    });
+  }
+
   // Guardar punto de spawn original para el botón de centrar
   let spawnX = player.posX;
   let spawnY = player.posY;
@@ -642,6 +713,13 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Alternar Correr / Andar con tecla Shift (Mayúsculas)
+    if (e.key === 'Shift') {
+      toggleSprint();
+      e.preventDefault();
+      return;
+    }
+
     switch (e.key.toLowerCase()) {
       case 'enter':
         tryInteractDoor();
@@ -1006,22 +1084,25 @@ window.addEventListener('DOMContentLoaded', () => {
     const dt = Math.min((currentTime - lastTime) / 1000, 0.1); // delta time en segundos
     lastTime = currentTime;
 
+    const speedMult = isRunning ? 1.8 : 1.0;
+    const moveStep = player.moveSpeedBase * speedMult * dt;
+
     // Desplazamiento lateral (A / D)
     if (keys.strafeLeft) {
-      strafePlayer(-player.moveSpeedBase * dt);
+      strafePlayer(-moveStep);
     }
     if (keys.strafeRight) {
-      strafePlayer(player.moveSpeedBase * dt);
+      strafePlayer(moveStep);
     }
 
     // Avanzar (W / ▲)
     if (keys.moveForward) {
-      movePlayer(player.moveSpeedBase * dt);
+      movePlayer(moveStep);
     }
 
     // Retroceder (S / ▼)
     if (keys.moveBackward) {
-      movePlayer(-player.moveSpeedBase * dt);
+      movePlayer(-moveStep);
     }
 
     // Comprobar umbral de portales / puertas conectadas a otros mapas

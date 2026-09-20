@@ -583,6 +583,108 @@ body {
   50% { opacity: 1; transform: translateX(-50%) scale(1.02); }
 }
 
+/* Indicador de Postura / Velocidad estilo DayZ en Viewport */
+.dayz-stance-indicator {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  z-index: 25;
+  background: rgba(12, 16, 24, 0.82);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  user-select: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.dayz-stance-indicator:hover {
+  background: rgba(18, 24, 36, 0.95);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.dayz-stance-icon-wrap {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+}
+
+.dayz-stance-icon-wrap i {
+  font-size: 1.25rem;
+  color: #cfd7e6;
+  transition: all 0.25s ease;
+}
+
+.dayz-stance-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.dayz-stance-state {
+  font-family: var(--font-retro);
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: #8d98af;
+  text-transform: uppercase;
+  transition: color 0.25s ease;
+}
+
+.dayz-chevrons {
+  display: flex;
+  gap: 1px;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.dayz-chevrons .chv.active {
+  color: #00d2d3;
+}
+
+/* Estado Corriendo / Sprint activo estilo DayZ */
+.dayz-stance-indicator.sprinting {
+  border-color: rgba(229, 169, 59, 0.55);
+  background: rgba(20, 24, 32, 0.92);
+  box-shadow: 0 0 16px rgba(229, 169, 59, 0.35), 0 4px 14px rgba(0, 0, 0, 0.7);
+}
+
+.dayz-stance-indicator.sprinting .dayz-stance-icon-wrap {
+  background: rgba(229, 169, 59, 0.2);
+}
+
+.dayz-stance-indicator.sprinting .dayz-stance-icon-wrap i {
+  color: var(--accent-gold);
+  animation: dayzPulse 0.45s infinite alternate ease-in-out;
+}
+
+.dayz-stance-indicator.sprinting .dayz-stance-state {
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.dayz-stance-indicator.sprinting .dayz-chevrons .chv.active {
+  color: var(--accent-gold);
+  text-shadow: 0 0 6px rgba(229, 169, 59, 0.8);
+}
+
+@keyframes dayzPulse {
+  0% { transform: scale(0.95); opacity: 0.85; }
+  100% { transform: scale(1.1); opacity: 1; }
+}
+
 /* Panel de Controles */
 .controls-panel {
   display: grid;
@@ -742,6 +844,43 @@ kbd i {
   font-size: 1.35rem;
   color: var(--accent-gold);
   line-height: 1;
+}
+
+.sprint-btn {
+  padding: 6px 14px;
+  min-width: 135px;
+  flex-direction: row;
+  gap: 7px;
+  font-size: 0.82rem;
+  border-radius: 18px;
+  background: rgba(22, 28, 40, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #cfd7e6;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sprint-btn i {
+  font-size: 1.15rem;
+  color: var(--accent-blue);
+  transition: all 0.2s ease;
+}
+
+.sprint-btn:hover {
+  background: rgba(35, 45, 65, 0.95);
+  border-color: var(--accent-blue);
+  color: #fff;
+}
+
+.sprint-btn.running {
+  background: linear-gradient(135deg, rgba(229, 169, 59, 0.25), rgba(243, 156, 18, 0.4));
+  border-color: var(--accent-gold);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(229, 169, 59, 0.45);
+}
+
+.sprint-btn.running i {
+  color: var(--accent-gold);
 }
 
 /* Settings */
