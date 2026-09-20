@@ -284,7 +284,7 @@ body {
   transition: color 0.15s ease;
 }
 
-.tool-section > h2 {
+.tool-section>h2 {
   margin-bottom: 8px;
 }
 
@@ -313,7 +313,7 @@ body {
   transform: rotate(-90deg);
 }
 
-.tool-section.collapsed > *:not(h2):not(.section-title-row) {
+.tool-section.collapsed>*:not(h2):not(.section-title-row) {
   display: none !important;
 }
 
@@ -1424,7 +1424,8 @@ body {
 }
 
 /* Reglas de Alineación e Integración de Remix Icon */
-i[class^="ri-"], i[class*=" ri-"] {
+i[class^="ri-"],
+i[class*=" ri-"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1877,8 +1878,27 @@ i[class^="ri-"], i[class*=" ri-"] {
 
 .project-modal-box.wide {
   max-width: 760px;
+  /* Altura fija (no solo max-height): que no cambie al alternar entre pestañas */
+  height: 88vh;
   max-height: 88vh;
   width: 95vw;
+  display: flex;
+  flex-direction: column;
+  /* El scroll vive SOLO en .project-list / .modal-map-list, nunca en la modal entera */
+  overflow: hidden;
+}
+
+.project-modal-box.wide .modal-header,
+.project-modal-box.wide .modal-tabs {
+  flex-shrink: 0;
+}
+
+.project-modal-box.wide .modal-tab-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .modal-title-wrap {
@@ -1903,25 +1923,32 @@ i[class^="ri-"], i[class*=" ri-"] {
 
 .modal-tabs {
   display: flex;
-  gap: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  margin: 0 0 16px 0;
-  padding-bottom: 10px;
+  gap: 4px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+  margin: 0 0 18px 0;
+  padding: 0 0 0 2px;
 }
 
 .modal-tab-btn {
+  position: relative;
   background: transparent;
-  border: 1px solid transparent;
+  border: none;
   color: var(--text-muted);
-  padding: 7px 14px;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  font-weight: 600;
+  padding: 10px 16px 12px;
+  border-radius: 8px 8px 0 0;
+  font-size: 0.86rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  margin-bottom: -2px;
+  border-bottom: 2px solid transparent;
+}
+
+.modal-tab-btn i {
+  font-size: 1.05em;
 }
 
 .modal-tab-btn:hover {
@@ -1930,9 +1957,13 @@ i[class^="ri-"], i[class*=" ri-"] {
 }
 
 .modal-tab-btn.active {
-  background: rgba(79, 163, 227, 0.15);
-  border-color: rgba(79, 163, 227, 0.4);
+  background: rgba(79, 163, 227, 0.12);
   color: #fff;
+  border-bottom: 2px solid var(--accent-blue);
+}
+
+.modal-tab-btn.active i {
+  color: var(--accent-blue);
 }
 
 /* Tarjeta Destacada: Generador de Juego Autónomo */
@@ -1990,6 +2021,7 @@ i[class^="ri-"], i[class*=" ri-"] {
 
 .pane-section-header {
   margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .pane-section-header h4 {
@@ -2008,16 +2040,42 @@ i[class^="ri-"], i[class*=" ri-"] {
   color: var(--text-muted);
 }
 
+/* Envoltorio de la pestaña "Proyectos": mismo layout en columna flexible que la
+   pestaña "Salas" (paneMaps), para que ambas ocupen exactamente el mismo alto. */
+.project-pane-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Pie con las acciones principales (Nuevo Proyecto / Nueva Sala): misma posición
+   y estilo en ambas pestañas, siempre debajo de la lista. */
+.project-modal-footer {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
 .project-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 320px;
+  gap: 10px;
+  flex: 1;
+  /* min-height: 0 (no un suelo fijo) para que la lista SIEMPRE quepa en el hueco
+     real disponible dentro de la modal de alto fijo, por pequeño que sea, y sea
+     ella quien active su propio scroll en vez de desbordar a su contenedor. */
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   margin-bottom: 16px;
-  padding-right: 6px;
+  padding-right: 8px;
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #2b3952 rgba(9, 12, 19, 0.7);
 }
 
 .project-list::-webkit-scrollbar {
@@ -2027,24 +2085,29 @@ i[class^="ri-"], i[class*=" ri-"] {
 .project-list::-webkit-scrollbar-track {
   background: rgba(9, 12, 19, 0.7);
   border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .project-list::-webkit-scrollbar-thumb {
   background: #2b3952;
   border-radius: 6px;
   border: 1px solid rgba(79, 163, 227, 0.25);
+  transition: background 0.2s ease;
 }
 
 .project-list::-webkit-scrollbar-thumb:hover {
   background: var(--accent-blue);
+  box-shadow: 0 0 8px rgba(79, 163, 227, 0.5);
 }
 
 .project-card {
   background: #111522;
   border: 1px solid #222b3d;
   border-radius: 8px;
-  padding: 10px 14px;
-  min-height: 56px;
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
+  padding: 0 16px;
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -2135,18 +2198,21 @@ i[class^="ri-"], i[class*=" ri-"] {
   color: #fff;
 }
 
-/* Lista de Salas en Modal */
+/* Lista de Salas en Modal (mismos estilos de separación/altura que .project-list) */
 .modal-map-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: calc(88vh - 220px);
-  min-height: 240px;
+  flex: 1;
+  /* min-height: 0 (no un suelo fijo), ver .project-list */
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   padding-right: 8px;
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #2b3952 rgba(9, 12, 19, 0.7);
 }
 
 /* Scrollbar explícito y estilizado a la derecha para listado de salas */
@@ -2172,24 +2238,6 @@ i[class^="ri-"], i[class*=" ri-"] {
   box-shadow: 0 0 8px rgba(79, 163, 227, 0.5);
 }
 
-.modal-map-list {
-  scrollbar-width: thin;
-  scrollbar-color: #2b3952 rgba(9, 12, 19, 0.7);
-}
-
-.pane-section-header-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-.pane-section-header-bar .pane-section-header {
-  margin-bottom: 0;
-}
-
 .modal-map-card {
   background: #111522;
   border: 1px solid #222b3d;
@@ -2198,7 +2246,8 @@ i[class^="ri-"], i[class*=" ri-"] {
   flex-direction: column;
   transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
-  flex-shrink: 0; /* IMPIDE que las salas se encojan al desplegar o al haber muchas */
+  flex-shrink: 0;
+  /* IMPIDE que las salas se encojan al desplegar o al haber muchas */
   width: 100%;
   box-sizing: border-box;
 }
@@ -2229,7 +2278,8 @@ i[class^="ri-"], i[class*=" ri-"] {
   gap: 12px;
   width: 100%;
   box-sizing: border-box;
-  flex-shrink: 0; /* Altura estricta e invariable de 64px */
+  flex-shrink: 0;
+  /* Altura estricta e invariable de 64px */
 }
 
 .modal-map-info,
