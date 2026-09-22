@@ -1591,28 +1591,7 @@ class RaycasterEngine {
             recordCellIntersects(res);
           }
         } else {
-          // Muro perimetral exterior de seguridad
-          let perpWallDist, wallHitCoord;
-          if (side === 0) {
-            perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX;
-            wallHitCoord = posY + perpWallDist * rayDirY;
-          } else {
-            perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY;
-            wallHitCoord = posX + perpWallDist * rayDirX;
-          }
-          wallHitCoord -= Math.floor(wallHitCoord);
-
-          hitBottom = {
-            seg: { type: 1, name: 'Pared perimetral', style: 'castillo' },
-            dist: perpWallDist,
-            wallX: wallHitCoord,
-            side,
-            isDoor: false,
-            isLintel: false,
-            isOpenDoor: false,
-            mapX,
-            mapY
-          };
+          // El rayo salió del mapa: no hay pared por defecto
           break;
         }
       }
@@ -1646,7 +1625,7 @@ class RaycasterEngine {
           };
         } else {
           const nearbyLintel = hitLintels.find(l => l.dist <= 2.8 && l.seg.name && l.seg.name.includes('Dintel'));
-          if (nearbyLintel && (!hitBottom.isDoor || hitBottom.dist > 2.8)) {
+          if (nearbyLintel && (!hitBottom || !hitBottom.isDoor || hitBottom.dist > 2.8)) {
             this.facingTarget = {
               name: nearbyLintel.seg.name.replace('Dintel ', '') + ' (Abierta)',
               type: 'door-open',
@@ -1656,7 +1635,7 @@ class RaycasterEngine {
               mapX: nearbyLintel.mapX,
               mapY: nearbyLintel.mapY
             };
-          } else if (hitBottom.seg.isJamb && hitBottom.dist <= 2.8) {
+          } else if (hitBottom && hitBottom.seg.isJamb && hitBottom.dist <= 2.8) {
             this.facingTarget = {
               name: 'Puerta (Abierta)',
               type: 'door-open',
@@ -1666,7 +1645,7 @@ class RaycasterEngine {
               mapX: hitBottom.mapX !== undefined ? hitBottom.mapX : mapX,
               mapY: hitBottom.mapY !== undefined ? hitBottom.mapY : mapY
             };
-          } else {
+          } else if (hitBottom) {
             const seg = hitBottom.seg;
             const isDoor = hitBottom.isDoor;
             this.facingTarget = {
@@ -1678,6 +1657,13 @@ class RaycasterEngine {
               mapX: hitBottom.mapX !== undefined ? hitBottom.mapX : mapX,
               mapY: hitBottom.mapY !== undefined ? hitBottom.mapY : mapY
             };
+          } else {
+            this.facingTarget = {
+              name: 'Espacio abierto',
+              type: 'empty',
+              distance: '—',
+              rawDist: Infinity
+            };
           }
         }
       }
@@ -1688,20 +1674,6 @@ class RaycasterEngine {
       if (!hitBottom && hitTable) {
         hitBottom = hitTable;
       }
-
-      if (!hitBottom) { this.zBuffer[x] = Infinity; continue; }
-
-      // Guardar distancia en z-buffer para oclusión de floor casting
-      this.zBuffer[x] = hitBottom.dist;
-
-      // 1. Proyección de la pared/puerta de fondo (hitBottom)
-      const projBottom = h / Math.max(hitBottom.dist, 0.0001);
-      const bottomY = halfH + eyeHeight * projBottom; // suelo común
-      const doorTopYBottom = halfH - (this.doorHeightScale - eyeHeight) * projBottom;
-
-      // Si es una mesa, usar tableHeightScale; si no, usar wallHeightScale
-      const heightScale = hitBottom.seg && hitBottom.seg.isTable ? this.tableHeightScale : this.wallHeightScale;
-      const wallTopYBottom = halfH - (heightScale - eyeHeight) * projBottom;
 
       // Factor de sombra por distancia y orientación (eje Y más sombreado para profundidad)
       const shadeOf = (dist, side) => {
@@ -1781,32 +1753,58 @@ class RaycasterEngine {
 
       // Unir todas las capas intermedias que están por delante del fondo opaco
       const layers = [];
+      const maxDist = hitBottom ? hitBottom.dist : Infinity;
 
       // Las mesas se renderizan encima del fondo opaco (o como fondo si no hay otro opaco)
       if (hitTable && (!hitBottom || hitTable.dist < hitBottom.dist)) {
         layers.push({ kind: 'table', hit: hitTable, dist: hitTable.dist });
       }
 
-      if (hitOpenDoor && hitOpenDoor.dist < hitBottom.dist) {
+      if (hitOpenDoor && hitOpenDoor.dist < maxDist) {
         layers.push({ kind: 'openDoor', hit: hitOpenDoor, dist: hitOpenDoor.dist });
       }
 
       for (let i = 0; i < hitLintels.length; i++) {
         const lHit = hitLintels[i];
-        if (lHit.dist < hitBottom.dist - 0.05) {
+        if (lHit.dist < maxDist - 0.05) {
           layers.push({ kind: 'lintel', hit: lHit, dist: lHit.dist });
         }
       }
 
       for (let i = 0; i < hitTransparents.length; i++) {
         const tHit = hitTransparents[i];
-        if (tHit.dist < hitBottom.dist - 0.05) {
+        if (tHit.dist < maxDist - 0.05) {
           layers.push({ kind: 'transparent', hit: tHit, dist: tHit.dist });
         }
       }
 
+      // Si no hay fondo opaco y tampoco hay capas intermedias en este rayo, se ve el espacio abierto infinito (suelo y cielo)
+      if (!hitBottom && layers.length === 0) {
+        this.zBuffer[x] = Infinity;
+        continue;
+      }
+
+      // Guardar distancia en z-buffer para oclusión de floor casting
+      this.zBuffer[x] = hitBottom ? hitBottom.dist : (layers[0] ? layers[0].dist : Infinity);
+
       // Algoritmo del pintor: de más lejano a más cercano
       layers.sort((a, b) => b.dist - a.dist);
+
+      // 1. Proyección de la pared/puerta de fondo (hitBottom si existe)
+      let projBottom = 0;
+      let bottomY = 0;
+      let doorTopYBottom = 0;
+      let wallTopYBottom = 0;
+
+      if (hitBottom) {
+        projBottom = h / Math.max(hitBottom.dist, 0.0001);
+        bottomY = halfH + eyeHeight * projBottom; // suelo común
+        doorTopYBottom = halfH - (this.doorHeightScale - eyeHeight) * projBottom;
+
+        // Si es una mesa, usar tableHeightScale; si no, usar wallHeightScale
+        const heightScale = hitBottom.seg && hitBottom.seg.isTable ? this.tableHeightScale : this.wallHeightScale;
+        wallTopYBottom = halfH - (heightScale - eyeHeight) * projBottom;
+      }
 
       if (this.textureMode === 'classic') {
         // 1. Dibujar el fondo opaco (hitBottom: pared completa, jamba o puerta cerrada)
@@ -1816,20 +1814,20 @@ class RaycasterEngine {
           const bShade = shadeOf(hitBottom.dist, hitBottom.side);
 
           if (hitBottom.seg.isJamb) {
-          // Jamba lateral de vano de puerta (0 a 2.2m), continúa la textura de canto de 3m hacia abajo
-          blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
-        } else if (hitBottom.isDoor) {
-          // Puerta cerrada (0 a 2.2m)
-          blitTexBand(doorTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
-          // Dintel propio sobre la puerta cerrada en el mismo vano (2.2 a 3.0m)
-          const dLintelStyle = hitBottom.seg.lintelStyle || hitBottom.seg.style || 'castillo';
-          const dLintelTex = resolveTex(1, dLintelStyle);
-          const dLintelX = texXOf(hitBottom.wallX, hitBottom.side, dLintelTex.width || 64);
-          blitTexBand(wallTopYBottom, bottomY, dLintelTex, dLintelX, bShade, wallTopYBottom, doorTopYBottom + 1);
-        } else {
-          // Pared completa o ventana de 3.0m
-          blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, wallTopYBottom, bottomY);
-        }
+            // Jamba lateral de vano de puerta (0 a 2.2m), continúa la textura de canto de 3m hacia abajo
+            blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
+          } else if (hitBottom.isDoor) {
+            // Puerta cerrada (0 a 2.2m)
+            blitTexBand(doorTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
+            // Dintel propio sobre la puerta cerrada en el mismo vano (2.2 a 3.0m)
+            const dLintelStyle = hitBottom.seg.lintelStyle || hitBottom.seg.style || 'castillo';
+            const dLintelTex = resolveTex(1, dLintelStyle);
+            const dLintelX = texXOf(hitBottom.wallX, hitBottom.side, dLintelTex.width || 64);
+            blitTexBand(wallTopYBottom, bottomY, dLintelTex, dLintelX, bShade, wallTopYBottom, doorTopYBottom + 1);
+          } else {
+            // Pared completa o ventana de 3.0m
+            blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, wallTopYBottom, bottomY);
+          }
         }
 
         // 2. Dibujar cada capa intermedia de más lejana a más cercana

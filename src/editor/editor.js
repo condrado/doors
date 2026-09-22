@@ -98,6 +98,8 @@ class LevelEditor {
 
     // Referencias DOM
     this.canvasContainer = document.getElementById('canvasContainer');
+    this.toolsSidebar = document.querySelector('.sidebar.tools-sidebar');
+    this.jsonSidebar = document.getElementById('jsonSidebar');
     this.jsonOutput = document.getElementById('jsonOutput');
     this.cursorCoords = document.getElementById('cursorCoords');
     this.mapStats = document.getElementById('mapStats');
@@ -712,6 +714,38 @@ class LevelEditor {
         }
       });
     }
+
+    // Persistencia de scroll y estado al salir o hacer clic en Volver a Demo / Hub
+    const btnBackToGame = document.getElementById('btnBackToGame');
+    if (btnBackToGame) {
+      btnBackToGame.addEventListener('click', () => this.saveUIState());
+    }
+    const btnBackToHub = document.getElementById('btnBackToHub');
+    if (btnBackToHub) {
+      btnBackToHub.addEventListener('click', () => this.saveUIState());
+    }
+    window.addEventListener('beforeunload', () => this.saveUIState());
+    window.addEventListener('pagehide', () => this.saveUIState());
+
+    // Guardado debounced de scroll para que no se pierda al navegar
+    let scrollSaveTimeout = null;
+    const debouncedSaveScroll = () => {
+      if (scrollSaveTimeout) clearTimeout(scrollSaveTimeout);
+      scrollSaveTimeout = setTimeout(() => {
+        this.saveUIState();
+      }, 150);
+    };
+
+    if (this.toolsSidebar) {
+      this.toolsSidebar.addEventListener('scroll', debouncedSaveScroll, { passive: true });
+    }
+    if (this.canvasContainer) {
+      this.canvasContainer.addEventListener('scroll', debouncedSaveScroll, { passive: true });
+    }
+    if (jsonSidebar) {
+      jsonSidebar.addEventListener('scroll', debouncedSaveScroll, { passive: true });
+    }
+    window.addEventListener('scroll', debouncedSaveScroll, { passive: true });
   }
 
   getCellFromEvent(e) {
@@ -1969,6 +2003,23 @@ class LevelEditor {
       const activeTabEl = document.querySelector('.wall-cat-tab.active');
       const activeWallTab = activeTabEl ? activeTabEl.dataset.tab : 'laterales';
 
+      const toolsSidebar = this.toolsSidebar || document.querySelector('.sidebar.tools-sidebar');
+      const canvasContainer = this.canvasContainer || document.getElementById('canvasContainer');
+      const jsonSidebar = this.jsonSidebar || document.getElementById('jsonSidebar');
+
+      let prevScrollState = {};
+      try {
+        const saved = localStorage.getItem('levelEditor_uiState');
+        if (saved) prevScrollState = JSON.parse(saved);
+      } catch (e) {}
+
+      const sidebarScrollTop = toolsSidebar ? toolsSidebar.scrollTop : (prevScrollState.sidebarScrollTop || 0);
+      const canvasScrollLeft = canvasContainer ? canvasContainer.scrollLeft : (prevScrollState.canvasScrollLeft || 0);
+      const canvasScrollTop = canvasContainer ? canvasContainer.scrollTop : (prevScrollState.canvasScrollTop || 0);
+      const jsonSidebarScrollTop = jsonSidebar ? jsonSidebar.scrollTop : (prevScrollState.jsonSidebarScrollTop || 0);
+      const windowScrollX = (typeof window.scrollX === 'number') ? window.scrollX : (prevScrollState.windowScrollX || 0);
+      const windowScrollY = (typeof window.scrollY === 'number') ? window.scrollY : (prevScrollState.windowScrollY || 0);
+
       const state = {
         collapsedSections,
         jsonSidebarCollapsed: isJsonCollapsed,
@@ -1978,7 +2029,13 @@ class LevelEditor {
         placementMode: this.placementMode,
         activeWallTab,
         zoomMode: this.zoomMode,
-        cellSize: this.cellSize
+        cellSize: this.cellSize,
+        sidebarScrollTop,
+        canvasScrollLeft,
+        canvasScrollTop,
+        jsonSidebarScrollTop,
+        windowScrollX,
+        windowScrollY
       };
 
       localStorage.setItem('levelEditor_uiState', JSON.stringify(state));
@@ -2074,6 +2131,37 @@ class LevelEditor {
           this.cellSize = state.cellSize;
         }
       }
+
+      // 9. Restaurar posiciones de scroll (sidebar de herramientas, canvas, json, ventana)
+      const restoreScrollPositions = () => {
+        const toolsSidebar = this.toolsSidebar || document.querySelector('.sidebar.tools-sidebar');
+        const canvasContainer = this.canvasContainer || document.getElementById('canvasContainer');
+        const jsonSidebar = this.jsonSidebar || document.getElementById('jsonSidebar');
+
+        if (toolsSidebar && typeof state.sidebarScrollTop === 'number') {
+          toolsSidebar.scrollTop = state.sidebarScrollTop;
+        }
+        if (canvasContainer) {
+          if (typeof state.canvasScrollLeft === 'number') {
+            canvasContainer.scrollLeft = state.canvasScrollLeft;
+          }
+          if (typeof state.canvasScrollTop === 'number') {
+            canvasContainer.scrollTop = state.canvasScrollTop;
+          }
+        }
+        if (jsonSidebar && typeof state.jsonSidebarScrollTop === 'number') {
+          jsonSidebar.scrollTop = state.jsonSidebarScrollTop;
+        }
+        if (typeof state.windowScrollX === 'number' || typeof state.windowScrollY === 'number') {
+          window.scrollTo(state.windowScrollX || 0, state.windowScrollY || 0);
+        }
+      };
+
+      restoreScrollPositions();
+      requestAnimationFrame(() => restoreScrollPositions());
+      setTimeout(restoreScrollPositions, 40);
+      setTimeout(restoreScrollPositions, 120);
+      setTimeout(restoreScrollPositions, 300);
     } catch (e) {
       console.warn('Error al restaurar estado de UI:', e);
     }
