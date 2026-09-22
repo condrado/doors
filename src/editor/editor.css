@@ -716,8 +716,8 @@ body {
 
 .accessory-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
   margin-bottom: 10px;
 }
 
@@ -726,12 +726,12 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-light);
   border-radius: 8px;
-  padding: 12px 8px;
+  padding: 10px 4px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   text-align: center;
   transition: all 0.15s ease;
 }
@@ -785,6 +785,55 @@ body {
 .acc-note-icon {
   font-size: 0.95rem;
   flex-shrink: 0;
+}
+
+/* Selector de Orientación del Monitor */
+.monitor-orientation-panel {
+  background: rgba(14, 165, 233, 0.06);
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.monitor-orient-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.monitor-orient-btn {
+  background: #151a26;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-light);
+  border-radius: 6px;
+  padding: 6px 2px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-family: var(--font-body);
+  transition: all 0.15s ease;
+}
+
+.monitor-orient-btn i {
+  font-size: 1.05rem;
+  color: #7dd3fc;
+}
+
+.monitor-orient-btn:hover {
+  background: #1e293b;
+  border-color: #38bdf8;
+  color: #fff;
+}
+
+.monitor-orient-btn.active {
+  background: #0c2d48;
+  border-color: #38bdf8;
+  color: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+  font-weight: 700;
 }
 
 /* Control de Dimensiones */

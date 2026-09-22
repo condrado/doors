@@ -43,7 +43,7 @@ class RaycasterEngine {
     this.map = [
       [1, 1, 1, 2, 1, 1, 1],
       [1, 0, 0, 0, 0, 0, 1],
-      [1, 0, 0, 0, 0, 0, 1],
+      [1, 0, ['MON'], 0, 0, 0, 1],
       [5, 0, 0, 0, 0, 0, 3],
       [1, 0, 0, 0, 0, 0, 1],
       [1, 0, 0, 0, 0, 0, 1],
@@ -2009,12 +2009,183 @@ class RaycasterEngine {
       }
     }
 
+    // 2.5. Renderizar Sprites Billboards (Monitores, etc.) que siempre miran al jugador
+    this.renderSprites(player);
+
     // Volcar el buffer al canvas
     this.ctx.putImageData(this.imgData, 0, 0);
 
     // 3. Renderizar Minimapa
     if (this.minimapCtx) {
       this.renderMinimap(player);
+    }
+  }
+
+  /**
+   * Recolecta todos los sprites / objetos billboard del mapa (monitores, etc.)
+   */
+  collectSprites() {
+    const sprites = [];
+    if (!this.map || !Array.isArray(this.map)) return sprites;
+    for (let y = 0; y < this.mapHeight; y++) {
+      const row = this.map[y];
+      if (!Array.isArray(row)) continue;
+      for (let x = 0; x < this.mapWidth; x++) {
+        const cell = row[x];
+        let monCode = null;
+        if (Array.isArray(cell)) {
+          monCode = cell.find(c => typeof c === 'string' && (c === 'MON' || c.startsWith('MON_')));
+        } else if (typeof cell === 'string' && (cell === 'MON' || cell.startsWith('MON_'))) {
+          monCode = cell;
+        }
+
+        if (monCode) {
+          let variant = 'front';
+          if (monCode === 'MON_R') variant = 'right';
+          else if (monCode === 'MON_L') variant = 'left';
+          else if (monCode === 'MON_B') variant = 'back';
+
+          sprites.push({
+            x: x + 0.5,
+            y: y + 0.5,
+            mapX: x,
+            mapY: y,
+            type: 'monitor',
+            variant: variant,
+            z: this.tableHeightScale - 0.05 // Fijado definitivamente en 0.945m para todos los monitores
+          });
+        }
+      }
+    }
+    return sprites;
+  }
+
+  /**
+   * Renderiza sprites billboard en primera persona que siempre miran al jugador
+   */
+  renderSprites(player) {
+    const sprites = this.collectSprites();
+    if (!sprites || sprites.length === 0) return;
+
+    const { posX, posY, dirX, dirY, planeX, planeY } = player;
+    const w = this.width;
+    const h = this.height;
+    const halfH = this.halfHeight;
+    const pixels = this.pixels;
+
+    // Calcular distancia al cuadrado para ordenación
+    for (let i = 0; i < sprites.length; i++) {
+      const s = sprites[i];
+      s.distSq = (posX - s.x) * (posX - s.x) + (posY - s.y) * (posY - s.y);
+    }
+    // Ordenar de más lejos a más cerca
+    sprites.sort((a, b) => b.distSq - a.distSq);
+
+    const invDet = 1.0 / (planeX * dirY - dirX * planeY);
+    const eyeHeight = this.wallHeightScale / 2; // 1.5
+    const centerRayX = Math.floor(w / 2);
+
+    for (let i = 0; i < sprites.length; i++) {
+      const sprite = sprites[i];
+      const monTex = (typeof getMonitorPixels === 'function')
+        ? getMonitorPixels(sprite.variant || 'front')
+        : (this.textures?.monitor || null);
+
+      if (!monTex) continue;
+      const texW = monTex.width || 256;
+      const texH = monTex.height || 256;
+
+      const spriteX = sprite.x - posX;
+      const spriteY = sprite.y - posY;
+
+      const transformX = invDet * (dirY * spriteX - dirX * spriteY);
+      const transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+
+      if (transformY <= 0.15) continue; // Detrás o muy cerca de la cámara
+
+      const proj = h / transformY;
+      const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
+
+      // Escala del monitor encima de la mesa: ~0.72m de ancho, ~0.72m de alto
+      const spriteWorldW = 0.72;
+      const spriteWorldH = 0.72;
+      const spriteScreenWidth = Math.abs(Math.floor(spriteWorldW * proj));
+      const spriteScreenHeight = Math.abs(Math.floor(spriteWorldH * proj));
+
+      // Elevado a la superficie de la mesa (con offset -0.05)
+      const baseElevation = (typeof sprite.z === 'number') ? sprite.z : (this.tableHeightScale - 0.05);
+      const bottomY = halfH + (eyeHeight - baseElevation) * proj;
+      const topY = bottomY - spriteScreenHeight;
+
+      const drawStartY = Math.max(0, Math.floor(topY));
+      const drawEndY = Math.min(h - 1, Math.floor(bottomY));
+
+      const drawStartX = Math.max(0, Math.floor(spriteScreenX - spriteScreenWidth / 2));
+      const drawEndX = Math.min(w - 1, Math.floor(spriteScreenX + spriteScreenWidth / 2));
+
+      if (drawStartX > w - 1 || drawEndX < 0 || drawStartY > h - 1 || drawEndY < 0) continue;
+
+      // Detección cuando el jugador mira directamente al monitor
+      if (centerRayX >= drawStartX && centerRayX <= drawEndX && transformY <= 3.2) {
+        if (!this.facingTarget || this.facingTarget.rawDist > transformY) {
+          const variantNames = {
+            front: 'Monitor PC (Frente)',
+            right: 'Monitor PC (Mirando Derecha)',
+            left: 'Monitor PC (Mirando Izquierda)',
+            back: 'Monitor PC (Trasero)'
+          };
+          this.facingTarget = {
+            name: variantNames[sprite.variant] || 'Monitor PC',
+            type: 'monitor',
+            distance: transformY.toFixed(1),
+            rawDist: transformY,
+            mapX: sprite.mapX,
+            mapY: sprite.mapY
+          };
+        }
+      }
+
+      const shade = Math.min(1, 1 / (1 + transformY * 0.22));
+
+      for (let stripe = drawStartX; stripe <= drawEndX; stripe++) {
+        // Comprobar oclusión contra el Z-Buffer
+        if (transformY >= this.zBuffer[stripe]) continue;
+
+        const texX = Math.floor((stripe - (spriteScreenX - spriteScreenWidth / 2)) * texW / spriteScreenWidth);
+        if (texX < 0 || texX >= texW) continue;
+
+        const totalH = Math.max(0.0001, bottomY - topY);
+        const step = texH / totalH;
+        let texPos = (drawStartY - topY) * step;
+
+        for (let y = drawStartY; y <= drawEndY; y++) {
+          const texY = Math.min(texH - 1, Math.max(0, Math.floor(texPos)));
+          texPos += step;
+
+          const color = monTex[texY * texW + texX];
+          const a = (color >> 24) & 0xFF;
+          if (a < 15) continue; // Píxel transparente del sprite
+
+          const r = Math.floor((color & 0xFF) * shade);
+          const g = Math.floor(((color >> 8) & 0xFF) * shade);
+          const b = Math.floor(((color >> 16) & 0xFF) * shade);
+
+          if (a >= 250) {
+            pixels[y * w + stripe] = (255 << 24) | (b << 16) | (g << 8) | r;
+          } else {
+            const prev = pixels[y * w + stripe];
+            const prevR = prev & 0xFF;
+            const prevG = (prev >> 8) & 0xFF;
+            const prevB = (prev >> 16) & 0xFF;
+            const alphaRatio = a / 255;
+            const invAlpha = 1 - alphaRatio;
+            const fR = Math.min(255, Math.floor(r * alphaRatio + prevR * invAlpha));
+            const fG = Math.min(255, Math.floor(g * alphaRatio + prevG * invAlpha));
+            const fB = Math.min(255, Math.floor(b * alphaRatio + prevB * invAlpha));
+            pixels[y * w + stripe] = (255 << 24) | (fB << 16) | (fG << 8) | fR;
+          }
+        }
+      }
     }
   }
 
@@ -2074,6 +2245,17 @@ class RaycasterEngine {
           ctx.fillStyle = '#8b5a2b';
           const pad = Math.max(1, Math.round(cellSize * 0.15));
           ctx.fillRect(px + pad, py + pad, cellSize - pad * 2, cellSize - pad * 2);
+        }
+
+        // Monitor en el minimapa (icono cian brillante de pantalla)
+        let hasMon = false;
+        if (typeof codes === 'string' && (codes === 'MON' || codes.startsWith('MON_'))) hasMon = true;
+        else if (Array.isArray(codes)) hasMon = codes.some(c => typeof c === 'string' && (c === 'MON' || c.startsWith('MON_')));
+        if (hasMon) {
+          ctx.fillStyle = '#00f0ff';
+          const monSize = Math.max(4, Math.round(cellSize * 0.35));
+          const offset = Math.round((cellSize - monSize) / 2);
+          ctx.fillRect(px + offset, py + offset, monSize, monSize);
         }
 
         // Paredes y puertas por encima de la mesa

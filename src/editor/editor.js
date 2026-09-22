@@ -81,7 +81,8 @@ class LevelEditor {
     // Herramientas y selección
     this.currentTool = 'brush'; // 'brush', 'room', 'eraser'
     this.selectedTile = 1; // 1 = pared, 0 = suelo, 'accessories' = accesorios, 'player' = spawn
-    this.selectedAccessory = 'door'; // 'door', 'window'
+    this.selectedAccessory = 'door'; // 'door', 'window', 'monitor'
+    this.monitorOrientation = 'F'; // 'F' (Frente), 'R' (Derecha), 'L' (Izquierda), 'B' (Detrás)
     this.tableType = 9; // código de celda de mesa activo (9=4patas, 15=sin patas, 16-21=variantes)
     this.isMouseDown = false;
     this.roomStart = null;
@@ -442,8 +443,22 @@ class LevelEditor {
         document.querySelectorAll('.accessory-tile-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.selectedAccessory = btn.dataset.accessory;
-        const name = this.selectedAccessory === 'door' ? 'Puerta' : 'Ventana';
+        const name = this.selectedAccessory === 'door' ? 'Puerta' : (this.selectedAccessory === 'window' ? 'Ventana' : 'Monitor PC');
         this.showToast(`Accesorio activo: ${name}`);
+        this.updateToolPanelsVisibility();
+        this.render();
+        this.saveUIState();
+      });
+    });
+
+    // Selector de orientación del monitor (F, R, L, B)
+    document.querySelectorAll('.monitor-orient-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.monitor-orient-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.monitorOrientation = btn.dataset.orient || 'F';
+        const orientNames = { F: 'Frente', R: 'Mirando Derecha', L: 'Mirando Izquierda', B: 'Por Detrás' };
+        this.showToast(`🖥️ Monitor: ${orientNames[this.monitorOrientation]}`);
         this.render();
         this.saveUIState();
       });
@@ -1000,7 +1015,7 @@ class LevelEditor {
           let minDist = Infinity;
           currentSegs.forEach((segRaw, i) => {
             let d = 1;
-            if (typeof segRaw === 'string' && segRaw.startsWith('T')) {
+            if (typeof segRaw === 'string' && (segRaw === 'MON' || segRaw.startsWith('MON_') || segRaw.startsWith('T'))) {
               d = Math.hypot(lx - 0.5, ly - 0.5);
             } else if (typeof segRaw === 'number' && (segRaw === 9 || (segRaw >= 15 && segRaw <= 21))) {
               d = Math.hypot(lx - 0.5, ly - 0.5);
@@ -1031,7 +1046,7 @@ class LevelEditor {
 
         if (idx !== -1) {
           const removedCode = currentSegs[idx];
-          if (typeof removedCode === 'string' && !removedCode.startsWith('T')) {
+          if (typeof removedCode === 'string' && !removedCode.startsWith('T') && removedCode !== 'MON' && !removedCode.startsWith('MON_')) {
             this.clearSegmentStyle(x, y, removedCode);
             if (removedCode.startsWith('D')) {
               this.clearSegmentStyle(x, y, removedCode + '_lintel');
@@ -1056,6 +1071,23 @@ class LevelEditor {
       if (currentSegs.length > 0) {
         this.grid[y][x] = [];
         this.clearCellStyles(x, y);
+        changed = true;
+      }
+    } else if (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor') {
+      // Colocar o reorientar monitor en la celda
+      const orient = this.monitorOrientation || 'F';
+      const monCode = (orient === 'F') ? 'MON' : ('MON_' + orient);
+      const oldMonIdx = currentSegs.findIndex(s => typeof s === 'string' && (s === 'MON' || s.startsWith('MON_')));
+      if (oldMonIdx !== -1) {
+        if (currentSegs[oldMonIdx] !== monCode) {
+          currentSegs[oldMonIdx] = monCode;
+          const orientNames = { F: 'Frente', R: 'Derecha', L: 'Izquierda', B: 'Detrás' };
+          this.showToast(`🖥️ Monitor reorientado (${orientNames[orient]})`);
+          changed = true;
+        }
+      } else {
+        currentSegs.push(monCode);
+        this.showToast('🖥️ Monitor colocado');
         changed = true;
       }
     } else if (this.selectedTile === 'table') {
@@ -1478,6 +1510,130 @@ class LevelEditor {
   }
 
   /**
+   * Dibuja el monitor de PC en la vista 2D del editor con sus 4 orientaciones posibles (F, R, L, B)
+   */
+  draw2DMonitor(ctx, px, py, cs, orient = 'F', isPreview = false) {
+    ctx.save();
+    if (isPreview) {
+      ctx.globalAlpha = 0.7;
+    }
+
+    const cx = px + cs / 2;
+    const cy = py + cs / 2;
+    const monW = Math.max(14, cs * 0.54);
+    const monH = Math.max(9, cs * 0.36);
+
+    // Peana común
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(cx - cs * 0.1, cy + cs * 0.18, cs * 0.2, Math.max(2, cs * 0.06));
+    ctx.fillRect(cx - cs * 0.04, cy + cs * 0.08, cs * 0.08, Math.max(3, cs * 0.1));
+
+    if (orient === 'B') {
+      // MONITOR POR DETRÁS: Chasis oscuro elegante, logo/rejilla, bisagra metálica
+      const bx = cx - monW / 2;
+      const by = cy - monH / 2 - cs * 0.02;
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(bx, by, monW, monH);
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(bx, by, monW, monH);
+
+      // Bisagra y soporte VESA
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(cx - monW * 0.16, cy - monH * 0.2, monW * 0.32, monH * 0.4);
+      // Rejilla de ventilación trasera
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(bx + monW * 0.2, by + 3, monW * 0.6, Math.max(1, cs * 0.04));
+      ctx.fillRect(bx + monW * 0.2, by + 6, monW * 0.6, Math.max(1, cs * 0.04));
+    } else if (orient === 'R') {
+      // MONITOR MIRANDO A LA DERECHA (inclinado)
+      const bx = cx - monW * 0.4;
+      const by = cy - monH / 2 - cs * 0.02;
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.moveTo(bx, by + monH * 0.15);
+      ctx.lineTo(bx + monW * 0.8, by);
+      ctx.lineTo(bx + monW * 0.8, by + monH);
+      ctx.lineTo(bx, by + monH * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Pantalla activa cian brillante en perspectiva
+      ctx.fillStyle = '#0ea5e9';
+      ctx.beginPath();
+      ctx.moveTo(bx + monW * 0.1, by + monH * 0.2);
+      ctx.lineTo(bx + monW * 0.76, by + monH * 0.05);
+      ctx.lineTo(bx + monW * 0.76, by + monH * 0.95);
+      ctx.lineTo(bx + monW * 0.1, by + monH * 0.8);
+      ctx.closePath();
+      ctx.fill();
+
+      // Mini detalle de brillo
+      ctx.fillStyle = '#bae6fd';
+      ctx.fillRect(bx + monW * 0.38, by + monH * 0.3, monW * 0.25, Math.max(1, cs * 0.04));
+    } else if (orient === 'L') {
+      // MONITOR MIRANDO A LA IZQUIERDA (inclinado)
+      const bx = cx + monW * 0.4;
+      const by = cy - monH / 2 - cs * 0.02;
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.moveTo(bx, by + monH * 0.15);
+      ctx.lineTo(bx - monW * 0.8, by);
+      ctx.lineTo(bx - monW * 0.8, by + monH);
+      ctx.lineTo(bx, by + monH * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Pantalla activa cian brillante en perspectiva
+      ctx.fillStyle = '#0ea5e9';
+      ctx.beginPath();
+      ctx.moveTo(bx - monW * 0.1, by + monH * 0.2);
+      ctx.lineTo(bx - monW * 0.76, by + monH * 0.05);
+      ctx.lineTo(bx - monW * 0.76, by + monH * 0.95);
+      ctx.lineTo(bx - monW * 0.1, by + monH * 0.8);
+      ctx.closePath();
+      ctx.fill();
+
+      // Mini detalle de brillo
+      ctx.fillStyle = '#bae6fd';
+      ctx.fillRect(bx - monW * 0.63, by + monH * 0.3, monW * 0.25, Math.max(1, cs * 0.04));
+    } else {
+      // FRENTE (Default 'F')
+      const bx = cx - monW / 2;
+      const by = cy - monH / 2 - cs * 0.02;
+      // Marco exterior
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(bx, by, monW, monH);
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(bx, by, monW, monH);
+      // Pantalla activa cian brillante
+      ctx.fillStyle = '#0ea5e9';
+      ctx.fillRect(bx + 1.5, by + 1.5, monW - 3, monH - 3);
+      // Líneas de dashboard
+      ctx.fillStyle = '#f0f9ff';
+      ctx.fillRect(bx + 3, by + 3, monW * 0.45, Math.max(1, cs * 0.04));
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(bx + 3, by + 3 + Math.max(2, cs * 0.07), monW * 0.55, Math.max(1, cs * 0.04));
+    }
+
+    // Pequeña insignia indicadora de orientación
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = `bold ${Math.max(8, Math.floor(cs * 0.22))}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(orient, cx, cy - monH / 2 - Math.max(5, cs * 0.12));
+
+    ctx.restore();
+  }
+
+  /**
    * Dibuja toda la cuadrícula, tabiques finos (5x1) en laterales/centro, esquinas y previsualizaciones
    */
   render() {
@@ -1522,6 +1678,7 @@ class LevelEditor {
         let cell = this.grid[y][x];
         let segs = [];
         let tableCode = null;
+        let monitorOrient = null;
 
         if (Array.isArray(cell)) {
           for (let i = 0; i < cell.length; i++) {
@@ -1530,10 +1687,18 @@ class LevelEditor {
               tableCode = parseInt(item.slice(1), 10);
             } else if (typeof item === 'number' && (item === 9 || (item >= 15 && item <= 21))) {
               tableCode = item;
+            } else if (item === 'MON' || item === 'MON_F') {
+              monitorOrient = 'F';
+            } else if (typeof item === 'string' && item.startsWith('MON_')) {
+              monitorOrient = item.replace('MON_', '');
             } else {
               segs.push(item);
             }
           }
+        } else if (cell === 'MON' || cell === 'MON_F') {
+          monitorOrient = 'F';
+        } else if (typeof cell === 'string' && cell.startsWith('MON_')) {
+          monitorOrient = cell.replace('MON_', '');
         } else if (cell === 1) {
           segs = ['N', 'S', 'E', 'W'];
         } else if (cell === 2) segs = ['DN'];
@@ -1671,6 +1836,11 @@ class LevelEditor {
             }
           }
         }
+
+        // 3. Dibuja el Monitor si existe en esta casilla
+        if (monitorOrient) {
+          this.draw2DMonitor(ctx, px, py, cs, monitorOrient, false);
+        }
       }
     }
 
@@ -1699,7 +1869,11 @@ class LevelEditor {
 
       if (this.currentTool === 'brush') {
         if (this.selectedTile === 'accessories') {
-          ctx.fillStyle = (this.selectedAccessory === 'door') ? 'rgba(229, 169, 59, 0.8)' : 'rgba(84, 160, 255, 0.8)';
+          if (this.selectedAccessory === 'monitor') {
+            this.draw2DMonitor(ctx, hpx, hpy, cs, this.monitorOrientation || 'F', true);
+          } else {
+            ctx.fillStyle = (this.selectedAccessory === 'door') ? 'rgba(229, 169, 59, 0.8)' : 'rgba(84, 160, 255, 0.8)';
+          }
         } else if (this.selectedTile === 'door' || (typeof this.selectedTile === 'number' && this.selectedTile >= 2)) {
           ctx.fillStyle = 'rgba(229, 169, 59, 0.8)';
         } else if (this.selectedTile === 'window') {
@@ -1708,7 +1882,9 @@ class LevelEditor {
           ctx.fillStyle = 'rgba(79, 163, 227, 0.8)';
         }
 
-        if (this.selectedTile === 'table') {
+        if (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor') {
+          // No dibujar bordes de pared para el monitor (ya dibujado en preview superior)
+        } else if (this.selectedTile === 'table') {
           ctx.fillStyle = 'rgba(107, 68, 35, 0.55)';
           ctx.fillRect(hpx + cs * 0.1, hpy + cs * 0.1, cs * 0.8, cs * 0.8);
           ctx.strokeStyle = '#e5a93b';
@@ -1955,6 +2131,7 @@ class LevelEditor {
     const sectionAccessoryPlacement = document.getElementById('sectionAccessoryPlacement');
     const sectionMesaPlacement = document.getElementById('sectionMesaPlacement');
     const sectionEraserInfo = document.getElementById('sectionEraserInfo');
+    const monitorOrientPanel = document.getElementById('monitorOrientationPanel');
 
     if (this.currentTool === 'eraser') {
       if (sectionElementPalette) sectionElementPalette.style.display = 'none';
@@ -1962,6 +2139,7 @@ class LevelEditor {
       if (sectionAccessoryPlacement) sectionAccessoryPlacement.style.display = 'none';
       if (sectionMesaPlacement) sectionMesaPlacement.style.display = 'none';
       if (sectionEraserInfo) sectionEraserInfo.style.display = '';
+      if (monitorOrientPanel) monitorOrientPanel.style.display = 'none';
     } else {
       if (sectionEraserInfo) sectionEraserInfo.style.display = 'none';
       if (sectionElementPalette) sectionElementPalette.style.display = '';
@@ -1977,6 +2155,14 @@ class LevelEditor {
       if (sectionAccessoryPlacement) {
         sectionAccessoryPlacement.style.display = isAccessory ? '' : 'none';
         if (isAccessory) sectionAccessoryPlacement.classList.remove('collapsed');
+        const btnDoorStyle = document.getElementById('btnDoorStyle');
+        const btnLintelStyle = document.getElementById('btnLintelStyle');
+        const showDoorPickers = isAccessory && (this.selectedAccessory === 'door');
+        if (btnDoorStyle) btnDoorStyle.style.display = showDoorPickers ? '' : 'none';
+        if (btnLintelStyle) btnLintelStyle.style.display = showDoorPickers ? '' : 'none';
+
+        const showMonitorOrient = isAccessory && (this.selectedAccessory === 'monitor');
+        if (monitorOrientPanel) monitorOrientPanel.style.display = showMonitorOrient ? '' : 'none';
       }
       if (sectionMesaPlacement) {
         sectionMesaPlacement.style.display = isMesa ? '' : 'none';
@@ -2026,6 +2212,7 @@ class LevelEditor {
         currentTool: this.currentTool,
         selectedTile: this.selectedTile,
         selectedAccessory: this.selectedAccessory,
+        monitorOrientation: this.monitorOrientation || 'F',
         placementMode: this.placementMode,
         activeWallTab,
         zoomMode: this.zoomMode,
@@ -2121,6 +2308,14 @@ class LevelEditor {
         this.selectedAccessory = state.selectedAccessory;
         document.querySelectorAll('.accessory-tile-btn').forEach(btn => {
           btn.classList.toggle('active', btn.dataset.accessory === state.selectedAccessory);
+        });
+      }
+
+      // 7b. Restaurar orientación del monitor
+      if (state.monitorOrientation) {
+        this.monitorOrientation = state.monitorOrientation;
+        document.querySelectorAll('.monitor-orient-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.orient === this.monitorOrientation);
         });
       }
 
@@ -3192,8 +3387,8 @@ class LevelEditor {
         if (Array.isArray(segs)) {
           const isInterior = (x > 0 && x < this.cols - 1 && y > 0 && y < this.rows - 1);
           if (isInterior && segs.length > 0) return true;
-          if (segs.some(s => s.startsWith('D') || s.startsWith('W') || s.startsWith('C') || s.startsWith('R'))) return true;
-        } else if (segs === 1) {
+          if (segs.some(s => s === 'MON' || s.startsWith('D') || s.startsWith('W') || s.startsWith('C') || s.startsWith('R') || s.startsWith('T'))) return true;
+        } else if (segs === 1 || segs === 'MON') {
           const isInterior = (x > 0 && x < this.cols - 1 && y > 0 && y < this.rows - 1);
           if (isInterior) return true;
         }

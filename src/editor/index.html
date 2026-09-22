@@ -370,6 +370,36 @@
                   <small>Cristal gótico</small>
                 </div>
               </button>
+              <button class="accessory-tile-btn" data-accessory="monitor" title="Monitor de PC plano (siempre mira al jugador)">
+                <span class="acc-tile-icon"><i class="ri-computer-line"></i></span>
+                <div class="acc-tile-meta">
+                  <strong>Monitor PC</strong>
+                  <small>Pantalla plana</small>
+                </div>
+              </button>
+            </div>
+
+            <!-- Selector de Orientación del Monitor (Solo visible al seleccionar Monitor) -->
+            <div class="monitor-orientation-panel" id="monitorOrientationPanel" style="display: none; margin-top: 10px;">
+              <p class="section-desc" style="margin-bottom: 6px;">Orientación del Monitor:</p>
+              <div class="monitor-orient-grid">
+                <button class="monitor-orient-btn active" data-orient="F" title="Monitor de Frente (Pantalla frontal)">
+                  <i class="ri-tv-line"></i>
+                  <span>Frente</span>
+                </button>
+                <button class="monitor-orient-btn" data-orient="R" title="Monitor mirando a la Derecha (Inclinado)">
+                  <i class="ri-arrow-right-up-line"></i>
+                  <span>Derecha</span>
+                </button>
+                <button class="monitor-orient-btn" data-orient="L" title="Monitor mirando a la Izquierda (Inclinado)">
+                  <i class="ri-arrow-left-up-line"></i>
+                  <span>Izquierda</span>
+                </button>
+                <button class="monitor-orient-btn" data-orient="B" title="Monitor Visto por Detrás">
+                  <i class="ri-arrow-up-line"></i>
+                  <span>Detrás</span>
+                </button>
+              </div>
             </div>
 
             <button class="style-picker-btn" id="btnDoorStyle"

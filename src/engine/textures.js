@@ -862,6 +862,206 @@ function exportBaseTexturesAsPngDataUrls() {
   return result;
 }
 
+// ============================================================
+// SPRITES / BILLBOARDS (Monitores con 4 Orientaciones)
+// ============================================================
+
+const _monitorPixelsCache = {
+  front: null,
+  right: null,
+  left: null,
+  back: null
+};
+
+function createProceduralMonitorPixels(w = 128, h = 128, variant = 'front') {
+  const ctx = createCanvasCtx(w, h);
+  if (!ctx) return toPixels(null, w, h);
+  ctx.clearRect(0, 0, w, h);
+
+  if (variant === 'back') {
+    // Visto por detrás (carcasa negra, rejillas, soporte y base)
+    const mw = 104, mh = 68;
+    const mx = Math.floor((w - mw) / 2);
+    const my = h - mh - 26;
+
+    // Peana metálica
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(w / 2 - 6, my + mh - 4, 12, 26);
+    // Base peana
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(w / 2 - 24, my + mh + 20, 48, 6, [2, 2, 2, 2]);
+    else ctx.rect(w / 2 - 24, my + mh + 20, 48, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#64748b';
+    ctx.stroke();
+
+    // Carcasa trasera mate
+    ctx.fillStyle = '#18202f';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(mx, my, mw, mh, [4, 4, 2, 2]);
+    else ctx.rect(mx, my, mw, mh);
+    ctx.fill();
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Placa central VESA y rejillas de ventilación
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(mx + 20, my + 14, mw - 40, mh - 28);
+    ctx.strokeStyle = '#334155';
+    ctx.strokeRect(mx + 20, my + 14, mw - 40, mh - 28);
+
+    // Rejillas
+    ctx.fillStyle = '#090d16';
+    for (let g = 0; g < 6; g++) {
+      ctx.fillRect(mx + 26, my + 20 + g * 4, mw - 52, 2);
+    }
+  } else if (variant === 'right' || variant === 'left') {
+    // Lateral inclinado (perspectiva 3/4)
+    const isLeft = (variant === 'left');
+    const mw = 70, mh = 70;
+    const mx = isLeft ? Math.floor(w / 2 - mw / 2 + 10) : Math.floor(w / 2 - mw / 2 - 10);
+    const my = h - mh - 24;
+
+    // Peana
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(w / 2 - 6, my + mh - 2, 12, 24);
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(w / 2 - 22, my + mh + 18, 44, 6);
+
+    // Carcasa y bisel en ángulo
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    if (!isLeft) {
+      ctx.moveTo(mx, my + 4);
+      ctx.lineTo(mx + mw, my);
+      ctx.lineTo(mx + mw - 10, my + mh);
+      ctx.lineTo(mx, my + mh);
+    } else {
+      ctx.moveTo(mx + mw, my + 4);
+      ctx.lineTo(mx, my);
+      ctx.lineTo(mx + 10, my + mh);
+      ctx.lineTo(mx + mw, my + mh);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Pantalla lateral activa
+    ctx.fillStyle = '#0ea5e9';
+    ctx.beginPath();
+    if (!isLeft) {
+      ctx.moveTo(mx + 6, my + 8);
+      ctx.lineTo(mx + mw - 6, my + 6);
+      ctx.lineTo(mx + mw - 14, my + mh - 6);
+      ctx.lineTo(mx + 6, my + mh - 6);
+    } else {
+      ctx.moveTo(mx + mw - 6, my + 8);
+      ctx.lineTo(mx + 6, my + 6);
+      ctx.lineTo(mx + 14, my + mh - 6);
+      ctx.lineTo(mx + mw - 6, my + mh - 6);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Líneas de pantalla
+    ctx.fillStyle = '#f0f9ff';
+    ctx.fillRect(mx + 12, my + 14, 24, 2);
+    ctx.fillStyle = '#4ade80';
+    ctx.fillRect(mx + 12, my + 20, 18, 2);
+  } else {
+    // Frontal (Frente)
+    const mw = 104, mh = 68;
+    const mx = Math.floor((w - mw) / 2);
+    const my = h - mh - 26;
+
+    // Peana
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(w / 2 - 5, my + mh, 10, 22);
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(w / 2 - 24, my + mh + 20, 48, 6, [2, 2, 2, 2]);
+    else ctx.rect(w / 2 - 24, my + mh + 20, 48, 6);
+    ctx.fill();
+
+    // Marco exterior
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(mx, my, mw, mh, [4, 4, 2, 2]);
+    else ctx.rect(mx, my, mw, mh);
+    ctx.fill();
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Pantalla
+    const sx = mx + 4, sy = my + 4, sw = mw - 8, sh = mh - 10;
+    ctx.fillStyle = '#090d16';
+    ctx.fillRect(sx, sy, sw, sh);
+
+    ctx.fillStyle = '#0e1e38';
+    ctx.fillRect(sx + 4, sy + 4, 52, sh - 8);
+    ctx.strokeStyle = '#1e3a5f';
+    ctx.strokeRect(sx + 4, sy + 4, 52, sh - 8);
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 6px sans-serif';
+    ctx.fillText('> DASHBOARD', sx + 7, sy + 12);
+    ctx.fillStyle = '#4ade80';
+    ctx.font = '5px monospace';
+    ctx.fillText('STATUS: OK', sx + 7, sy + 20);
+    ctx.fillText('NET: ONLINE', sx + 7, sy + 27);
+
+    ctx.fillStyle = '#0b253a';
+    ctx.fillRect(sx + 60, sy + 4, 32, 20);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(sx + 63, sy + 10, 4, 10);
+    ctx.fillRect(sx + 69, sy + 6, 4, 14);
+    ctx.fillRect(sx + 75, sy + 12, 4, 8);
+  }
+
+  const pixels = toPixels(ctx, w, h);
+  pixels.hasTransparency = true;
+  return pixels;
+}
+
+function getMonitorPixels(variant = 'front') {
+  const key = (variant === 'right' || variant === 'left' || variant === 'back') ? variant : 'front';
+  if (_monitorPixelsCache[key]) return _monitorPixelsCache[key];
+  _monitorPixelsCache[key] = createProceduralMonitorPixels(128, 128, key);
+  return _monitorPixelsCache[key];
+}
+
+// Carga asíncrona de los 4 sprites PNG en alta resolución
+if (typeof Image !== 'undefined') {
+  const loadSprite = (fileName, key) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = 256, h = 256;
+      const off = document.createElement('canvas');
+      off.width = w; off.height = h;
+      const octx = off.getContext('2d', { willReadFrequently: true });
+      octx.drawImage(img, 0, 0, w, h);
+      const arr = toPixels(octx, w, h);
+      arr.hasTransparency = true;
+      _monitorPixelsCache[key] = arr;
+      if (typeof window !== 'undefined' && window.raycaster && window.raycaster.textures) {
+        window.raycaster.textures['monitor_' + key] = arr;
+        if (key === 'front') window.raycaster.textures.monitor = arr;
+      }
+    };
+    img.src = '/src/assets/' + fileName;
+  };
+
+  loadSprite('monitor_front.png', 'front');
+  loadSprite('monitor_right.png', 'right');
+  loadSprite('monitor_left.png', 'left');
+  loadSprite('monitor_back.png', 'back');
+}
+
 if (typeof window !== 'undefined') {
   window.WALL_STYLES = WALL_STYLES;
   window.DOOR_STYLES = DOOR_STYLES;
@@ -871,6 +1071,8 @@ if (typeof window !== 'undefined') {
   window.removeCustomStyle = removeCustomStyle;
   window.loadCustomStyles = loadCustomStyles;
   window.exportBaseTexturesAsPngDataUrls = exportBaseTexturesAsPngDataUrls;
+  window.createProceduralMonitorPixels = createProceduralMonitorPixels;
+  window.getMonitorPixels = getMonitorPixels;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
