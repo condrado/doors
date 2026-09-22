@@ -2269,6 +2269,25 @@ class RaycasterEngine {
     }
     return this.minimapZoomLevel;
   }
+
+  /**
+   * Redimensiona el buffer y resolución interna del motor para mantener máxima nitidez
+   */
+  resize(width, height) {
+    width = Math.max(320, Math.floor(width));
+    height = Math.max(200, Math.floor(height));
+    if (this.width === width && this.height === height && this.canvas.width === width && this.canvas.height === height) {
+      return;
+    }
+    this.width = width;
+    this.height = height;
+    this.halfHeight = Math.floor(height / 2);
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.imgData = this.ctx.createImageData(width, height);
+    this.pixels = new Uint32Array(this.imgData.data.buffer);
+    this.zBuffer = new Float32Array(width);
+  }
 }
 
 // Exportación para compatibilidad con módulos o entornos globales

@@ -15,7 +15,7 @@
 </head>
 
 <body>
-  <div class="app-container">
+  <div class="app-container panels-hidden">
     <header class="game-header">
       <div class="title-wrap">
         <span class="retro-badge">PROTOTIPO 2.5D</span>
@@ -23,12 +23,12 @@
         <div class="title-meta">
           <span class="info-pill" id="compassPill"><i class="ri-compass-3-line"></i> Rumbo: <strong id="compassText">Norte (0°)</strong></span>
           <span class="info-pill" id="targetPill"><i class="ri-focus-3-line"></i> Frente a ti: <strong id="facingTargetText">Pared</strong></span>
+          <span class="info-pill" id="levelPill" style="display: none;"><i class="ri-map-pin-2-line"></i> <strong id="levelNameText">Sala Principal</strong></span>
         </div>
       </div>
-      <div class="header-info">
-        <a href="../../index.html" class="hub-nav-btn" id="btnOpenHub" title="Volver al Portal Principal"><i class="ri-home-4-line"></i> Inicio</a>
-        <a href="../editor/index.html" class="action-btn editor-nav-btn" id="btnOpenEditor"
-          title="Abrir Editor de Niveles"><i class="ri-tools-line"></i> Editor</a>
+      <div class="header-actions">
+        <a href="/" class="hub-nav-btn" title="Volver al Selector"><i class="ri-home-4-line"></i> Hub</a>
+        <a href="/src/editor/" class="editor-nav-btn" title="Ir al Editor de Mapas"><i class="ri-edit-line"></i> Abrir Editor</a>
       </div>
     </header>
 
@@ -40,10 +40,9 @@
         <!-- Crosshair / Punto de mira -->
         <div class="crosshair"></div>
 
-        <!-- Indicador de brújula superior 360° -->
-        <div class="compass-bar" id="compassBar">
-          <canvas id="compassCanvas" width="220" height="28"></canvas>
-          <div class="compass-pointer"><i class="ri-arrow-down-s-fill"></i></div>
+        <!-- Cinta de Brújula 360° Superior -->
+        <div class="compass-viewport-hud">
+          <canvas id="compassCanvas" width="220" height="26"></canvas>
         </div>
 
         <!-- Radar / Minimapa con Zoom Dinámico (-1, 0, 1) -->
@@ -51,12 +50,12 @@
           <div class="minimap-header">
             <span class="minimap-title">RADAR</span>
             <div class="minimap-zoom-ctrls">
-              <button class="minimap-zoom-btn" id="btnMinimapZoomOut" title="Alejar (-)" type="button">
-                <i class="ri-subtract-line"></i>
-              </button>
-              <span class="minimap-zoom-badge" id="minimapZoomBadge" title="Nivel de zoom actual (-1, 0, +1)">0</span>
-              <button class="minimap-zoom-btn" id="btnMinimapZoomIn" title="Ampliar (+)" type="button">
+              <button class="minimap-zoom-btn" id="btnMinimapZoomIn" title="Ampliar Radar (+)" type="button">
                 <i class="ri-add-line"></i>
+              </button>
+              <span class="minimap-zoom-badge" id="minimapZoomBadge">0</span>
+              <button class="minimap-zoom-btn" id="btnMinimapZoomOut" title="Alejar Radar (-)" type="button">
+                <i class="ri-subtract-line"></i>
               </button>
             </div>
           </div>
@@ -67,24 +66,29 @@
           </div>
         </div>
 
-        <!-- Botón de Pantalla Completa flotante -->
-        <button class="fullscreen-btn" id="btnFullscreen" title="Pantalla Completa (F)">
-          <span class="fs-icon"><i class="ri-fullscreen-line"></i></span>
-          <span class="fs-label">Pantalla Completa</span>
-        </button>
-
-        <!-- Overlay de aviso para captura de ratón (Pointer Lock) -->
-        <div class="pointer-lock-overlay" id="pointerLockOverlay">
-          <div class="lock-notice">
-            <span class="lock-icon"><i class="ri-mouse-line"></i></span>
-            <strong>Haz clic para mirar con el ratón</strong>
-            <small>Usa el ratón para apuntar en 360° • [ESC] para liberar el cursor</small>
-          </div>
+        <!-- Barra de Botones de Acción Flotantes (Top Right) -->
+        <div class="hud-floating-bar" id="hudFloatingBar">
+          <a href="../editor/index.html" class="hud-action-btn editor-nav-btn" id="btnFloatingEditor" title="Abrir Editor de Mapas">
+            <i class="ri-edit-line"></i>
+            <span>Editor</span>
+          </a>
+          <button class="hud-action-btn panel-toggle-active" id="btnTogglePanels" title="Mostrar Paneles (H)" type="button">
+            <i class="ri-eye-line" id="iconTogglePanels"></i>
+            <span id="textTogglePanels">Mostrar Paneles</span>
+          </button>
+          <button class="hud-action-btn" id="btnMouseLook" title="Haz clic para mirar con el ratón (ESC para liberar)" type="button">
+            <i class="ri-mouse-line" id="iconMouseLook"></i>
+            <span id="textMouseLook">Mirar con el ratón</span>
+          </button>
+          <button class="hud-action-btn" id="btnFullscreen" title="Pantalla Completa (F)" type="button">
+            <i class="ri-fullscreen-line" id="iconFullscreen"></i>
+            <span id="textFullscreen">Pantalla Completa</span>
+          </button>
         </div>
 
         <!-- Mensaje flotante de interacción / contexto -->
         <div class="prompt-hud" id="promptHud">
-          Haz clic en la pantalla para <strong>apuntar</strong> • <strong>[Clic Izq / Enter]</strong> abrir/cerrar puerta • <strong>[F]</strong> pantalla completa
+          Usa <strong>[Mirar con el ratón]</strong> o haz clic para apuntar • <strong>[H]</strong> mostrar paneles • <strong>[F]</strong> pantalla completa
         </div>
 
         <!-- Indicador de Postura / Velocidad estilo DayZ -->
@@ -165,6 +169,14 @@
             <select id="textureModeSelect">
               <option value="classic">Retro Pixel-Art (Wolfenstein 3D)</option>
               <option value="flat">Líneas / Sólido Clásico</option>
+            </select>
+          </label>
+          <label class="setting-row">
+            <span>Resolución / Nitidez:</span>
+            <select id="renderQualitySelect">
+              <option value="1.0" selected>Nativa 1:1 (Máxima Nitidez)</option>
+              <option value="0.75">Alta Definición (75%)</option>
+              <option value="retro">Retro Pixel-Art (640x400)</option>
             </select>
           </label>
         </div>
