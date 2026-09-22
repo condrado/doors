@@ -27,7 +27,7 @@ class RaycasterEngine {
     // Coincidencia exacta: 64px (dintel) + 128px (puerta) = 192px (pared).
     this.wallHeightScale = 3.0;
     this.doorHeightScale = 2.0;
-    this.tableHeightScale = 0.985;
+    this.tableHeightScale = 0.995;
 
     if (typeof window !== 'undefined') {
       window.activeRaycasterEngine = this;
@@ -110,7 +110,7 @@ class RaycasterEngine {
       return cell.map(c => (c === 'DCH' || c === 'ODCH') ? 'CH' : (c === 'DCV' || c === 'ODCV') ? 'CV' : c);
     }
     if (cell === 1) return ['N', 'S', 'E', 'W'];
-    if (cell === 9 || (cell >= 15 && cell <= 21)) return cell;  // Mesa (todas las variantes)
+    if (cell === 9 || (cell >= 15 && cell <= 21)) return ['T' + cell];  // Mesa (todas las variantes)
     if (cell >= 2 && cell <= 5) {
       return [(cell === 2) ? 'DN' : (cell === 3) ? 'DE' : (cell === 4) ? 'DS' : 'DW'];
     }
@@ -124,7 +124,7 @@ class RaycasterEngine {
   getWallConnection(mapX, mapY, edge) {
     if (mapY < 0 || mapY >= this.mapHeight || mapX < 0 || mapX >= this.mapWidth) return null;
     const codes = this.getCellCodes(mapX, mapY);
-    if (!codes || codes.length === 0) return null;
+    if (!codes || !Array.isArray(codes) || codes.length === 0) return null;
 
     if (edge === 'N') {
       if (codes.some(c => c === 'N' || c === 'WN')) return 'wall';
@@ -347,7 +347,7 @@ class RaycasterEngine {
    * visualmente con el material seleccionado (Castillo/Blanca/Negra/Cristal).
    */
   generateCellFaces(codes, mapX, mapY) {
-    if (!codes || codes.length === 0) return [];
+    if (!codes || (Array.isArray(codes) && codes.length === 0)) return [];
 
     const faces = [];
     const x0 = mapX;
@@ -377,7 +377,7 @@ class RaycasterEngine {
     const odnyA = nyA;
     const odnyB = nyB;
 
-    const has = (c) => codes.includes(c);
+    const has = (c) => Array.isArray(codes) && codes.includes(c);
 
     // Estilo con el que se colocó CADA código de ESTA celda (ver setSegmentStyle en
     // el Editor). A diferencia de antes, aquí NO se combina en un único estilo para
@@ -402,8 +402,21 @@ class RaycasterEngine {
       20: { N: 15, S: 22, W: 23, E: 15 }, // esq BL (1 pata SW)
       21: { N: 15, S: 23, W: 15, E: 22 }, // esq BR (1 pata SE)
     };
-    const mesaCode = typeof codes === 'number' ? codes : parseInt(codes, 10);
-    if (MESA_FACES[mesaCode]) {
+    let mesaCode = null;
+    if (typeof codes === 'number') {
+      mesaCode = codes;
+    } else if (Array.isArray(codes)) {
+      for (let i = 0; i < codes.length; i++) {
+        const c = codes[i];
+        if (typeof c === 'string' && c.startsWith('T')) {
+          mesaCode = parseInt(c.slice(1), 10);
+        } else if (typeof c === 'number' && (c === 9 || (c >= 15 && c <= 21))) {
+          mesaCode = c;
+        }
+      }
+    }
+
+    if (mesaCode && MESA_FACES[mesaCode]) {
       const f = MESA_FACES[mesaCode];
       faces.push(
         { axis: 'y', pos: y0, minX: x0, maxX: x1, type: f.N, name: 'Mesa (N)', style: 'mesa', isTable: true },
@@ -411,8 +424,14 @@ class RaycasterEngine {
         { axis: 'x', pos: x0, minY: y0, maxY: y1, type: f.W, name: 'Mesa (O)', style: 'mesa', isTable: true },
         { axis: 'x', pos: x1, minY: y0, maxY: y1, type: f.E, name: 'Mesa (E)', style: 'mesa', isTable: true }
       );
-      return faces;
+      // Si la celda es SOLO una mesa sin paredes, retornar ya
+      const hasWalls = Array.isArray(codes) && codes.some(c => typeof c === 'string' && !c.startsWith('T'));
+      if (!hasWalls) {
+        return faces;
+      }
     }
+
+    if (!Array.isArray(codes)) return faces;
 
     // 0. BLOQUE SÓLIDO COMPLETO 1x1 (celda numérica 1 o ['N', 'S', 'E', 'W'])
     if (has('N') && has('S') && has('E') && has('W')) {
@@ -1203,8 +1222,7 @@ class RaycasterEngine {
           this.textures[9]['mesa'] = base;
           this.textures[9]['castillo'] = base;
 
-          // yLeg: fila desde la que empiezan las columnas de pata
-          const yLeg = Math.floor(H * 2 / 3);
+          const yLeg = Math.floor(H * 2 / 3); // = 128 for 192px
 
           const makeVariant = (keepLeft, keepRight) => {
             const arr = new Uint32Array(base.buffer.slice(0));
@@ -1358,7 +1376,8 @@ class RaycasterEngine {
    * y del impacto en dintel (2.2m a 3.0m: isLintelOnly).
    */
   _intersectCellSegments(segments, posX, posY, rayDirX, rayDirY, mapX, mapY, minDist = 0.001) {
-    let bestOpaqueBottom = null;
+    let bestOpaqueWall = null;
+    let bestTable = null;
     let bestLintel = null;
     const transparentHits = [];
     const openDoorHits = [];
@@ -1408,14 +1427,18 @@ class RaycasterEngine {
         openDoorHits.push(hitData);
       } else if (isTransparent) {
         transparentHits.push(hitData);
+      } else if (seg.isTable) {
+        if (!bestTable || dist < bestTable.dist) {
+          bestTable = hitData;
+        }
       } else {
-        if (!bestOpaqueBottom || dist < bestOpaqueBottom.dist) {
-          bestOpaqueBottom = hitData;
+        if (!bestOpaqueWall || dist < bestOpaqueWall.dist) {
+          bestOpaqueWall = hitData;
         }
       }
     }
 
-    return { bestOpaqueBottom, bestLintel, transparentHits, openDoorHits };
+    return { bestOpaqueBottom: bestOpaqueWall, bestTable, bestLintel, transparentHits, openDoorHits };
   }
 
   /**
@@ -1529,13 +1552,12 @@ class RaycasterEngine {
             }
           }
         }
-        // Las mesas no detienen la búsqueda, se renderizan después del fondo
-        if (res.bestOpaqueBottom && !res.bestOpaqueBottom.seg.isTable) {
+        if (res.bestTable && !hitTable) {
+          hitTable = res.bestTable;
+        }
+        if (res.bestOpaqueBottom) {
           hitBottom = res.bestOpaqueBottom;
           return true;
-        }
-        if (res.bestOpaqueBottom && res.bestOpaqueBottom.seg.isTable && !hitTable) {
-          hitTable = res.bestOpaqueBottom;
         }
         return false;
       };
@@ -1821,6 +1843,7 @@ class RaycasterEngine {
             const tblTex = resolveTex(tblHit.seg.type, tblHit.seg.style || 'castillo');
             const tblTexX = texXOf(tblHit.wallX, tblHit.side, tblTex.width || 64);
             const tblShade = shadeOf(tblHit.dist, tblHit.side);
+            blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, tblShade, tableTopYTbl, bottomYTbl);
             blitTexBand(tableTopYTbl, bottomYTbl, tblTex, tblTexX, tblShade, tableTopYTbl, bottomYTbl);
           } else if (layer.kind === 'openDoor') {
             const od = layer.hit;
@@ -1967,8 +1990,12 @@ class RaycasterEngine {
 
           // Comprobar si la celda es una mesa (cualquier variante)
           const cellCode = this.map[cellY] ? this.map[cellY][cellX] : undefined;
-          const cellNum = typeof cellCode === 'number' ? cellCode : parseInt(cellCode, 10);
-          const isMesaCell = cellNum === 9 || (cellNum >= 15 && cellNum <= 21);
+          let isMesaCell = false;
+          if (typeof cellCode === 'number') {
+            isMesaCell = cellCode === 9 || (cellCode >= 15 && cellCode <= 21);
+          } else if (Array.isArray(cellCode)) {
+            isMesaCell = cellCode.some(c => (typeof c === 'string' && c.startsWith('T')) || (typeof c === 'number' && (c === 9 || (c >= 15 && c <= 21))));
+          }
           if (!isMesaCell) continue;
 
           const tx = Math.floor((floorX - cellX) * 64) & 63;
@@ -2037,10 +2064,27 @@ class RaycasterEngine {
         const thDoor = Math.max(2, Math.round(cellSize * 0.14));
         const dOffset = 0;
 
-        for (let s = 0; s < codes.length; s++) {
-          const code = codes[s];
-          const isDoor = code.startsWith('D');
-          const isWin = code.startsWith('W');
+        let hasMesa = false;
+        if (typeof codes === 'number' && (codes === 9 || (codes >= 15 && codes <= 21))) {
+          hasMesa = true;
+        } else if (Array.isArray(codes)) {
+          hasMesa = codes.some(c => (typeof c === 'string' && c.startsWith('T')) || (typeof c === 'number' && (c === 9 || (c >= 15 && c <= 21))));
+        }
+
+        // Mesa en el minimapa (al fondo de la celda)
+        if (hasMesa) {
+          ctx.fillStyle = '#8b5a2b';
+          const pad = Math.max(1, Math.round(cellSize * 0.15));
+          ctx.fillRect(px + pad, py + pad, cellSize - pad * 2, cellSize - pad * 2);
+        }
+
+        // Paredes y puertas por encima de la mesa
+        if (Array.isArray(codes)) {
+          for (let s = 0; s < codes.length; s++) {
+            const code = codes[s];
+            if (typeof code === 'string' && code.startsWith('T')) continue;
+            const isDoor = typeof code === 'string' && code.startsWith('D');
+            const isWin = typeof code === 'string' && code.startsWith('W');
           let doorType = 2;
           if (code === 'DN') doorType = 2;
           else if (code === 'DE') doorType = 3;
@@ -2142,6 +2186,7 @@ class RaycasterEngine {
         }
       }
     }
+  }
 
     // Anillos sutiles de distancia de radar
     ctx.strokeStyle = 'rgba(79, 163, 227, 0.12)';

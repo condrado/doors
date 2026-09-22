@@ -755,13 +755,15 @@ class LevelEditor {
         cellSegs = ['N', 'S', 'E', 'W'];
       } else if (typeof val === 'number' && val >= 2 && val <= 5) {
         cellSegs = [['DN'], ['DE'], ['DS'], ['DW']][val - 2];
+      } else if (typeof val === 'number' && (val === 9 || (val >= 15 && val <= 21))) {
+        cellSegs = ['T' + val];
       }
     }
 
     if (this.currentTool === 'eraser') {
       // Si la casilla tiene solo 1 segmento (como un muro de habitación 'N', 'S', etc.), ese es el objetivo directo
       if (cellSegs.length === 1) {
-        this.hoverSubEdge = cellSegs[0].replace(/^[DW]/, '');
+        this.hoverSubEdge = (typeof cellSegs[0] === 'string' && cellSegs[0].startsWith('T')) ? cellSegs[0] : String(cellSegs[0]).replace(/^[DW]/, '');
         return;
       }
 
@@ -771,7 +773,13 @@ class LevelEditor {
         let minDist = Infinity;
 
         const getDist = (segRaw) => {
-          const s = segRaw.replace(/^[DW]/, '');
+          if (typeof segRaw === 'string' && segRaw.startsWith('T')) {
+            return Math.hypot(localX - 0.5, localY - 0.5);
+          }
+          if (typeof segRaw === 'number' && (segRaw === 9 || (segRaw >= 15 && segRaw <= 21))) {
+            return Math.hypot(localX - 0.5, localY - 0.5);
+          }
+          const s = String(segRaw).replace(/^[DW]/, '');
           switch (s) {
             case 'N': return Math.abs(localY);
             case 'S': return Math.abs(1 - localY);
@@ -798,7 +806,7 @@ class LevelEditor {
             bestSeg = s;
           }
         }
-        this.hoverSubEdge = bestSeg.replace(/^[DW]/, '');
+        this.hoverSubEdge = (typeof bestSeg === 'string' && bestSeg.startsWith('T')) ? bestSeg : String(bestSeg).replace(/^[DW]/, '');
         return;
       }
 
@@ -932,7 +940,9 @@ class LevelEditor {
       else if (this.grid[y][x] === 3) this.grid[y][x] = ['DE'];
       else if (this.grid[y][x] === 4) this.grid[y][x] = ['DS'];
       else if (this.grid[y][x] === 5) this.grid[y][x] = ['DW'];
-      else this.grid[y][x] = [];
+      else if (this.grid[y][x] === 9 || (this.grid[y][x] >= 15 && this.grid[y][x] <= 21)) {
+        this.grid[y][x] = ['T' + this.grid[y][x]];
+      } else this.grid[y][x] = [];
     }
 
     const currentSegs = this.grid[y][x];
@@ -955,22 +965,28 @@ class LevelEditor {
           let bestIdx = 0;
           let minDist = Infinity;
           currentSegs.forEach((segRaw, i) => {
-            const s = segRaw.replace(/^[DW]/, '');
             let d = 1;
-            if (s === 'N') d = Math.abs(ly);
-            else if (s === 'S') d = Math.abs(1 - ly);
-            else if (s === 'W') d = Math.abs(lx);
-            else if (s === 'E') d = Math.abs(1 - lx);
-            else if (s === 'CH') d = Math.abs(0.5 - ly);
-            else if (s === 'CV') d = Math.abs(0.5 - lx);
-            else if (s === 'CN') d = Math.hypot(0.5 - lx, Math.max(0, ly - 0.5));
-            else if (s === 'CS') d = Math.hypot(0.5 - lx, Math.max(0, 0.5 - ly));
-            else if (s === 'CW') d = Math.hypot(Math.max(0, lx - 0.5), 0.5 - ly);
-            else if (s === 'CE') d = Math.hypot(Math.max(0, 0.5 - lx), 0.5 - ly);
-            else if (s === 'RNW') d = Math.hypot(lx, ly);
-            else if (s === 'RNE') d = Math.hypot(1 - lx, ly);
-            else if (s === 'RSW') d = Math.hypot(lx, 1 - ly);
-            else if (s === 'RSE') d = Math.hypot(1 - lx, 1 - ly);
+            if (typeof segRaw === 'string' && segRaw.startsWith('T')) {
+              d = Math.hypot(lx - 0.5, ly - 0.5);
+            } else if (typeof segRaw === 'number' && (segRaw === 9 || (segRaw >= 15 && segRaw <= 21))) {
+              d = Math.hypot(lx - 0.5, ly - 0.5);
+            } else {
+              const s = String(segRaw).replace(/^[DW]/, '');
+              if (s === 'N') d = Math.abs(ly);
+              else if (s === 'S') d = Math.abs(1 - ly);
+              else if (s === 'W') d = Math.abs(lx);
+              else if (s === 'E') d = Math.abs(1 - lx);
+              else if (s === 'CH') d = Math.abs(0.5 - ly);
+              else if (s === 'CV') d = Math.abs(0.5 - lx);
+              else if (s === 'CN') d = Math.hypot(0.5 - lx, Math.max(0, ly - 0.5));
+              else if (s === 'CS') d = Math.hypot(0.5 - lx, Math.max(0, 0.5 - ly));
+              else if (s === 'CW') d = Math.hypot(Math.max(0, lx - 0.5), 0.5 - ly);
+              else if (s === 'CE') d = Math.hypot(Math.max(0, 0.5 - lx), 0.5 - ly);
+              else if (s === 'RNW') d = Math.hypot(lx, ly);
+              else if (s === 'RNE') d = Math.hypot(1 - lx, ly);
+              else if (s === 'RSW') d = Math.hypot(lx, 1 - ly);
+              else if (s === 'RSE') d = Math.hypot(1 - lx, 1 - ly);
+            }
             if (d < minDist) {
               minDist = d;
               bestIdx = i;
@@ -981,12 +997,14 @@ class LevelEditor {
 
         if (idx !== -1) {
           const removedCode = currentSegs[idx];
-          this.clearSegmentStyle(x, y, removedCode);
-          if (removedCode.startsWith('D')) {
-            this.clearSegmentStyle(x, y, removedCode + '_lintel');
-            if (this.doorLinks) {
-              delete this.doorLinks[`${x},${y},${removedCode}`];
-              delete this.doorLinks[`${x},${y}`];
+          if (typeof removedCode === 'string' && !removedCode.startsWith('T')) {
+            this.clearSegmentStyle(x, y, removedCode);
+            if (removedCode.startsWith('D')) {
+              this.clearSegmentStyle(x, y, removedCode + '_lintel');
+              if (this.doorLinks) {
+                delete this.doorLinks[`${x},${y},${removedCode}`];
+                delete this.doorLinks[`${x},${y}`];
+              }
             }
           }
           currentSegs.splice(idx, 1);
@@ -1007,8 +1025,15 @@ class LevelEditor {
         changed = true;
       }
     } else if (this.selectedTile === 'table') {
-      if (this.grid[y][x] !== this.tableType) {
-        this.grid[y][x] = this.tableType;
+      const tableCode = 'T' + this.tableType;
+      const oldIdx = currentSegs.findIndex(s => (typeof s === 'string' && s.startsWith('T')) || (typeof s === 'number' && (s === 9 || (s >= 15 && s <= 21))));
+      if (oldIdx !== -1) {
+        if (currentSegs[oldIdx] !== tableCode) {
+          currentSegs[oldIdx] = tableCode;
+          changed = true;
+        }
+      } else {
+        currentSegs.push(tableCode);
         changed = true;
       }
     } else if (this.hoverSubEdge.startsWith('corner_')) {
@@ -1122,7 +1147,7 @@ class LevelEditor {
       for (let x = 0; x < newCols; x++) {
         if (y < oldRows && x < oldCols) {
           const val = this.grid[y][x];
-          row.push(Array.isArray(val) ? [...val] : (val === 1 ? ['N', 'S', 'E', 'W'] : []));
+          row.push(Array.isArray(val) ? [...val] : (val === 1 ? ['N', 'S', 'E', 'W'] : (val === 9 || (val >= 15 && val <= 21)) ? ['T' + val] : []));
         } else {
           const segs = [];
           if (y === 0) segs.push('N');
@@ -1462,8 +1487,19 @@ class LevelEditor {
         // Obtener segmentos de la celda
         let cell = this.grid[y][x];
         let segs = [];
+        let tableCode = null;
+
         if (Array.isArray(cell)) {
-          segs = cell;
+          for (let i = 0; i < cell.length; i++) {
+            const item = cell[i];
+            if (typeof item === 'string' && item.startsWith('T')) {
+              tableCode = parseInt(item.slice(1), 10);
+            } else if (typeof item === 'number' && (item === 9 || (item >= 15 && item <= 21))) {
+              tableCode = item;
+            } else {
+              segs.push(item);
+            }
+          }
         } else if (cell === 1) {
           segs = ['N', 'S', 'E', 'W'];
         } else if (cell === 2) segs = ['DN'];
@@ -1471,11 +1507,13 @@ class LevelEditor {
         else if (cell === 4) segs = ['DS'];
         else if (cell === 5) segs = ['DW'];
         else if (cell === 9 || (cell >= 15 && cell <= 21)) {
-          // Mesa (cualquier variante): dibuja tabla con indicador de patas
-          const legPos = { 9:[1,1,1,1], 15:[0,0,0,0], 16:[1,0,1,0], 17:[0,1,0,1], 18:[1,0,1,0], 19:[0,1,1,0], 20:[1,0,0,1], 21:[0,1,0,1] };
-          // [TL, TR, BL, BR]
+          tableCode = cell;
+        }
+
+        // 1. Dibuja la mesa primero al fondo si existe en esta casilla
+        if (tableCode) {
           const legCorners = { 9:[1,1,1,1], 15:[0,0,0,0], 16:[1,0,1,0], 17:[0,1,0,1], 18:[1,0,0,0], 19:[0,1,0,0], 20:[0,0,1,0], 21:[0,0,0,1] };
-          const lc = legCorners[cell] || [0,0,0,0];
+          const lc = legCorners[tableCode] || [0,0,0,0];
           ctx.fillStyle = '#6b4423';
           ctx.fillRect(px + cs * 0.1, py + cs * 0.1, cs * 0.8, cs * 0.8);
           ctx.strokeStyle = '#4a2e17';
@@ -1487,10 +1525,9 @@ class LevelEditor {
           if (lc[1]) ctx.fillRect(px + cs * 0.9 - lw, py + cs * 0.1, lw, lw);
           if (lc[2]) ctx.fillRect(px + cs * 0.1, py + cs * 0.9 - lw, lw, lw);
           if (lc[3]) ctx.fillRect(px + cs * 0.9 - lw, py + cs * 0.9 - lw, lw, lw);
-          continue;
         }
 
-        // Dibujar cada segmento fino en su lateral o centro
+        // 2. Dibuja cada segmento fino de pared/puerta por encima de la mesa
         const cellStyleEntry = this.wallStyleMap[`${x},${y}`];
         for (let i = 0; i < segs.length; i++) {
           const s = segs[i];
@@ -1637,7 +1674,13 @@ class LevelEditor {
           ctx.fillStyle = 'rgba(79, 163, 227, 0.8)';
         }
 
-        if (this.hoverSubEdge.startsWith('corner_')) {
+        if (this.selectedTile === 'table') {
+          ctx.fillStyle = 'rgba(107, 68, 35, 0.55)';
+          ctx.fillRect(hpx + cs * 0.1, hpy + cs * 0.1, cs * 0.8, cs * 0.8);
+          ctx.strokeStyle = '#e5a93b';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(hpx + cs * 0.1, hpy + cs * 0.1, cs * 0.8, cs * 0.8);
+        } else if (this.hoverSubEdge.startsWith('corner_')) {
           const c = this.hoverSubEdge.replace('corner_', '');
           const hcx0 = hpx + Math.floor((cs - th) / 2);
           const hcx1 = hcx0 + th;
