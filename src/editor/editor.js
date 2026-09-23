@@ -88,6 +88,9 @@ class LevelEditor {
     this.isMouseDown = false;
     this.roomStart = null;
     this.hoverCell = { x: -1, y: -1 };
+    this.selectedCells = []; // Celdas seleccionadas por la herramienta Selector
+    this.selectStart = null;
+    this.preDragSelectedCells = null;
 
     // Colocación y Rotación de tabique (5x1)
     this.placementMode = 'N';
@@ -822,6 +825,20 @@ class LevelEditor {
 
     if (this.currentTool === 'room') {
       this.roomStart = cell;
+    } else if (this.currentTool === 'select') {
+      this.selectStart = { x: cell.x, y: cell.y };
+      this.preDragSelectedCells = Array.isArray(this.selectedCells) ? [...this.selectedCells] : [];
+      if (!e.shiftKey && !e.ctrlKey) {
+        this.selectedCells = [{ x: cell.x, y: cell.y }];
+      } else {
+        const existsIdx = this.selectedCells.findIndex(c => c.x === cell.x && c.y === cell.y);
+        if (existsIdx !== -1) {
+          this.selectedCells.splice(existsIdx, 1);
+        } else {
+          this.selectedCells.push({ x: cell.x, y: cell.y });
+        }
+      }
+      this.updateInspectorUI();
     } else {
       const rect = this.canvas.getBoundingClientRect();
       const localX = (e.clientX - rect.left) / this.cellSize - cell.x;
@@ -954,7 +971,31 @@ class LevelEditor {
 
       this.updateHoverSubEdge(cell, localX, localY);
 
-      if (this.isMouseDown && this.currentTool !== 'room') {
+      if (this.isMouseDown && this.currentTool === 'select' && this.selectStart) {
+        const x1 = Math.min(this.selectStart.x, cell.x);
+        const x2 = Math.max(this.selectStart.x, cell.x);
+        const y1 = Math.min(this.selectStart.y, cell.y);
+        const y2 = Math.max(this.selectStart.y, cell.y);
+
+        const boxCells = [];
+        for (let py = y1; py <= y2; py++) {
+          for (let px = x1; px <= x2; px++) {
+            boxCells.push({ x: px, y: py });
+          }
+        }
+
+        if (e.shiftKey || e.ctrlKey) {
+          const map = new Map();
+          if (Array.isArray(this.preDragSelectedCells)) {
+            this.preDragSelectedCells.forEach(c => map.set(`${c.x},${c.y}`, c));
+          }
+          boxCells.forEach(c => map.set(`${c.x},${c.y}`, c));
+          this.selectedCells = Array.from(map.values());
+        } else {
+          this.selectedCells = boxCells;
+        }
+        this.updateInspectorUI();
+      } else if (this.isMouseDown && this.currentTool !== 'room' && this.currentTool !== 'select') {
         this.applyToolAt(cell.x, cell.y);
       }
     } else {
@@ -966,6 +1007,11 @@ class LevelEditor {
   handleMouseUp(e) {
     if (!this.isMouseDown) return;
     this.isMouseDown = false;
+
+    if (this.currentTool === 'select') {
+      this.selectStart = null;
+      this.preDragSelectedCells = null;
+    }
 
     if (this.currentTool === 'room' && this.roomStart) {
       const cell = this.getCellFromEvent(e) || this.hoverCell;
@@ -1363,8 +1409,10 @@ class LevelEditor {
       }
     }
     if (this.selectMapPreset) this.selectMapPreset.value = 'custom';
+    this.selectedCells = [];
     this.render();
     this.updateJSON();
+    this.updateInspectorUI();
     this.showToast('Mapa vaciado (paredes perimetrales conservadas)');
   }
 
@@ -2254,7 +2302,94 @@ class LevelEditor {
           case 'RSE': ctx.fillRect(hpx + cs - th, hpy + cs - th, th, th); break;
           default: break;
         }
+      } else if (this.currentTool === 'select') {
+        // Previsualización interactiva de selección sobre la casilla
+        ctx.strokeStyle = '#4fa3e3';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(hpx + 2, hpy + 2, cs - 4, cs - 4);
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(79, 163, 227, 0.12)';
+        ctx.fillRect(hpx + 2, hpy + 2, cs - 4, cs - 4);
       }
+    }
+
+    // Dibujar resaltado de las celdas seleccionadas actualmente
+    if (Array.isArray(this.selectedCells) && this.selectedCells.length > 0) {
+      ctx.save();
+
+      // 1. Cortinilla azulada suave en toda la zona seleccionada
+      ctx.fillStyle = 'rgba(79, 163, 227, 0.16)';
+      this.selectedCells.forEach(sc => {
+        if (sc.x < 0 || sc.x >= this.cols || sc.y < 0 || sc.y >= this.rows) return;
+        ctx.fillRect(sc.x * cs, sc.y * cs, cs, cs);
+      });
+
+      // 2. Reborde azul punteado solo en el perímetro exterior (sin líneas interiores)
+      ctx.strokeStyle = '#4fa3e3';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+
+      const selectedSet = new Set(this.selectedCells.map(c => `${c.x},${c.y}`));
+      ctx.beginPath();
+      this.selectedCells.forEach(sc => {
+        if (sc.x < 0 || sc.x >= this.cols || sc.y < 0 || sc.y >= this.rows) return;
+        const x0 = sc.x * cs;
+        const x1 = x0 + cs;
+        const y0 = sc.y * cs;
+        const y1 = y0 + cs;
+
+        // Borde Norte (solo si la celda superior no está en la selección)
+        if (!selectedSet.has(`${sc.x},${sc.y - 1}`)) {
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y0);
+        }
+        // Borde Sur (solo si la celda inferior no está en la selección)
+        if (!selectedSet.has(`${sc.x},${sc.y + 1}`)) {
+          ctx.moveTo(x0, y1);
+          ctx.lineTo(x1, y1);
+        }
+        // Borde Oeste (solo si la celda izquierda no está en la selección)
+        if (!selectedSet.has(`${sc.x - 1},${sc.y}`)) {
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x0, y1);
+        }
+        // Borde Este (solo si la celda derecha no está en la selección)
+        if (!selectedSet.has(`${sc.x + 1},${sc.y}`)) {
+          ctx.moveTo(x1, y0);
+          ctx.lineTo(x1, y1);
+        }
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // 3. Rótulo informativo en color azul
+      if (this.selectedCells.length === 1) {
+        const sc = this.selectedCells[0];
+        ctx.fillStyle = '#4fa3e3';
+        ctx.font = `bold ${Math.max(8, Math.floor(cs * 0.2))}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`(${sc.x},${sc.y})`, sc.x * cs + cs / 2, sc.y * cs - 3);
+      } else if (this.selectedCells.length > 1) {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity;
+        this.selectedCells.forEach(c => {
+          if (c.x < minX) minX = c.x;
+          if (c.x > maxX) maxX = c.x;
+          if (c.y < minY) minY = c.y;
+        });
+        const bspx = minX * cs;
+        const bspw = (maxX - minX + 1) * cs;
+        const bspy = minY * cs;
+
+        ctx.fillStyle = '#4fa3e3';
+        ctx.font = `bold ${Math.max(9, Math.floor(cs * 0.22))}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(`${this.selectedCells.length} celdas`, bspx + bspw / 2, bspy - 3);
+      }
+
+      ctx.restore();
     }
 
     // Dibujar Jugador
@@ -2395,17 +2530,35 @@ class LevelEditor {
     const sectionAccessoryPlacement = document.getElementById('sectionAccessoryPlacement');
     const sectionMesaPlacement = document.getElementById('sectionMesaPlacement');
     const sectionEraserInfo = document.getElementById('sectionEraserInfo');
+    const sectionCellInspector = document.getElementById('sectionCellInspector');
     const monitorOrientPanel = document.getElementById('monitorOrientationPanel');
+    const sectionCharacterPlacement = document.getElementById('sectionCharacterPlacement');
 
     if (this.currentTool === 'eraser') {
       if (sectionElementPalette) sectionElementPalette.style.display = 'none';
       if (sectionWallPlacement) sectionWallPlacement.style.display = 'none';
       if (sectionAccessoryPlacement) sectionAccessoryPlacement.style.display = 'none';
       if (sectionMesaPlacement) sectionMesaPlacement.style.display = 'none';
+      if (sectionCharacterPlacement) sectionCharacterPlacement.style.display = 'none';
       if (sectionEraserInfo) sectionEraserInfo.style.display = '';
+      if (sectionCellInspector) sectionCellInspector.style.display = 'none';
       if (monitorOrientPanel) monitorOrientPanel.style.display = 'none';
+    } else if (this.currentTool === 'select') {
+      if (sectionElementPalette) sectionElementPalette.style.display = 'none';
+      if (sectionWallPlacement) sectionWallPlacement.style.display = 'none';
+      if (sectionAccessoryPlacement) sectionAccessoryPlacement.style.display = 'none';
+      if (sectionMesaPlacement) sectionMesaPlacement.style.display = 'none';
+      if (sectionCharacterPlacement) sectionCharacterPlacement.style.display = 'none';
+      if (sectionEraserInfo) sectionEraserInfo.style.display = 'none';
+      if (sectionCellInspector) {
+        sectionCellInspector.style.display = '';
+        sectionCellInspector.classList.remove('collapsed');
+      }
+      if (monitorOrientPanel) monitorOrientPanel.style.display = 'none';
+      this.updateInspectorUI();
     } else {
       if (sectionEraserInfo) sectionEraserInfo.style.display = 'none';
+      if (sectionCellInspector) sectionCellInspector.style.display = 'none';
       if (sectionElementPalette) sectionElementPalette.style.display = '';
 
       const isWall = (this.selectedTile === 1 || this.selectedTile === '1');
@@ -2429,7 +2582,6 @@ class LevelEditor {
         const showMonitorOrient = isAccessory && (this.selectedAccessory === 'monitor');
         if (monitorOrientPanel) monitorOrientPanel.style.display = showMonitorOrient ? '' : 'none';
       }
-      const sectionCharacterPlacement = document.getElementById('sectionCharacterPlacement');
       if (sectionCharacterPlacement) {
         sectionCharacterPlacement.style.display = isCharacter ? '' : 'none';
         if (isCharacter) sectionCharacterPlacement.classList.remove('collapsed');
@@ -2439,6 +2591,389 @@ class LevelEditor {
         if (isMesa) sectionMesaPlacement.classList.remove('collapsed');
       }
     }
+  }
+
+  /**
+   * Genera metadata legible para un elemento colocado en una celda
+   */
+  describeElement(code, x, y) {
+    const raw = String(code);
+    const key = `${x},${y}`;
+    const styles = this.wallStyleMap[key] || {};
+
+    // 1. Monitor
+    if (raw === 'MON' || raw.startsWith('MON_')) {
+      const orient = raw === 'MON' ? 'F' : raw.replace('MON_', '');
+      const orientNames = { F: 'Frente (Este)', R: 'Derecha (Sur)', L: 'Izquierda (Norte)', B: 'Detrás (Oeste)' };
+      return {
+        type: 'monitor',
+        name: 'Monitor PC de Sobremesa',
+        sub: `Orientación: ${orientNames[orient] || orient}`,
+        iconClass: 'ri-computer-line',
+        badgeClass: 'icon-monitor',
+        stylePill: null
+      };
+    }
+
+    // 2. Personaje
+    if (raw === 'CHAR' || raw.startsWith('CHAR_')) {
+      const orient = raw === 'CHAR' ? 'F' : raw.replace('CHAR_', '');
+      const orientNames = { F: 'Frente (Este)', R: 'Derecha (Sur)', L: 'Izquierda (Norte)', B: 'Detrás (Oeste)' };
+      return {
+        type: 'character',
+        name: 'Personaje en silla',
+        sub: `Mirando al: ${orientNames[orient] || orient}`,
+        iconClass: 'ri-user-smile-line',
+        badgeClass: 'icon-char',
+        stylePill: null
+      };
+    }
+
+    // 3. Mesa
+    if (raw.startsWith('T') || (typeof code === 'number' && (code === 9 || (code >= 15 && code <= 21)))) {
+      const num = raw.startsWith('T') ? parseInt(raw.substring(1), 10) : code;
+      const tableNames = {
+        9: 'Mesa de madera (4 patas)',
+        15: 'Mesa volada (sin patas)',
+        16: 'Mesa moderna blanca',
+        17: 'Mesa de cristal',
+        18: 'Mesa de metal',
+        19: 'Mesa rústica',
+        20: 'Mesa ejecutiva',
+        21: 'Mesa de reuniones'
+      };
+      return {
+        type: 'table',
+        name: tableNames[num] || `Mesa (Tipo ${num})`,
+        sub: 'Ocupa centro de celda',
+        iconClass: 'ri-table-2',
+        badgeClass: 'icon-table',
+        stylePill: `T${num}`
+      };
+    }
+
+    // 4. Puertas
+    if (raw.startsWith('D')) {
+      const edge = raw.replace(/^D/, '');
+      const edgeNames = { N: 'Norte', S: 'Sur', E: 'Este', W: 'Oeste', CH: 'Centro Horiz.', CV: 'Centro Vert.' };
+      const dStyle = styles[raw] || this.doorStyle || 'castillo';
+      const lStyle = styles[raw + '_lintel'] || this.lintelStyle || 'castillo';
+      const linkKey = `${x},${y},${raw}`;
+      const isPortal = this.doorLinks && (this.doorLinks[linkKey] || this.doorLinks[key]);
+      return {
+        type: 'door',
+        name: `Puerta ${edgeNames[edge] || edge}`,
+        sub: `Estilo: ${dStyle} • Dintel: ${lStyle}${isPortal ? ' • Portal 🌐' : ''}`,
+        iconClass: 'ri-door-open-line',
+        badgeClass: 'icon-door',
+        stylePill: dStyle
+      };
+    }
+
+    // 5. Ventanas
+    if (raw.startsWith('W') && raw.length > 1) {
+      const edge = raw.replace(/^W/, '');
+      const edgeNames = { N: 'Norte', S: 'Sur', E: 'Este', W: 'Oeste', CH: 'Centro Horiz.', CV: 'Centro Vert.' };
+      return {
+        type: 'window',
+        name: `Ventana ${edgeNames[edge] || edge}`,
+        sub: 'Cristal transparente',
+        iconClass: 'ri-window-line',
+        badgeClass: 'icon-window',
+        stylePill: 'cristal'
+      };
+    }
+
+    // 6. Paredes y tabiques
+    const wallNames = {
+      N: 'Pared Norte (━)',
+      S: 'Pared Sur (━)',
+      E: 'Pared Este (┃)',
+      W: 'Pared Oeste (┃)',
+      CH: 'Tabique Centro Horiz. (━)',
+      CV: 'Tabique Centro Vert. (┃)',
+      CN: 'Esquina Centro-Norte',
+      CS: 'Esquina Centro-Sur',
+      CW: 'Esquina Centro-Oeste',
+      CE: 'Esquina Centro-Este',
+      RNW: 'Rincón Noroeste (1x1)',
+      RNE: 'Rincón Noreste (1x1)',
+      RSW: 'Rincón Suroeste (1x1)',
+      RSE: 'Rincón Sureste (1x1)'
+    };
+    const wStyle = styles[raw] || this.wallStyle || 'castillo';
+    return {
+      type: 'wall',
+      name: wallNames[raw] || `Pared (${raw})`,
+      sub: `Estilo: ${wStyle}`,
+      iconClass: 'ri-layout-masonry-line',
+      badgeClass: 'icon-wall',
+      stylePill: wStyle
+    };
+  }
+
+  /**
+   * Actualiza el contenido visual del panel Inspector de Selección
+   */
+  updateInspectorUI() {
+    const container = document.getElementById('inspectorContent');
+    if (!container) return;
+
+    if (!Array.isArray(this.selectedCells) || this.selectedCells.length === 0) {
+      container.innerHTML = `
+        <div class="inspector-empty-state">
+          <div class="inspector-empty-icon"><i class="ri-cursor-line"></i></div>
+          <p><strong>Ninguna selección</strong></p>
+          <p class="section-desc">Haz clic o arrastra un recuadro sobre el mapa para seleccionar una o varias celdas, ver sus elementos y eliminarlos.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Calcular límites y métricas de la selección
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    this.selectedCells.forEach(c => {
+      if (c.x < minX) minX = c.x;
+      if (c.x > maxX) maxX = c.x;
+      if (c.y < minY) minY = c.y;
+      if (c.y > maxY) maxY = c.y;
+    });
+
+    const isSingle = this.selectedCells.length === 1;
+    const sc = this.selectedCells[0];
+
+    // Recopilar todos los elementos en las celdas seleccionadas
+    const allItems = [];
+    this.selectedCells.forEach(cell => {
+      const { x, y } = cell;
+      if (!this.grid[y] || x < 0 || x >= this.cols || y < 0 || y >= this.rows) return;
+
+      // Normalizar a array si no lo era
+      if (!Array.isArray(this.grid[y][x])) {
+        const val = this.grid[y][x];
+        if (val === 1) this.grid[y][x] = ['N', 'S', 'E', 'W'];
+        else if (val === 2) this.grid[y][x] = ['DN'];
+        else if (val === 3) this.grid[y][x] = ['DE'];
+        else if (val === 4) this.grid[y][x] = ['DS'];
+        else if (val === 5) this.grid[y][x] = ['DW'];
+        else if (val === 9 || (val >= 15 && val <= 21)) this.grid[y][x] = ['T' + val];
+        else this.grid[y][x] = [];
+      }
+
+      const segs = this.grid[y][x];
+      segs.forEach((seg, idx) => {
+        allItems.push({ x, y, seg, idx, isPlayer: false });
+      });
+
+      if (Math.floor(this.player.x) === x && Math.floor(this.player.y) === y) {
+        allItems.push({ x, y, isPlayer: true });
+      }
+    });
+
+    const totalCount = allItems.length;
+    const totalDeletables = allItems.filter(item => !item.isPlayer).length;
+
+    let headerHtml = '';
+    let metaHtml = '';
+
+    if (isSingle) {
+      const metricX = (sc.x + 0.5).toFixed(2);
+      const metricY = (sc.y + 0.5).toFixed(2);
+      headerHtml = `
+        <span class="inspector-coords-title"><i class="ri-focus-3-line"></i> Celda (${sc.x}, ${sc.y})</span>
+        <span class="inspector-metric-pos">[${metricX}m, ${metricY}m]</span>
+      `;
+      metaHtml = `
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">Rango X</span>
+          <span class="inspector-meta-value">${sc.x}.00m – ${(sc.x + 1)}.00m</span>
+        </div>
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">Rango Y</span>
+          <span class="inspector-meta-value">${sc.y}.00m – ${(sc.y + 1)}.00m</span>
+        </div>
+      `;
+    } else {
+      const spanCols = maxX - minX + 1;
+      const spanRows = maxY - minY + 1;
+      headerHtml = `
+        <span class="inspector-coords-title"><i class="ri-checkbox-multiple-line"></i> ${this.selectedCells.length} celdas</span>
+        <span class="inspector-metric-pos">${spanCols}x${spanRows} (${minX},${minY} a ${maxX},${maxY})</span>
+      `;
+      metaHtml = `
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">Rango X</span>
+          <span class="inspector-meta-value">${minX}.00m – ${(maxX + 1)}.00m</span>
+        </div>
+        <div class="inspector-meta-item">
+          <span class="inspector-meta-label">Rango Y</span>
+          <span class="inspector-meta-value">${minY}.00m – ${(maxY + 1)}.00m</span>
+        </div>
+      `;
+    }
+
+    let html = `
+      <div class="inspector-cell-card">
+        <div class="inspector-header-box">
+          ${headerHtml}
+        </div>
+
+        <div class="inspector-meta-grid">
+          ${metaHtml}
+        </div>
+
+        <div class="inspector-list-header">
+          <span class="inspector-list-title"><i class="ri-list-check-2"></i> Elementos seleccionados (${totalCount})</span>
+        </div>
+
+        <div class="inspector-elements-list">
+    `;
+
+    if (totalCount === 0) {
+      html += `
+        <div class="inspector-no-items">
+          <i class="ri-checkbox-blank-circle-line" style="font-size: 1.1rem; vertical-align: middle; margin-right: 4px; opacity: 0.5;"></i>
+          La selección está completamente libre y sin objetos.
+        </div>
+      `;
+    } else {
+      allItems.forEach(item => {
+        if (item.isPlayer) {
+          const pDir = this.getPlayerDirectionName(this.player.angle);
+          const pDeg = Math.round((((this.player.angle * 180 / Math.PI) % 360) + 360) % 360);
+          html += `
+            <div class="inspector-item" style="border-color: rgba(0, 210, 211, 0.35); background: rgba(0, 210, 211, 0.05);">
+              <div class="inspector-item-main">
+                <div class="inspector-item-icon icon-player">
+                  <i class="ri-user-star-line"></i>
+                </div>
+                <div class="inspector-item-details">
+                  <span class="inspector-item-name" style="color: #00d2d3;">Punto de Spawn Jugador</span>
+                  <span class="inspector-item-sub">
+                    ${!isSingle ? `<span class="inspector-coords-tag">(${item.x},${item.y})</span>` : ''}
+                    <span class="inspector-style-pill" style="background: rgba(0, 210, 211, 0.2); color: #00d2d3;">${pDir} (${pDeg}°)</span>
+                  </span>
+                </div>
+              </div>
+              <span style="font-size: 0.72rem; color: #00d2d3; padding-right: 4px;" title="Punto de inicio activo">Activo</span>
+            </div>
+          `;
+        } else {
+          const desc = this.describeElement(item.seg, item.x, item.y);
+          html += `
+            <div class="inspector-item">
+              <div class="inspector-item-main">
+                <div class="inspector-item-icon ${desc.badgeClass}">
+                  <i class="${desc.iconClass}"></i>
+                </div>
+                <div class="inspector-item-details">
+                  <span class="inspector-item-name">${desc.name}</span>
+                  <span class="inspector-item-sub">
+                    ${!isSingle ? `<span class="inspector-coords-tag">(${item.x},${item.y})</span>` : ''}
+                    ${desc.stylePill ? `<span class="inspector-style-pill">${desc.stylePill}</span>` : ''}
+                    <span>${desc.sub}</span>
+                  </span>
+                </div>
+              </div>
+              <button class="btn-inspector-delete" data-action="delete-item" data-cell-x="${item.x}" data-cell-y="${item.y}" data-index="${item.idx}" title="Eliminar este elemento de la selección">
+                <i class="ri-delete-bin-line"></i>
+              </button>
+            </div>
+          `;
+        }
+      });
+    }
+
+    html += `
+        </div>
+        ${totalDeletables > 0 ? `
+          <div class="inspector-footer-actions">
+            <button class="btn-inspector-clear-all" id="btnInspectorClearAll" title="Vaciar todos los objetos de la selección">
+              <i class="ri-delete-bin-7-line"></i> Vaciar selección
+            </button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    container.innerHTML = html;
+
+    // Vincular botones de eliminar elemento individual
+    container.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cx = parseInt(btn.dataset.cellX, 10);
+        const cy = parseInt(btn.dataset.cellY, 10);
+        const idx = parseInt(btn.dataset.index, 10);
+        this.deleteElementFromCell(cx, cy, idx);
+      });
+    });
+
+    // Vincular botón de vaciar selección
+    const btnClearAll = container.querySelector('#btnInspectorClearAll');
+    if (btnClearAll) {
+      btnClearAll.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.clearSelection();
+      });
+    }
+  }
+
+  /**
+   * Elimina un elemento específico de una celda por su índice en this.grid[y][x]
+   */
+  deleteElementFromCell(x, y, idx) {
+    if (!this.grid[y] || !Array.isArray(this.grid[y][x])) return;
+    const currentSegs = this.grid[y][x];
+    if (idx < 0 || idx >= currentSegs.length) return;
+
+    const removedCode = currentSegs[idx];
+    if (typeof removedCode === 'string' && !removedCode.startsWith('T') && !removedCode.startsWith('MON') && !removedCode.startsWith('CHAR')) {
+      this.clearSegmentStyle(x, y, removedCode);
+      if (removedCode.startsWith('D')) {
+        this.clearSegmentStyle(x, y, removedCode + '_lintel');
+        if (this.doorLinks) {
+          delete this.doorLinks[`${x},${y},${removedCode}`];
+          delete this.doorLinks[`${x},${y}`];
+        }
+      }
+    }
+    currentSegs.splice(idx, 1);
+    this.render();
+    this.updateJSON();
+    this.updateInspectorUI();
+    this.showToast('🗑️ Elemento eliminado de la selección');
+  }
+
+  /**
+   * Vacía completamente los elementos de todas las celdas en la selección actual
+   */
+  clearSelection() {
+    if (!Array.isArray(this.selectedCells) || this.selectedCells.length === 0) return;
+    this.selectedCells.forEach(cell => {
+      const { x, y } = cell;
+      if (this.grid[y] && this.grid[y][x]) {
+        this.grid[y][x] = [];
+        this.clearCellStyles(x, y);
+      }
+    });
+    this.render();
+    this.updateJSON();
+    this.updateInspectorUI();
+    this.showToast('🧹 Selección vaciada');
+  }
+
+  /**
+   * Vacía completamente los elementos de una celda específica
+   */
+  clearCell(x, y) {
+    if (!this.grid[y]) return;
+    this.grid[y][x] = [];
+    this.clearCellStyles(x, y);
+    this.render();
+    this.updateJSON();
+    this.updateInspectorUI();
+    this.showToast('🧹 Celda vaciada');
   }
 
   /**

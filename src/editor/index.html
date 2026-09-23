@@ -104,6 +104,10 @@
                 title="Borrador: Borrar muros y elementos">
                 <i class="ri-eraser-line"></i>
               </button>
+              <button class="tool-btn tool-icon-only" data-tool="select" id="toolSelect"
+                title="Selector / Inspector: Selecciona una o varias celdas para ver sus elementos y eliminarlos">
+                <i class="ri-cursor-line"></i>
+              </button>
             </div>
           </div>
         </section>
@@ -121,6 +125,20 @@
               <p><strong>Borrador activo</strong></p>
               <p class="section-desc">Haz clic o arrastra sobre cualquier pared, puerta o accesorio en el mapa para
                 eliminarlo.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Información Modo Selector / Inspector (Visible exclusivamente cuando Selector está activo) -->
+        <section class="tool-section inspector-section" id="sectionCellInspector" style="display: none;">
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-cursor-line"></i> Inspector de Selección</span>
+            </h2>
+          </div>
+          <div class="dimension-controls">
+            <div id="inspectorContent">
+              <!-- Rellenado dinámicamente con detalles de celda y lista de elementos -->
             </div>
           </div>
         </section>
@@ -481,6 +499,19 @@
               <span>Tipo: <strong id="mesaTypeLabel">4 Patas</strong></span>
               <i class="ri-arrow-right-s-line style-picker-chevron"></i>
             </button>
+          </div>
+        </section>
+
+        <!-- 7. Inspector de Celda (Solo visible con herramienta Selector) -->
+        <section class="tool-section" id="sectionCellInspector" style="display: none;">
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-scan-2-line"></i> Inspector de Celda</span>
+              <span class="collapse-icon">▾</span>
+            </h2>
+          </div>
+          <div class="dimension-controls" id="inspectorContent">
+            <!-- Rellenado dinámicamente -->
           </div>
         </section>
 
