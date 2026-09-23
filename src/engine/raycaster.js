@@ -2240,7 +2240,7 @@ class RaycasterEngine {
             mapY: y,
             type: 'monitor',
             facingAngle: facingAngle,
-            z: this.tableHeightScale - 0.05 // Fijado definitivamente en 0.945m para todos los monitores
+            z: this.tableHeightScale - 0.04 // Bajado a 0.955m
           });
         }
 
@@ -2343,16 +2343,24 @@ class RaycasterEngine {
       const spriteScreenWidth = Math.abs(Math.floor(spriteWorldW * proj));
       const spriteScreenHeight = Math.abs(Math.floor(spriteWorldH * proj));
 
-      // Elevación: personaje en suelo (z = -0.18m centrado en celda), monitor elevado en mesa (z = tableHeightScale - 0.05)
-      const baseElevation = (typeof sprite.z === 'number') ? sprite.z : (isChar ? (this.characterElevation ?? -0.18) : (this.tableHeightScale - 0.05));
+      // Elevación: personaje en suelo (z = -0.18m centrado en celda), monitor elevado en mesa (z = tableHeightScale - 0.04)
+      const baseElevation = (typeof sprite.z === 'number') ? sprite.z : (isChar ? (this.characterElevation ?? -0.18) : (this.tableHeightScale - 0.04));
       const bottomY = halfH + (eyeHeight - baseElevation) * proj;
       const topY = bottomY - spriteScreenHeight;
 
       const drawStartY = Math.max(0, Math.floor(topY));
       const drawEndY = Math.min(h - 1, Math.floor(bottomY));
 
-      const drawStartX = Math.max(0, Math.floor(spriteScreenX - spriteScreenWidth / 2));
-      const drawEndX = Math.min(w - 1, Math.floor(spriteScreenX + spriteScreenWidth / 2));
+      // Ajuste de eje para monitores:
+      // En vista lateral, el soporte ya está en el fondo de la mesa (+52.5px en textura de 256px = +20.5% del ancho del sprite).
+      // Para vistas frontal y trasera, desplazamos la posición horizontal para que el soporte se coloque en el punto rojo (alineado con la línea).
+      let effScreenX = spriteScreenX;
+      if (!isChar && (activeVariant === 'front' || activeVariant === 'back')) {
+        effScreenX += Math.round(spriteScreenWidth * (52.5 / 256));
+      }
+
+      const drawStartX = Math.max(0, Math.floor(effScreenX - spriteScreenWidth / 2));
+      const drawEndX = Math.min(w - 1, Math.floor(effScreenX + spriteScreenWidth / 2));
 
       if (drawStartX > w - 1 || drawEndX < 0 || drawStartY > h - 1 || drawEndY < 0) continue;
 
@@ -2387,7 +2395,7 @@ class RaycasterEngine {
         // Comprobar oclusión contra el Z-Buffer general de muros
         if (transformY >= this.zBuffer[stripe]) continue;
 
-        const texX = Math.floor((stripe - (spriteScreenX - spriteScreenWidth / 2)) * texW / spriteScreenWidth);
+        const texX = Math.floor((stripe - (effScreenX - spriteScreenWidth / 2)) * texW / spriteScreenWidth);
         if (texX < 0 || texX >= texW) continue;
 
         const totalH = Math.max(0.0001, bottomY - topY);
@@ -2396,8 +2404,9 @@ class RaycasterEngine {
 
         for (let y = drawStartY; y <= drawEndY; y++) {
           const pIdx = y * w + stripe;
-          // Oclusión exacta por píxel: si hay una mesa, pata o dintel delante, no dibujar este píxel
-          if (this.pixelDepthBuffer && transformY >= this.pixelDepthBuffer[pIdx]) {
+          // Oclusión exacta por píxel: para personajes (sentados tras la mesa), la tapa de la mesa debe taparle las piernas/cuerpo.
+          // Para monitores y accesorios sobre la mesa, deben permanecer SIEMPRE visibles sobre la tapa de la mesa y no cortarse.
+          if (isChar && this.pixelDepthBuffer && transformY >= this.pixelDepthBuffer[pIdx]) {
             texPos += step;
             continue;
           }
