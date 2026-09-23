@@ -377,13 +377,20 @@
                   <small>Pantalla plana</small>
                 </div>
               </button>
+              <button class="accessory-tile-btn" data-accessory="character" title="Personaje en silla de oficina (4 vistas dinámicas)">
+                <span class="acc-tile-icon"><i class="ri-user-smile-line"></i></span>
+                <div class="acc-tile-meta">
+                  <strong>Personaje</strong>
+                  <small>En silla oficina</small>
+                </div>
+              </button>
             </div>
 
-            <!-- Selector de Orientación del Monitor (Solo visible al seleccionar Monitor) -->
+            <!-- Selector de Orientación del Monitor / Personaje -->
             <div class="monitor-orientation-panel" id="monitorOrientationPanel" style="display: none; margin-top: 10px;">
-              <p class="section-desc" style="margin-bottom: 6px;">Orientación del Monitor:</p>
+              <p class="section-desc" id="monitorOrientDesc" style="margin-bottom: 6px;">Orientación:</p>
               <div class="monitor-orient-grid">
-                <button class="monitor-orient-btn active" data-orient="F" title="Monitor de Frente (Pantalla frontal)">
+                <button class="monitor-orient-btn active" data-orient="F" title="De Frente">
                   <i class="ri-tv-line"></i>
                   <span>Frente</span>
                 </button>

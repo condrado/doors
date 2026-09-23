@@ -1035,7 +1035,19 @@ function getMonitorPixels(variant = 'front') {
   return _monitorPixelsCache[key];
 }
 
-// Carga asíncrona de los 4 sprites PNG en alta resolución
+const _characterPixelsCache = {
+  front: null,
+  right: null,
+  left: null,
+  back: null
+};
+
+function getCharacterPixels(variant = 'front') {
+  const key = (variant === 'right' || variant === 'left' || variant === 'back') ? variant : 'front';
+  return _characterPixelsCache[key] || null;
+}
+
+// Carga asíncrona de los sprites PNG en alta resolución
 if (typeof Image !== 'undefined') {
   const loadSprite = (fileName, key) => {
     const img = new Image();
@@ -1060,6 +1072,30 @@ if (typeof Image !== 'undefined') {
   loadSprite('monitor_right.png', 'right');
   loadSprite('monitor_left.png', 'left');
   loadSprite('monitor_back.png', 'back');
+
+  const loadCharSprite = (fileName, key) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = 256, h = 256;
+      const off = document.createElement('canvas');
+      off.width = w; off.height = h;
+      const octx = off.getContext('2d', { willReadFrequently: true });
+      octx.drawImage(img, 0, 0, w, h);
+      const arr = toPixels(octx, w, h);
+      arr.hasTransparency = true;
+      _characterPixelsCache[key] = arr;
+      if (typeof window !== 'undefined' && window.raycaster && window.raycaster.textures) {
+        window.raycaster.textures['char_' + key] = arr;
+        if (key === 'front') window.raycaster.textures.character = arr;
+      }
+    };
+    img.src = '/src/assets/' + fileName;
+  };
+
+  loadCharSprite('char_front.png', 'front');
+  loadCharSprite('char_right.png', 'right');
+  loadCharSprite('char_left.png', 'left');
+  loadCharSprite('char_back.png', 'back');
 }
 
 if (typeof window !== 'undefined') {
@@ -1073,6 +1109,7 @@ if (typeof window !== 'undefined') {
   window.exportBaseTexturesAsPngDataUrls = exportBaseTexturesAsPngDataUrls;
   window.createProceduralMonitorPixels = createProceduralMonitorPixels;
   window.getMonitorPixels = getMonitorPixels;
+  window.getCharacterPixels = getCharacterPixels;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

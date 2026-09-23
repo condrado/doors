@@ -443,7 +443,11 @@ class LevelEditor {
         document.querySelectorAll('.accessory-tile-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.selectedAccessory = btn.dataset.accessory;
-        const name = this.selectedAccessory === 'door' ? 'Puerta' : (this.selectedAccessory === 'window' ? 'Ventana' : 'Monitor PC');
+        const name = this.selectedAccessory === 'door' ? 'Puerta' : (this.selectedAccessory === 'window' ? 'Ventana' : (this.selectedAccessory === 'character' ? 'Personaje' : 'Monitor PC'));
+        const orientDesc = document.getElementById('monitorOrientDesc');
+        if (orientDesc) {
+          orientDesc.textContent = this.selectedAccessory === 'character' ? 'Orientación del Personaje:' : 'Orientación del Monitor:';
+        }
         this.showToast(`Accesorio activo: ${name}`);
         this.updateToolPanelsVisibility();
         this.render();
@@ -451,14 +455,15 @@ class LevelEditor {
       });
     });
 
-    // Selector de orientación del monitor (F, R, L, B)
+    // Selector de orientación del monitor / personaje (F, R, L, B)
     document.querySelectorAll('.monitor-orient-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.monitor-orient-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.monitorOrientation = btn.dataset.orient || 'F';
         const orientNames = { F: 'Frente', R: 'Mirando Derecha', L: 'Mirando Izquierda', B: 'Por Detrás' };
-        this.showToast(`🖥️ Monitor: ${orientNames[this.monitorOrientation]}`);
+        const isChar = this.selectedAccessory === 'character';
+        this.showToast(`${isChar ? '🧑 Personaje' : '🖥️ Monitor'}: ${orientNames[this.monitorOrientation]}`);
         this.render();
         this.saveUIState();
       });
@@ -1015,7 +1020,7 @@ class LevelEditor {
           let minDist = Infinity;
           currentSegs.forEach((segRaw, i) => {
             let d = 1;
-            if (typeof segRaw === 'string' && (segRaw === 'MON' || segRaw.startsWith('MON_') || segRaw.startsWith('T'))) {
+            if (typeof segRaw === 'string' && (segRaw === 'MON' || segRaw.startsWith('MON_') || segRaw === 'CHAR' || segRaw.startsWith('CHAR_') || segRaw.startsWith('T'))) {
               d = Math.hypot(lx - 0.5, ly - 0.5);
             } else if (typeof segRaw === 'number' && (segRaw === 9 || (segRaw >= 15 && segRaw <= 21))) {
               d = Math.hypot(lx - 0.5, ly - 0.5);
@@ -1046,7 +1051,7 @@ class LevelEditor {
 
         if (idx !== -1) {
           const removedCode = currentSegs[idx];
-          if (typeof removedCode === 'string' && !removedCode.startsWith('T') && removedCode !== 'MON' && !removedCode.startsWith('MON_')) {
+          if (typeof removedCode === 'string' && !removedCode.startsWith('T') && removedCode !== 'MON' && !removedCode.startsWith('MON_') && removedCode !== 'CHAR' && !removedCode.startsWith('CHAR_')) {
             this.clearSegmentStyle(x, y, removedCode);
             if (removedCode.startsWith('D')) {
               this.clearSegmentStyle(x, y, removedCode + '_lintel');
@@ -1088,6 +1093,23 @@ class LevelEditor {
       } else {
         currentSegs.push(monCode);
         this.showToast('🖥️ Monitor colocado');
+        changed = true;
+      }
+    } else if (this.selectedTile === 'accessories' && this.selectedAccessory === 'character') {
+      // Colocar o reorientar personaje en la celda
+      const orient = this.monitorOrientation || 'F';
+      const charCode = (orient === 'F') ? 'CHAR' : ('CHAR_' + orient);
+      const oldCharIdx = currentSegs.findIndex(s => typeof s === 'string' && (s === 'CHAR' || s.startsWith('CHAR_')));
+      if (oldCharIdx !== -1) {
+        if (currentSegs[oldCharIdx] !== charCode) {
+          currentSegs[oldCharIdx] = charCode;
+          const orientNames = { F: 'Frente', R: 'Derecha', L: 'Izquierda', B: 'Detrás' };
+          this.showToast(`🧑 Personaje reorientado (${orientNames[orient]})`);
+          changed = true;
+        }
+      } else {
+        currentSegs.push(charCode);
+        this.showToast('🧑 Personaje colocado');
         changed = true;
       }
     } else if (this.selectedTile === 'table') {
@@ -1633,6 +1655,120 @@ class LevelEditor {
     ctx.restore();
   }
 
+  draw2DCharacter(ctx, px, py, cs, orient = 'F', isPreview = false) {
+    ctx.save();
+    if (isPreview) {
+      ctx.globalAlpha = 0.7;
+    }
+
+    const cx = px + cs / 2;
+    const cy = py + cs / 2;
+    const r = Math.max(6, cs * 0.28);
+
+    // 1. Ruedas y base estrella de la silla de oficina (5 radios)
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = Math.max(1.5, cs * 0.05);
+    for (let i = 0; i < 5; i++) {
+      const a = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+      const rx = cx + Math.cos(a) * (r * 1.25);
+      const ry = cy + Math.sin(a) * (r * 1.25);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(rx, ry);
+      ctx.stroke();
+
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.arc(rx, ry, Math.max(2, cs * 0.04), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 2. Asiento de la silla de oficina
+    ctx.fillStyle = '#1e293b';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.95, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Respaldo curvado de la silla según orientación
+    // F: mira al Este (+X, derecha), respaldo a la Izquierda (Oeste)
+    // R: mira al Sur (+Y, abajo), respaldo Arriba (Norte)
+    // L: mira al Norte (-Y, arriba), respaldo Abajo (Sur)
+    // B: mira al Oeste (-X, izquierda), respaldo a la Derecha (Este)
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = Math.max(2.5, cs * 0.09);
+    let backAngle = Math.PI; // Respaldo a la izquierda (Oeste) para Frente
+    if (orient === 'R') backAngle = -Math.PI / 2; // Arriba (Norte)
+    else if (orient === 'L') backAngle = Math.PI / 2; // Abajo (Sur)
+    else if (orient === 'B') backAngle = 0; // Derecha (Este)
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.05, backAngle - 0.7, backAngle + 0.7);
+    ctx.stroke();
+
+    // 4. Cuerpo y cabeza del personaje (amarillo cálido suave)
+    ctx.fillStyle = '#fceaa6';
+    ctx.strokeStyle = '#2d241e';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 5. Diadema y auriculares negros
+    const facingAngle = (orient === 'R') ? Math.PI / 2 : (orient === 'L') ? -Math.PI / 2 : (orient === 'B') ? Math.PI : 0;
+    const bandAngle = facingAngle + Math.PI / 2;
+    const e1x = cx + Math.cos(bandAngle) * (r * 0.72);
+    const e1y = cy + Math.sin(bandAngle) * (r * 0.72);
+    const e2x = cx - Math.cos(bandAngle) * (r * 0.72);
+    const e2y = cy - Math.sin(bandAngle) * (r * 0.72);
+
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = Math.max(2, cs * 0.06);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.72, bandAngle - Math.PI, bandAngle);
+    ctx.stroke();
+
+    // Almohadillas de auriculares
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.arc(e1x, e1y, Math.max(2.5, cs * 0.06), 0, Math.PI * 2);
+    ctx.arc(e2x, e2y, Math.max(2.5, cs * 0.06), 0, Math.PI * 2);
+    ctx.fill();
+
+    // 6. Dos ojitos negros (puntos) si no está de espaldas
+    if (orient !== 'B') {
+      const eyeDist = r * 0.35;
+      const eyeSpan = r * 0.22;
+      const fCos = Math.cos(facingAngle);
+      const fSin = Math.sin(facingAngle);
+      const pCos = Math.cos(bandAngle);
+      const pSin = Math.sin(bandAngle);
+
+      const eye1x = cx + fCos * eyeDist + pCos * eyeSpan;
+      const eye1y = cy + fSin * eyeDist + pSin * eyeSpan;
+      const eye2x = cx + fCos * eyeDist - pCos * eyeSpan;
+      const eye2y = cy + fSin * eyeDist - pSin * eyeSpan;
+
+      ctx.fillStyle = '#111';
+      ctx.beginPath();
+      ctx.arc(eye1x, eye1y, Math.max(1.2, cs * 0.035), 0, Math.PI * 2);
+      ctx.arc(eye2x, eye2y, Math.max(1.2, cs * 0.035), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Insignia con la orientación
+    ctx.fillStyle = '#eab308';
+    ctx.font = `bold ${Math.max(8, Math.floor(cs * 0.22))}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(orient, cx, cy - r * 1.35);
+
+    ctx.restore();
+  }
+
   /**
    * Dibuja toda la cuadrícula, tabiques finos (5x1) en laterales/centro, esquinas y previsualizaciones
    */
@@ -1679,6 +1815,7 @@ class LevelEditor {
         let segs = [];
         let tableCode = null;
         let monitorOrient = null;
+        let charOrient = null;
 
         if (Array.isArray(cell)) {
           for (let i = 0; i < cell.length; i++) {
@@ -1691,6 +1828,10 @@ class LevelEditor {
               monitorOrient = 'F';
             } else if (typeof item === 'string' && item.startsWith('MON_')) {
               monitorOrient = item.replace('MON_', '');
+            } else if (item === 'CHAR' || item === 'CHAR_F') {
+              charOrient = 'F';
+            } else if (typeof item === 'string' && item.startsWith('CHAR_')) {
+              charOrient = item.replace('CHAR_', '');
             } else {
               segs.push(item);
             }
@@ -1699,6 +1840,10 @@ class LevelEditor {
           monitorOrient = 'F';
         } else if (typeof cell === 'string' && cell.startsWith('MON_')) {
           monitorOrient = cell.replace('MON_', '');
+        } else if (cell === 'CHAR' || cell === 'CHAR_F') {
+          charOrient = 'F';
+        } else if (typeof cell === 'string' && cell.startsWith('CHAR_')) {
+          charOrient = cell.replace('CHAR_', '');
         } else if (cell === 1) {
           segs = ['N', 'S', 'E', 'W'];
         } else if (cell === 2) segs = ['DN'];
@@ -1841,6 +1986,11 @@ class LevelEditor {
         if (monitorOrient) {
           this.draw2DMonitor(ctx, px, py, cs, monitorOrient, false);
         }
+
+        // 4. Dibuja el Personaje si existe en esta casilla
+        if (charOrient) {
+          this.draw2DCharacter(ctx, px, py, cs, charOrient, false);
+        }
       }
     }
 
@@ -1871,6 +2021,8 @@ class LevelEditor {
         if (this.selectedTile === 'accessories') {
           if (this.selectedAccessory === 'monitor') {
             this.draw2DMonitor(ctx, hpx, hpy, cs, this.monitorOrientation || 'F', true);
+          } else if (this.selectedAccessory === 'character') {
+            this.draw2DCharacter(ctx, hpx, hpy, cs, this.monitorOrientation || 'F', true);
           } else {
             ctx.fillStyle = (this.selectedAccessory === 'door') ? 'rgba(229, 169, 59, 0.8)' : 'rgba(84, 160, 255, 0.8)';
           }
@@ -1882,8 +2034,8 @@ class LevelEditor {
           ctx.fillStyle = 'rgba(79, 163, 227, 0.8)';
         }
 
-        if (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor') {
-          // No dibujar bordes de pared para el monitor (ya dibujado en preview superior)
+        if (this.selectedTile === 'accessories' && (this.selectedAccessory === 'monitor' || this.selectedAccessory === 'character')) {
+          // No dibujar bordes de pared para el monitor o personaje (ya dibujado en preview superior)
         } else if (this.selectedTile === 'table') {
           ctx.fillStyle = 'rgba(107, 68, 35, 0.55)';
           ctx.fillRect(hpx + cs * 0.1, hpy + cs * 0.1, cs * 0.8, cs * 0.8);
@@ -2161,7 +2313,7 @@ class LevelEditor {
         if (btnDoorStyle) btnDoorStyle.style.display = showDoorPickers ? '' : 'none';
         if (btnLintelStyle) btnLintelStyle.style.display = showDoorPickers ? '' : 'none';
 
-        const showMonitorOrient = isAccessory && (this.selectedAccessory === 'monitor');
+        const showMonitorOrient = isAccessory && (this.selectedAccessory === 'monitor' || this.selectedAccessory === 'character');
         if (monitorOrientPanel) monitorOrientPanel.style.display = showMonitorOrient ? '' : 'none';
       }
       if (sectionMesaPlacement) {

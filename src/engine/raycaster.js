@@ -66,6 +66,8 @@ class RaycasterEngine {
 
     // Z-buffer: distancia perpendicular al hitBottom por columna, para oclusión en floor casting
     this.zBuffer = new Float32Array(this.width);
+    // Z-buffer 2D por píxel para oclusión exacta entre sprites, paredes y mesas (patas y tablero)
+    this.pixelDepthBuffer = new Float32Array(this.width * this.height);
 
     // Estilo por segmento, tal como lo pintó el Editor: { "x,y": { N: 'blanca', DW: 'negra', ... } }
     // Cada pared/puerta conserva su propio estilo; no hay un único "estilo del mapa".
@@ -1450,6 +1452,10 @@ class RaycasterEngine {
     const h = this.height;
     const halfH = this.halfHeight;
     const pixels = this.pixels;
+    if (!this.pixelDepthBuffer || this.pixelDepthBuffer.length !== w * h) {
+      this.pixelDepthBuffer = new Float32Array(w * h);
+    }
+    this.pixelDepthBuffer.fill(Infinity);
 
     // 1. Dibujar Techo y Suelo con degradado de iluminación ambiental
     // Formato de píxel en Little Endian Uint32: 0xAABBGGRR
@@ -1691,7 +1697,7 @@ class RaycasterEngine {
 
       // Dibuja una franja vertical con una textura anclada a su geometría real en el mundo (0 a 3.0m para pared, 0 a 2.2m para puerta).
       // Soporta Alpha Blending cuando los píxeles de la textura contienen canal alfa < 255 (cristal translúcido).
-      const blitTexBand = (topPx, bottomPx, texArray, texXParam, shadeParam, clampMinY = -Infinity, clampMaxY = Infinity) => {
+      const blitTexBand = (topPx, bottomPx, texArray, texXParam, shadeParam, clampMinY = -Infinity, clampMaxY = Infinity, distParam = Infinity) => {
         const clipStart = Math.max(0, Math.floor(topPx), Math.floor(clampMinY));
         const clipEnd = Math.min(h - 1, Math.floor(bottomPx), Math.floor(clampMaxY));
         if (clipEnd < clipStart) return;
@@ -1714,12 +1720,14 @@ class RaycasterEngine {
           const g = Math.floor(((color >> 8) & 0xFF) * shadeParam);
           const b = Math.floor(((color >> 16) & 0xFF) * shadeParam);
 
+          const pIdx = y * w + x;
           if (a >= 254) {
-            // Opaco: asignación directa
-            pixels[y * w + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+            // Opaco: asignación directa y registro exacto en el Z-buffer 2D
+            pixels[pIdx] = (255 << 24) | (b << 16) | (g << 8) | r;
+            this.pixelDepthBuffer[pIdx] = distParam;
           } else {
             // Translúcido: mezcla alfa sobre el buffer existente
-            const prev = pixels[y * w + x];
+            const prev = pixels[pIdx];
             const prevR = prev & 0xFF;
             const prevG = (prev >> 8) & 0xFF;
             const prevB = (prev >> 16) & 0xFF;
@@ -1730,12 +1738,15 @@ class RaycasterEngine {
             const finalG = Math.min(255, Math.floor(g * alphaRatio + prevG * invAlpha));
             const finalB = Math.min(255, Math.floor(b * alphaRatio + prevB * invAlpha));
 
-            pixels[y * w + x] = (255 << 24) | (finalB << 16) | (finalG << 8) | finalR;
+            pixels[pIdx] = (255 << 24) | (finalB << 16) | (finalG << 8) | finalR;
+            if (distParam < this.pixelDepthBuffer[pIdx]) {
+              this.pixelDepthBuffer[pIdx] = distParam;
+            }
           }
         }
       };
 
-      const blitFlatBand = (topPx, bottomPx, color, shadeParam, clampMinY = -Infinity, clampMaxY = Infinity) => {
+      const blitFlatBand = (topPx, bottomPx, color, shadeParam, clampMinY = -Infinity, clampMaxY = Infinity, distParam = Infinity) => {
         const clipStart = Math.max(0, Math.floor(topPx), Math.floor(clampMinY));
         const clipEnd = Math.min(h - 1, Math.floor(bottomPx), Math.floor(clampMaxY));
         if (clipEnd < clipStart) return;
@@ -1743,7 +1754,11 @@ class RaycasterEngine {
         const g = Math.floor(((color >> 8) & 0xFF) * shadeParam);
         const b = Math.floor(((color >> 16) & 0xFF) * shadeParam);
         const shaded = (255 << 24) | (b << 16) | (g << 8) | r;
-        for (let y = clipStart; y <= clipEnd; y++) pixels[y * w + x] = shaded;
+        for (let y = clipStart; y <= clipEnd; y++) {
+          const pIdx = y * w + x;
+          pixels[pIdx] = shaded;
+          this.pixelDepthBuffer[pIdx] = distParam;
+        }
       };
 
       const resolveTex = (type, style) => {
@@ -1815,18 +1830,18 @@ class RaycasterEngine {
 
           if (hitBottom.seg.isJamb) {
             // Jamba lateral de vano de puerta (0 a 2.2m), continúa la textura de canto de 3m hacia abajo
-            blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
+            blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY, hitBottom.dist);
           } else if (hitBottom.isDoor) {
             // Puerta cerrada (0 a 2.2m)
-            blitTexBand(doorTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY);
+            blitTexBand(doorTopYBottom, bottomY, bTex, bTexX, bShade, doorTopYBottom, bottomY, hitBottom.dist);
             // Dintel propio sobre la puerta cerrada en el mismo vano (2.2 a 3.0m)
             const dLintelStyle = hitBottom.seg.lintelStyle || hitBottom.seg.style || 'castillo';
             const dLintelTex = resolveTex(1, dLintelStyle);
             const dLintelX = texXOf(hitBottom.wallX, hitBottom.side, dLintelTex.width || 64);
-            blitTexBand(wallTopYBottom, bottomY, dLintelTex, dLintelX, bShade, wallTopYBottom, doorTopYBottom + 1);
+            blitTexBand(wallTopYBottom, bottomY, dLintelTex, dLintelX, bShade, wallTopYBottom, doorTopYBottom + 1, hitBottom.dist);
           } else {
             // Pared completa o ventana de 3.0m
-            blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, wallTopYBottom, bottomY);
+            blitTexBand(wallTopYBottom, bottomY, bTex, bTexX, bShade, wallTopYBottom, bottomY, hitBottom.dist);
           }
         }
 
@@ -1841,8 +1856,8 @@ class RaycasterEngine {
             const tblTex = resolveTex(tblHit.seg.type, tblHit.seg.style || 'castillo');
             const tblTexX = texXOf(tblHit.wallX, tblHit.side, tblTex.width || 64);
             const tblShade = shadeOf(tblHit.dist, tblHit.side);
-            blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, tblShade, tableTopYTbl, bottomYTbl);
-            blitTexBand(tableTopYTbl, bottomYTbl, tblTex, tblTexX, tblShade, tableTopYTbl, bottomYTbl);
+            blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, tblShade, tableTopYTbl, bottomYTbl, tblHit.dist);
+            blitTexBand(tableTopYTbl, bottomYTbl, tblTex, tblTexX, tblShade, tableTopYTbl, bottomYTbl, tblHit.dist);
           } else if (layer.kind === 'openDoor') {
             const od = layer.hit;
             const projDoor = h / Math.max(od.dist, 0.0001);
@@ -1851,7 +1866,7 @@ class RaycasterEngine {
             const odTex = resolveTex(od.seg.type, od.seg.style || 'castillo');
             const odTexX = texXOf(od.wallX, od.side, odTex.width || 64);
             const odShade = shadeOf(od.dist, od.side);
-            blitTexBand(doorTopYDoor, bottomYDoor, odTex, odTexX, odShade, doorTopYDoor, bottomYDoor);
+            blitTexBand(doorTopYDoor, bottomYDoor, odTex, odTexX, odShade, doorTopYDoor, bottomYDoor, od.dist);
           } else if (layer.kind === 'lintel') {
             const lHit = layer.hit;
             const projL = h / Math.max(lHit.dist, 0.0001);
@@ -1862,7 +1877,7 @@ class RaycasterEngine {
             const lTex = resolveTex(lHit.seg.type, lHit.seg.style || 'castillo');
             const lTexX = texXOf(lHit.wallX, lHit.side, lTex.width || 64);
             const lShade = shadeOf(lHit.dist, lHit.side);
-            blitTexBand(wallTopYL, bottomYL, lTex, lTexX, lShade, wallTopYL, doorTopYL + 1);
+            blitTexBand(wallTopYL, bottomYL, lTex, lTexX, lShade, wallTopYL, doorTopYL + 1, lHit.dist);
           } else if (layer.kind === 'transparent') {
             const tHit = layer.hit;
             const projT = h / Math.max(tHit.dist, 0.0001);
@@ -1875,18 +1890,18 @@ class RaycasterEngine {
             const tShade = shadeOf(tHit.dist, tHit.side);
 
             if (tHit.seg.isJamb) {
-              blitTexBand(wallTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT);
+              blitTexBand(wallTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT, tHit.dist);
             } else if (tHit.isDoor) {
               // Puerta de cristal cerrada (0 a 2.2m)
-              blitTexBand(doorTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT);
+              blitTexBand(doorTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT, tHit.dist);
               // Dintel propio sobre la puerta de cristal (2.2 a 3.0m)
               const dLintelStyle = tHit.seg.lintelStyle || tHit.seg.style || 'cristal';
               const dLintelTex = resolveTex(1, dLintelStyle);
               const dLintelX = texXOf(tHit.wallX, tHit.side, dLintelTex.width || 64);
-              blitTexBand(wallTopYT, bottomYT, dLintelTex, dLintelX, tShade, wallTopYT, doorTopYT + 1);
+              blitTexBand(wallTopYT, bottomYT, dLintelTex, dLintelX, tShade, wallTopYT, doorTopYT + 1, tHit.dist);
             } else {
               // Pared de cristal completa (0 a 3.0m)
-              blitTexBand(wallTopYT, bottomYT, tTex, tTexX, tShade, wallTopYT, bottomYT);
+              blitTexBand(wallTopYT, bottomYT, tTex, tTexX, tShade, wallTopYT, bottomYT, tHit.dist);
             }
           }
         }
@@ -1897,14 +1912,14 @@ class RaycasterEngine {
           const projTbl = h / Math.max(hitBottom.dist, 0.0001);
           const bottomYTbl = halfH + eyeHeight * projTbl;
           const tableTopYTbl = halfH - (this.tableHeightScale - eyeHeight) * projTbl;
-          blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, shadeOf(hitBottom.dist, hitBottom.side), tableTopYTbl, bottomYTbl);
+          blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, shadeOf(hitBottom.dist, hitBottom.side), tableTopYTbl, bottomYTbl, hitBottom.dist);
         } else if (hitBottom && hitBottom.seg.isJamb) {
-          blitFlatBand(wallTopYBottom, bottomY, 0x555555, shadeOf(hitBottom.dist, hitBottom.side), doorTopYBottom, bottomY);
+          blitFlatBand(wallTopYBottom, bottomY, 0x555555, shadeOf(hitBottom.dist, hitBottom.side), doorTopYBottom, bottomY, hitBottom.dist);
         } else if (hitBottom && hitBottom.isDoor) {
-          blitFlatBand(doorTopYBottom, bottomY, 0x00a5ff, shadeOf(hitBottom.dist, hitBottom.side), doorTopYBottom, bottomY);
-          blitFlatBand(wallTopYBottom, bottomY, 0x888888, shadeOf(hitBottom.dist, hitBottom.side), wallTopYBottom, doorTopYBottom + 1);
+          blitFlatBand(doorTopYBottom, bottomY, 0x00a5ff, shadeOf(hitBottom.dist, hitBottom.side), doorTopYBottom, bottomY, hitBottom.dist);
+          blitFlatBand(wallTopYBottom, bottomY, 0x888888, shadeOf(hitBottom.dist, hitBottom.side), wallTopYBottom, doorTopYBottom + 1, hitBottom.dist);
         } else if (hitBottom) {
-          blitFlatBand(wallTopYBottom, bottomY, 0x888888, shadeOf(hitBottom.dist, hitBottom.side), wallTopYBottom, bottomY);
+          blitFlatBand(wallTopYBottom, bottomY, 0x888888, shadeOf(hitBottom.dist, hitBottom.side), wallTopYBottom, bottomY, hitBottom.dist);
         }
 
         for (let i = 0; i < layers.length; i++) {
@@ -1914,20 +1929,20 @@ class RaycasterEngine {
             const projTbl = h / Math.max(tblHit.dist, 0.0001);
             const bottomYTbl = halfH + eyeHeight * projTbl;
             const tableTopYTbl = halfH - (this.tableHeightScale - eyeHeight) * projTbl;
-            blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, shadeOf(tblHit.dist, tblHit.side), tableTopYTbl, bottomYTbl);
+            blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, shadeOf(tblHit.dist, tblHit.side), tableTopYTbl, bottomYTbl, tblHit.dist);
           } else if (layer.kind === 'openDoor') {
             const od = layer.hit;
             const projDoor = h / Math.max(od.dist, 0.0001);
             const bottomYDoor = halfH + eyeHeight * projDoor;
             const doorTopYDoor = halfH - (this.doorHeightScale - eyeHeight) * projDoor;
-            blitFlatBand(doorTopYDoor, bottomYDoor, 0x00a5ff, shadeOf(od.dist, od.side), doorTopYDoor, bottomYDoor);
+            blitFlatBand(doorTopYDoor, bottomYDoor, 0x00a5ff, shadeOf(od.dist, od.side), doorTopYDoor, bottomYDoor, od.dist);
           } else if (layer.kind === 'lintel') {
             const lHit = layer.hit;
             const projL = h / Math.max(lHit.dist, 0.0001);
             const wallTopYL = halfH - (this.wallHeightScale - eyeHeight) * projL;
             const doorTopYL = halfH - (this.doorHeightScale - eyeHeight) * projL;
             const bottomYL = halfH + eyeHeight * projL;
-            blitFlatBand(wallTopYL, bottomYL, 0x888888, shadeOf(lHit.dist, lHit.side), wallTopYL, doorTopYL + 1);
+            blitFlatBand(wallTopYL, bottomYL, 0x888888, shadeOf(lHit.dist, lHit.side), wallTopYL, doorTopYL + 1, lHit.dist);
           } else if (layer.kind === 'transparent') {
             const tHit = layer.hit;
             const projT = h / Math.max(tHit.dist, 0.0001);
@@ -1936,9 +1951,9 @@ class RaycasterEngine {
             const bottomYT = halfH + eyeHeight * projT;
             const tShade = shadeOf(tHit.dist, tHit.side);
             if (tHit.isDoor) {
-              blitFlatBand(doorTopYT, bottomYT, 0x2288bb, tShade, doorTopYT, bottomYT);
+              blitFlatBand(doorTopYT, bottomYT, 0x2288bb, tShade, doorTopYT, bottomYT, tHit.dist);
             } else {
-              blitFlatBand(wallTopYT, bottomYT, 0x2288bb, tShade, wallTopYT, bottomYT);
+              blitFlatBand(wallTopYT, bottomYT, 0x2288bb, tShade, wallTopYT, bottomYT, tHit.dist);
             }
           }
         }
@@ -2005,6 +2020,7 @@ class RaycasterEngine {
           const g = Math.floor(((raw >> 8) & 0xFF) * shade);
           const b = Math.floor(((raw >> 16) & 0xFF) * shade);
           pixels[rowPixelBase + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+          this.pixelDepthBuffer[rowPixelBase + x] = rowDist;
         }
       }
     }
@@ -2033,17 +2049,25 @@ class RaycasterEngine {
       for (let x = 0; x < this.mapWidth; x++) {
         const cell = row[x];
         let monCode = null;
+        let charCode = null;
         if (Array.isArray(cell)) {
           monCode = cell.find(c => typeof c === 'string' && (c === 'MON' || c.startsWith('MON_')));
-        } else if (typeof cell === 'string' && (cell === 'MON' || cell.startsWith('MON_'))) {
-          monCode = cell;
+          charCode = cell.find(c => typeof c === 'string' && (c === 'CHAR' || c.startsWith('CHAR_')));
+        } else if (typeof cell === 'string') {
+          if (cell === 'MON' || cell.startsWith('MON_')) monCode = cell;
+          if (cell === 'CHAR' || cell.startsWith('CHAR_')) charCode = cell;
         }
 
         if (monCode) {
-          let variant = 'front';
-          if (monCode === 'MON_R') variant = 'right';
-          else if (monCode === 'MON_L') variant = 'left';
-          else if (monCode === 'MON_B') variant = 'back';
+          // Orientación del monitor en el mundo:
+          // MON_L: mira hacia la Izquierda (Norte, -Math.PI / 2)
+          // MON_R: mira hacia la Derecha (Sur, Math.PI / 2)
+          // MON / MON_F: mira hacia el Frente (Este, 0)
+          // MON_B: mira hacia Detrás (Oeste, Math.PI)
+          let facingAngle = 0; // Frente (Este)
+          if (monCode === 'MON_R') facingAngle = Math.PI / 2; // Derecha (Sur)
+          else if (monCode === 'MON_L') facingAngle = -Math.PI / 2; // Izquierda (Norte)
+          else if (monCode === 'MON_B') facingAngle = Math.PI; // Detrás (Oeste)
 
           sprites.push({
             x: x + 0.5,
@@ -2051,8 +2075,26 @@ class RaycasterEngine {
             mapX: x,
             mapY: y,
             type: 'monitor',
-            variant: variant,
+            facingAngle: facingAngle,
             z: this.tableHeightScale - 0.05 // Fijado definitivamente en 0.945m para todos los monitores
+          });
+        }
+
+        if (charCode) {
+          // Orientación del personaje en el mundo:
+          let facingAngle = 0; // Frente (Este)
+          if (charCode === 'CHAR_R') facingAngle = Math.PI / 2; // Derecha (Sur)
+          else if (charCode === 'CHAR_L') facingAngle = -Math.PI / 2; // Izquierda (Norte)
+          else if (charCode === 'CHAR_B') facingAngle = Math.PI; // Detrás (Oeste)
+
+          sprites.push({
+            x: x + 0.5,
+            y: y + 0.5,
+            mapX: x,
+            mapY: y,
+            type: 'character',
+            facingAngle: facingAngle,
+            z: -0.06 // Asentado firmemente en el suelo con sus ruedas y sombra de contacto
           });
         }
       }
@@ -2087,9 +2129,32 @@ class RaycasterEngine {
 
     for (let i = 0; i < sprites.length; i++) {
       const sprite = sprites[i];
-      const monTex = (typeof getMonitorPixels === 'function')
-        ? getMonitorPixels(sprite.variant || 'front')
-        : (this.textures?.monitor || null);
+
+      // Determinar la variante según el ángulo relativo desde el que el jugador observa el sprite
+      let activeVariant = 'front';
+      if (typeof sprite.facingAngle === 'number') {
+        const dx = posX - sprite.x;
+        const dy = posY - sprite.y;
+        const angleToPlayer = Math.atan2(dy, dx);
+        let diff = angleToPlayer - sprite.facingAngle;
+        diff = (diff + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
+
+        const octant = Math.PI / 4; // 45°
+        if (Math.abs(diff) < octant) {
+          activeVariant = 'front';
+        } else if (Math.abs(diff) > 3 * octant) {
+          activeVariant = 'back';
+        } else if (diff < 0) {
+          activeVariant = 'left';
+        } else {
+          activeVariant = 'right';
+        }
+      }
+
+      const isChar = sprite.type === 'character';
+      const monTex = isChar
+        ? ((typeof getCharacterPixels === 'function') ? getCharacterPixels(activeVariant) : (this.textures?.character || null))
+        : ((typeof getMonitorPixels === 'function') ? getMonitorPixels(activeVariant) : (this.textures?.monitor || null));
 
       if (!monTex) continue;
       const texW = monTex.width || 256;
@@ -2106,14 +2171,16 @@ class RaycasterEngine {
       const proj = h / transformY;
       const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
 
-      // Escala del monitor encima de la mesa: ~0.72m de ancho, ~0.72m de alto
-      const spriteWorldW = 0.72;
-      const spriteWorldH = 0.72;
+      // Escala del objeto en el mundo:
+      // Para el personaje sentado: altura 1.5m (exactamente la mitad de una pared de 3.0m, es decir 96px de 192px)
+      // Para el monitor encima de la mesa: ~0.72m de ancho y alto
+      const spriteWorldW = isChar ? 1.5 : 0.72;
+      const spriteWorldH = isChar ? 1.5 : 0.72;
       const spriteScreenWidth = Math.abs(Math.floor(spriteWorldW * proj));
       const spriteScreenHeight = Math.abs(Math.floor(spriteWorldH * proj));
 
-      // Elevado a la superficie de la mesa (con offset -0.05)
-      const baseElevation = (typeof sprite.z === 'number') ? sprite.z : (this.tableHeightScale - 0.05);
+      // Elevación: personaje en suelo (z = -0.06m con ruedas asentadas), monitor elevado en mesa (z = tableHeightScale - 0.05)
+      const baseElevation = (typeof sprite.z === 'number') ? sprite.z : (isChar ? -0.06 : (this.tableHeightScale - 0.05));
       const bottomY = halfH + (eyeHeight - baseElevation) * proj;
       const topY = bottomY - spriteScreenHeight;
 
@@ -2125,18 +2192,23 @@ class RaycasterEngine {
 
       if (drawStartX > w - 1 || drawEndX < 0 || drawStartY > h - 1 || drawEndY < 0) continue;
 
-      // Detección cuando el jugador mira directamente al monitor
+      // Detección cuando el jugador mira directamente al sprite
       if (centerRayX >= drawStartX && centerRayX <= drawEndX && transformY <= 3.2) {
         if (!this.facingTarget || this.facingTarget.rawDist > transformY) {
-          const variantNames = {
+          const variantNames = isChar ? {
+            front: 'Personaje (Frente)',
+            right: 'Personaje (Perfil Derecho)',
+            left: 'Personaje (Perfil Izquierdo)',
+            back: 'Personaje (Espaldas)'
+          } : {
             front: 'Monitor PC (Frente)',
-            right: 'Monitor PC (Mirando Derecha)',
-            left: 'Monitor PC (Mirando Izquierda)',
-            back: 'Monitor PC (Trasero)'
+            right: 'Monitor PC (Perfil Derecho)',
+            left: 'Monitor PC (Perfil Izquierdo)',
+            back: 'Monitor PC (Parte Trasera)'
           };
           this.facingTarget = {
-            name: variantNames[sprite.variant] || 'Monitor PC',
-            type: 'monitor',
+            name: variantNames[activeVariant] || (isChar ? 'Personaje' : 'Monitor PC'),
+            type: isChar ? 'character' : 'monitor',
             distance: transformY.toFixed(1),
             rawDist: transformY,
             mapX: sprite.mapX,
@@ -2148,7 +2220,7 @@ class RaycasterEngine {
       const shade = Math.min(1, 1 / (1 + transformY * 0.22));
 
       for (let stripe = drawStartX; stripe <= drawEndX; stripe++) {
-        // Comprobar oclusión contra el Z-Buffer
+        // Comprobar oclusión contra el Z-Buffer general de muros
         if (transformY >= this.zBuffer[stripe]) continue;
 
         const texX = Math.floor((stripe - (spriteScreenX - spriteScreenWidth / 2)) * texW / spriteScreenWidth);
@@ -2159,6 +2231,13 @@ class RaycasterEngine {
         let texPos = (drawStartY - topY) * step;
 
         for (let y = drawStartY; y <= drawEndY; y++) {
+          const pIdx = y * w + stripe;
+          // Oclusión exacta por píxel: si hay una mesa, pata o dintel delante, no dibujar este píxel
+          if (this.pixelDepthBuffer && transformY >= this.pixelDepthBuffer[pIdx]) {
+            texPos += step;
+            continue;
+          }
+
           const texY = Math.min(texH - 1, Math.max(0, Math.floor(texPos)));
           texPos += step;
 
@@ -2171,9 +2250,12 @@ class RaycasterEngine {
           const b = Math.floor(((color >> 16) & 0xFF) * shade);
 
           if (a >= 250) {
-            pixels[y * w + stripe] = (255 << 24) | (b << 16) | (g << 8) | r;
+            pixels[pIdx] = (255 << 24) | (b << 16) | (g << 8) | r;
+            if (this.pixelDepthBuffer) {
+              this.pixelDepthBuffer[pIdx] = transformY;
+            }
           } else {
-            const prev = pixels[y * w + stripe];
+            const prev = pixels[pIdx];
             const prevR = prev & 0xFF;
             const prevG = (prev >> 8) & 0xFF;
             const prevB = (prev >> 16) & 0xFF;
@@ -2182,7 +2264,10 @@ class RaycasterEngine {
             const fR = Math.min(255, Math.floor(r * alphaRatio + prevR * invAlpha));
             const fG = Math.min(255, Math.floor(g * alphaRatio + prevG * invAlpha));
             const fB = Math.min(255, Math.floor(b * alphaRatio + prevB * invAlpha));
-            pixels[y * w + stripe] = (255 << 24) | (fB << 16) | (fG << 8) | fR;
+            pixels[pIdx] = (255 << 24) | (fB << 16) | (fG << 8) | fR;
+            if (this.pixelDepthBuffer && transformY < this.pixelDepthBuffer[pIdx]) {
+              this.pixelDepthBuffer[pIdx] = transformY;
+            }
           }
         }
       }
@@ -2256,6 +2341,22 @@ class RaycasterEngine {
           const monSize = Math.max(4, Math.round(cellSize * 0.35));
           const offset = Math.round((cellSize - monSize) / 2);
           ctx.fillRect(px + offset, py + offset, monSize, monSize);
+        }
+
+        // Personaje en el minimapa (icono amarillo cálido)
+        let hasChar = false;
+        if (typeof codes === 'string' && (codes === 'CHAR' || codes.startsWith('CHAR_'))) hasChar = true;
+        else if (Array.isArray(codes)) hasChar = codes.some(c => typeof c === 'string' && (c === 'CHAR' || c.startsWith('CHAR_')));
+        if (hasChar) {
+          const charSize = Math.max(5, Math.round(cellSize * 0.45));
+          const offset = Math.round((cellSize - charSize) / 2);
+          ctx.fillStyle = '#fceaa6';
+          ctx.beginPath();
+          ctx.arc(px + offset + charSize / 2, py + offset + charSize / 2, charSize / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#222';
+          ctx.lineWidth = 1;
+          ctx.stroke();
         }
 
         // Paredes y puertas por encima de la mesa
