@@ -736,7 +736,279 @@ window.addEventListener('DOMContentLoaded', () => {
     }, 2400);
   }
 
+  // ==========================================
+  // ==========================================
+  // SISTEMA DE BRAZOS EN PRIMERA PERSONA (VIEWMODEL RETRO PIXELADO)
+  // ==========================================
+  const armState = {
+    walkPhase: 0,
+    idlePhase: 0,
+    bobAmp: 0,
+    isMoving: false,
+    isRunning: false,
+    reachAnim: {
+      active: false,
+      phase: 'idle', // 'reach', 'retract'
+      progress: 0,
+      touchTriggered: false,
+      targetDoor: null
+    }
+  };
+
+  // Canvas secundario de baja resolución para rasterizar los brazos como píxel-art retro
+  let armOffscreenCanvas = null;
+  let armOffscreenCtx = null;
+
+  /**
+   * Dibuja un brazo orgánico continuo (sin diferenciación de mano redonda):
+   * más fino en la base y engrosándose suavemente hacia la mano, con sombra continua
+   * en la parte IZQUIERDA de ambos brazos tal como en las ilustraciones originales.
+   */
+  function drawChibiArm(ctx, isRight, rootX, rootY, handX, handY, reachT, scale) {
+    ctx.save();
+
+    const dx = handX - rootX;
+    const dy = handY - rootY;
+    const len = Math.hypot(dx, dy) || 1;
+    const dirX = dx / len;
+    const dirY = dy / len;
+    const perpX = -dirY;
+    const perpY = dirX;
+
+    // Brazos más finos en la base y más gorditos gradualmente hacia la mano (sin exagerar)
+    // Sin diferenciación de mano: silueta cónica continua y suave
+    const baseR = 16 * scale;
+    const tipR = 25 * scale;
+    const midR = (baseR + tipR) * 0.5;
+
+    // Curvatura suave lateral del brazo
+    const sideCurve = isRight ? 12 : -12;
+    const midX = (rootX + handX) * 0.5 + perpX * (sideCurve * scale);
+    const midY = (rootY + handY) * 0.5 + perpY * (sideCurve * scale);
+
+    const b1x = rootX - perpX * baseR;
+    const b1y = rootY - perpY * baseR;
+    const b2x = rootX + perpX * baseR;
+    const b2y = rootY + perpY * baseR;
+
+    const t1x = handX - perpX * tipR;
+    const t1y = handY - perpY * tipR;
+    const t2x = handX + perpX * tipR;
+    const t2y = handY + perpY * tipR;
+
+    const c1x = midX - perpX * midR;
+    const c1y = midY - perpY * midR;
+    const c2x = midX + perpX * midR;
+    const c2y = midY + perpY * midR;
+
+    const angle = Math.atan2(dirY, dirX);
+
+    // 1. Trazado continuo del brazo (sin mano redonda separada, extremo redondeado natural)
+    ctx.beginPath();
+    ctx.moveTo(b1x, b1y);
+    ctx.quadraticCurveTo(c1x, c1y, t1x, t1y);
+    ctx.arc(handX, handY, tipR, angle - Math.PI * 0.5, angle + Math.PI * 0.5, false);
+    ctx.quadraticCurveTo(c2x, c2y, b2x, b2y);
+    ctx.closePath();
+
+    // 2. Color plano amarillo de la piel (sin degradados)
+    ctx.fillStyle = '#fae38e';
+    ctx.fill();
+
+    // 3. Sombra sólida continua y curva en la parte IZQUIERDA de AMBOS brazos (sin cortes rectos)
+    // Color anterior (#ea9d60 / rgb(234, 157, 96)) con un 65% de transparencia (opacidad 0.35)
+    ctx.save();
+    ctx.clip(); // Recortar con la forma del brazo
+
+    ctx.fillStyle = 'rgba(234, 157, 96, 0.35)'; // 65% de transparencia (opacidad 0.35)
+    ctx.beginPath();
+    // El extremo superior de la sombra nace suavemente en el perímetro curvo de la punta
+    const sTx = handX - perpX * (tipR * 0.60) + dirX * (tipR * 0.78);
+    const sTy = handY - perpY * (tipR * 0.60) + dirY * (tipR * 0.78);
+    const sMx = midX - perpX * (midR * 0.20);
+    const sMy = midY - perpY * (midR * 0.20);
+    const sBx = rootX - perpX * (baseR * 0.20);
+    const sBy = rootY - perpY * (baseR * 0.20);
+
+    // Curva interna suave que fluye desde la punta redondeada hacia la base
+    ctx.moveTo(sTx, sTy);
+    ctx.quadraticCurveTo(sMx, sMy, sBx, sBy);
+    // Cierra contorneando por el exterior izquierdo
+    ctx.lineTo(rootX - perpX * (baseR * 3), rootY - perpY * (baseR * 3));
+    ctx.lineTo(handX - perpX * (tipR * 3) + dirX * (tipR * 1.5), handY - perpY * (tipR * 3) + dirY * (tipR * 1.5));
+    ctx.lineTo(sTx, sTy);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // 4. Borde oscuro fino retro (1.6px retro)
+    ctx.beginPath();
+    ctx.moveTo(b1x, b1y);
+    ctx.quadraticCurveTo(c1x, c1y, t1x, t1y);
+    ctx.arc(handX, handY, tipR, angle - Math.PI * 0.5, angle + Math.PI * 0.5, false);
+    ctx.quadraticCurveTo(c2x, c2y, b2x, b2y);
+    ctx.closePath();
+    ctx.strokeStyle = '#221a14';
+    ctx.lineWidth = 1.6 * scale;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  /**
+   * Renderiza ambos brazos del jugador con balanceo y apertura de puertas,
+   * rasterizado en baja resolución con escalado nearest-neighbor para un look 100% pixelado retro.
+   */
+  function renderPlayerArms(ctx, width, height, dt) {
+    if (!ctx) return;
+
+    // Tamaño de píxel retro (2x o más según resolución para coincidir con las texturas de la sala)
+    const pixelSize = Math.max(2, Math.floor(width / 320));
+    const lowW = Math.max(160, Math.floor(width / pixelSize));
+    const lowH = Math.max(100, Math.floor(height / pixelSize));
+
+    if (!armOffscreenCanvas) {
+      armOffscreenCanvas = document.createElement('canvas');
+      armOffscreenCtx = armOffscreenCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    if (armOffscreenCanvas.width !== lowW || armOffscreenCanvas.height !== lowH) {
+      armOffscreenCanvas.width = lowW;
+      armOffscreenCanvas.height = lowH;
+    }
+
+    const offCtx = armOffscreenCtx;
+    offCtx.clearRect(0, 0, lowW, lowH);
+
+    // Escala proporcional dentro del búfer de baja resolución
+    const scale = Math.min(lowW / 320, lowH / 200);
+
+    // 1. Ciclo de marcha o reposo (amplitud discreta y suave)
+    if (armState.isMoving) {
+      const freq = armState.isRunning ? 12.0 : 7.2;
+      const targetAmp = (armState.isRunning ? 13 : 7) * scale;
+      armState.walkPhase += dt * freq;
+      armState.bobAmp = armState.bobAmp + (targetAmp - armState.bobAmp) * Math.min(1, dt * 10);
+    } else {
+      armState.idlePhase += dt * 2.2;
+      armState.walkPhase *= Math.max(0, 1 - dt * 6.5);
+      armState.bobAmp = (armState.bobAmp || 0) * Math.max(0, 1 - dt * 6.5);
+    }
+
+    // 2. Animación de estirar el brazo para interactuar con la puerta
+    let reachT = 0;
+    if (armState.reachAnim.active) {
+      const reachSpeed = 4.2; // ~0.24s para alcanzar la puerta
+      const retractSpeed = 4.5; // ~0.22s para volver
+
+      if (armState.reachAnim.phase === 'reach') {
+        armState.reachAnim.progress += dt * reachSpeed;
+        if (armState.reachAnim.progress >= 1.0) {
+          armState.reachAnim.progress = 1.0;
+          armState.reachAnim.phase = 'retract';
+
+          // Contacto exacto con la puerta al estirar el brazo: la puerta se abre en este instante
+          if (!armState.reachAnim.touchTriggered) {
+            armState.reachAnim.touchTriggered = true;
+            executeDoorTouchInteraction();
+          }
+        }
+      } else if (armState.reachAnim.phase === 'retract') {
+        armState.reachAnim.progress -= dt * retractSpeed;
+        if (armState.reachAnim.progress <= 0.0) {
+          armState.reachAnim.progress = 0;
+          armState.reachAnim.active = false;
+          armState.reachAnim.phase = 'idle';
+        }
+      }
+
+      const p = armState.reachAnim.progress;
+      reachT = Math.sin(p * Math.PI * 0.5);
+    }
+
+    // 3. Posiciones de los brazos gorditos (asomando solo la mitad de antes)
+    const walkBobL = Math.sin(armState.walkPhase) * (armState.bobAmp || 0);
+    const walkSwayL = Math.cos(armState.walkPhase) * (3.5 * scale);
+
+    const walkBobR = Math.sin(armState.walkPhase + Math.PI) * (armState.bobAmp || 0);
+    const walkSwayR = -Math.cos(armState.walkPhase) * (3.5 * scale);
+
+    const idleBobL = Math.sin(armState.idlePhase) * (1.5 * scale);
+    const idleBobR = Math.sin(armState.idlePhase + 0.6) * (1.5 * scale);
+
+    // Brazo izquierdo (asomando solo la mitad en la esquina inferior izquierda)
+    const rootLX = lowW * 0.12;
+    const rootLY = lowH * 1.14;
+    const handLX = lowW * 0.26 + (armState.isMoving ? walkSwayL : 0) - (reachT * 10 * scale);
+    const handLY = lowH * 0.885 + (armState.isMoving ? walkBobL : idleBobL) + (reachT * 14 * scale);
+
+    drawChibiArm(offCtx, false, rootLX, rootLY, handLX, handLY, 0, scale);
+
+    // Brazo derecho (descanso a 0.885, estira hasta 0.52 al tocar la puerta)
+    const rootRX = lowW * 0.88;
+    const rootRY = lowH * 1.14;
+
+    const restHandRX = lowW * 0.74 + (armState.isMoving ? walkSwayR : 0);
+    const restHandRY = lowH * 0.885 + (armState.isMoving ? walkBobR : idleBobR);
+
+    // Objetivo al estirar hacia la puerta (frente y centro)
+    const targetHandRX = lowW * 0.50;
+    const targetHandRY = lowH * 0.52;
+
+    const handRX = restHandRX + (targetHandRX - restHandRX) * reachT;
+    const handRY = restHandRY + (targetHandRY - restHandRY) * reachT;
+
+    const armScaleR = scale * (1.0 - reachT * 0.15); // perspectiva hacia el fondo
+
+    drawChibiArm(offCtx, true, rootRX, rootRY, handRX, handRY, reachT, armScaleR);
+
+    // 4. Umbral de alfa para que los contornos tengan píxeles 100% nítidos sin bordes borrosos
+    const imgData = offCtx.getImageData(0, 0, lowW, lowH);
+    const d = imgData.data;
+    for (let i = 3; i < d.length; i += 4) {
+      if (d[i] > 60) {
+        d[i] = 255;
+      } else {
+        d[i] = 0;
+      }
+    }
+    offCtx.putImageData(imgData, 0, 0);
+
+    // 5. Dibujar en el canvas principal con interpolación desactivada (nearest-neighbor = píxeles duros retro)
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    if ('mozImageSmoothingEnabled' in ctx) ctx.mozImageSmoothingEnabled = false;
+    if ('webkitImageSmoothingEnabled' in ctx) ctx.webkitImageSmoothingEnabled = false;
+    if ('msImageSmoothingEnabled' in ctx) ctx.msImageSmoothingEnabled = false;
+    ctx.drawImage(armOffscreenCanvas, 0, 0, lowW, lowH, 0, 0, width, height);
+    ctx.restore();
+  }
+
   function tryInteractDoor() {
+    if (armState.reachAnim.active) return;
+
+    // Verificar si hay puerta interactuable en rango
+    const targetDoor = (typeof engine.getDoorInReach === 'function') ? engine.getDoorInReach(player, 2.6) : null;
+    if (!targetDoor) {
+      // Intento breve al aire si no hay puerta inmediata
+      armState.reachAnim.active = true;
+      armState.reachAnim.phase = 'reach';
+      armState.reachAnim.progress = 0;
+      armState.reachAnim.touchTriggered = true; // no disparará apertura
+      armState.reachAnim.targetDoor = null;
+      return;
+    }
+
+    // Hay puerta al alcance: iniciar animación de estirar el brazo hacia la puerta
+    armState.reachAnim.active = true;
+    armState.reachAnim.phase = 'reach';
+    armState.reachAnim.progress = 0;
+    armState.reachAnim.touchTriggered = false;
+    armState.reachAnim.targetDoor = targetDoor;
+  }
+
+  function executeDoorTouchInteraction() {
     const res = engine.interactDoor(player, 2.6);
     if (!res) return;
 
@@ -941,6 +1213,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
     switch (e.key.toLowerCase()) {
       case 'enter':
+      case 'e':
+      case ' ':
+      case 'space':
         tryInteractDoor();
         e.preventDefault();
         break;
@@ -1336,11 +1611,19 @@ window.addEventListener('DOMContentLoaded', () => {
       movePlayer(-moveStep);
     }
 
+    // Estado del sistema de brazos según movimiento
+    const isMoving = !!(keys.strafeLeft || keys.strafeRight || keys.moveForward || keys.moveBackward);
+    armState.isMoving = isMoving;
+    armState.isRunning = isRunning;
+
     // Comprobar umbral de portales / puertas conectadas a otros mapas
     checkPortalThreshold();
 
     // Renderizar escena 3D y minimapa
     engine.render(player);
+
+    // Renderizar brazos chibi en primera persona (balanceo al andar/correr y animación al abrir puertas)
+    renderPlayerArms(engine.ctx, canvas.width, canvas.height, dt);
 
     // Actualizar HUD
     updateHUD();

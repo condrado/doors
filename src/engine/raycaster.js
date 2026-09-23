@@ -269,6 +269,112 @@ class RaycasterEngine {
   }
 
   /**
+   * Detecta si hay una puerta interactuable al alcance sin modificar el mapa.
+   * Retorna { action: 'open'|'close', mapX, mapY, name } o null.
+   */
+  getDoorInReach(player, maxDistance = 2.8) {
+    if (this.facingTarget && (this.facingTarget.type === 'door' || this.facingTarget.type === 'door-open')) {
+      const dist = (this.facingTarget.rawDist !== undefined)
+        ? this.facingTarget.rawDist
+        : parseFloat(this.facingTarget.distance);
+      if (dist <= maxDistance && this.facingTarget.mapX !== undefined && this.facingTarget.mapY !== undefined) {
+        const mX = this.facingTarget.mapX;
+        const mY = this.facingTarget.mapY;
+        const cell = this.map[mY][mX];
+        const isAlreadyOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
+        return {
+          action: isAlreadyOpen ? 'close' : 'open',
+          mapX: mX,
+          mapY: mY,
+          name: this.facingTarget.name || 'Puerta'
+        };
+      }
+    }
+
+    const checkDists = [0.6, 1.1, 1.6, 2.2, maxDistance];
+    for (let i = 0; i < checkDists.length; i++) {
+      const d = checkDists[i];
+      const frontX = Math.floor(player.posX + player.dirX * d);
+      const frontY = Math.floor(player.posY + player.dirY * d);
+      if (frontX >= 0 && frontX < this.mapWidth && frontY >= 0 && frontY < this.mapHeight) {
+        const cell = this.map[frontY][frontX];
+        const isNumDoor = typeof cell === 'number' && cell >= 2 && cell <= 5;
+        const isArrClosed = Array.isArray(cell) && cell.some(c => ['DN', 'DE', 'DS', 'DW'].includes(c));
+        const isArrOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
+
+        if (isArrOpen) {
+          return { action: 'close', mapX: frontX, mapY: frontY, name: 'Puerta' };
+        } else if (isNumDoor || isArrClosed) {
+          return { action: 'open', mapX: frontX, mapY: frontY, name: 'Puerta' };
+        }
+      }
+    }
+
+    const curX = Math.floor(player.posX);
+    const curY = Math.floor(player.posY);
+    if (curX >= 0 && curX < this.mapWidth && curY >= 0 && curY < this.mapHeight) {
+      const curCell = this.map[curY][curX];
+      if (Array.isArray(curCell) && curCell.some(c => typeof c === 'string' && c.startsWith('OD'))) {
+        return { action: 'close', mapX: curX, mapY: curY, name: 'Puerta' };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Detecta si hay una puerta al alcance del jugador para interactuar,
+   * sin modificar el estado del mapa (usado para anticipar animaciones de brazo).
+   */
+  getDoorInReach(player, maxDistance = 2.8) {
+    // 1. Probar primero si el rayo central apunta a una puerta (cerrada o abierta)
+    if (this.facingTarget && (this.facingTarget.type === 'door' || this.facingTarget.type === 'door-open')) {
+      const dist = (this.facingTarget.rawDist !== undefined)
+        ? this.facingTarget.rawDist
+        : parseFloat(this.facingTarget.distance);
+      if (dist <= maxDistance && this.facingTarget.mapX !== undefined && this.facingTarget.mapY !== undefined) {
+        const mX = this.facingTarget.mapX;
+        const mY = this.facingTarget.mapY;
+        const cell = this.map[mY][mX];
+        const isAlreadyOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
+        return { mapX: mX, mapY: mY, action: isAlreadyOpen ? 'close' : 'open', distance: dist };
+      }
+    }
+
+    // 2. Probar celdas directamente en frente de la mirada del jugador (por cercanía o ángulo)
+    const checkDists = [0.6, 1.1, 1.6, 2.2, maxDistance];
+    for (let i = 0; i < checkDists.length; i++) {
+      const d = checkDists[i];
+      const frontX = Math.floor(player.posX + player.dirX * d);
+      const frontY = Math.floor(player.posY + player.dirY * d);
+      if (frontX >= 0 && frontX < this.mapWidth && frontY >= 0 && frontY < this.mapHeight) {
+        const cell = this.map[frontY][frontX];
+        const isNumDoor = typeof cell === 'number' && cell >= 2 && cell <= 5;
+        const isArrClosed = Array.isArray(cell) && cell.some(c => ['DN', 'DE', 'DS', 'DW'].includes(c));
+        const isArrOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
+
+        if (isArrOpen) {
+          return { mapX: frontX, mapY: frontY, action: 'close', distance: d };
+        } else if (isNumDoor || isArrClosed) {
+          return { mapX: frontX, mapY: frontY, action: 'open', distance: d };
+        }
+      }
+    }
+
+    // 3. Probar la celda actual donde se encuentra el jugador
+    const curX = Math.floor(player.posX);
+    const curY = Math.floor(player.posY);
+    if (curX >= 0 && curX < this.mapWidth && curY >= 0 && curY < this.mapHeight) {
+      const curCell = this.map[curY][curX];
+      if (Array.isArray(curCell) && curCell.some(c => typeof c === 'string' && c.startsWith('OD'))) {
+        return { mapX: curX, mapY: curY, action: 'close', distance: 0 };
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Alterna (abre o cierra) una puerta en el rango de interacción (≤ maxDist).
    * Prioriza el objetivo enfocado en la mirilla central y luego las celdas frontales inmediatas.
    */
