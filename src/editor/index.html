@@ -143,11 +143,19 @@
                 </div>
               </label>
 
-              <label class="palette-item" title="Accesorios: Puertas, ventanas, etc.">
+              <label class="palette-item" title="Accesorios: Puertas, ventanas y monitores">
                 <input type="radio" name="tileSelect" value="accessories">
                 <span class="tile-sample accessory-sample"><i class="ri-sparkling-2-line"></i></span>
                 <div class="tile-info">
                   <strong>Accesorios</strong>
+                </div>
+              </label>
+
+              <label class="palette-item" title="Personaje en silla de oficina (4 vistas dinámicas)">
+                <input type="radio" name="tileSelect" value="character">
+                <span class="tile-sample character-sample"><i class="ri-user-smile-line"></i></span>
+                <div class="tile-info">
+                  <strong>Personajes</strong>
                 </div>
               </label>
 
@@ -352,57 +360,47 @@
           </div>
 
           <div class="dimension-controls">
-            <p class="section-desc">Selecciona el tipo de accesorio a colocar:</p>
+            <p class="section-desc">Selecciona el accesorio a colocar:</p>
 
-            <div class="accessory-grid">
-              <button class="accessory-tile-btn active" data-accessory="door"
+            <div class="palette-list compact accessory-compact-list">
+              <button type="button" class="palette-item accessory-tile-btn active" data-accessory="door"
                 title="Puerta de madera con herrajes dorados">
-                <span class="acc-tile-icon"><i class="ri-door-open-line"></i></span>
-                <div class="acc-tile-meta">
+                <span class="tile-sample" style="background: rgba(229, 169, 59, 0.2); border: 1px solid #e5a93b; color: #e5a93b;"><i class="ri-door-open-line"></i></span>
+                <div class="tile-info">
                   <strong>Puerta</strong>
-                  <small>Madera y herrajes</small>
                 </div>
               </button>
-              <button class="accessory-tile-btn" data-accessory="window" title="Ventana medieval de cristal biselado">
-                <span class="acc-tile-icon"><i class="ri-layout-masonry-line"></i></span>
-                <div class="acc-tile-meta">
+              <button type="button" class="palette-item accessory-tile-btn" data-accessory="window" title="Ventana medieval de cristal biselado">
+                <span class="tile-sample" style="background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8;"><i class="ri-layout-masonry-line"></i></span>
+                <div class="tile-info">
                   <strong>Ventana</strong>
-                  <small>Cristal gótico</small>
                 </div>
               </button>
-              <button class="accessory-tile-btn" data-accessory="monitor" title="Monitor de PC plano (siempre mira al jugador)">
-                <span class="acc-tile-icon"><i class="ri-computer-line"></i></span>
-                <div class="acc-tile-meta">
+              <button type="button" class="palette-item accessory-tile-btn" data-accessory="monitor" title="Monitor de PC plano (mira al jugador)">
+                <span class="tile-sample" style="background: rgba(46, 204, 113, 0.2); border: 1px solid #2ecc71; color: #2ecc71;"><i class="ri-computer-line"></i></span>
+                <div class="tile-info">
                   <strong>Monitor PC</strong>
-                  <small>Pantalla plana</small>
-                </div>
-              </button>
-              <button class="accessory-tile-btn" data-accessory="character" title="Personaje en silla de oficina (4 vistas dinámicas)">
-                <span class="acc-tile-icon"><i class="ri-user-smile-line"></i></span>
-                <div class="acc-tile-meta">
-                  <strong>Personaje</strong>
-                  <small>En silla oficina</small>
                 </div>
               </button>
             </div>
 
-            <!-- Selector de Orientación del Monitor / Personaje -->
+            <!-- Selector de Orientación del Monitor -->
             <div class="monitor-orientation-panel" id="monitorOrientationPanel" style="display: none; margin-top: 10px;">
-              <p class="section-desc" id="monitorOrientDesc" style="margin-bottom: 6px;">Orientación:</p>
+              <p class="section-desc" id="monitorOrientDesc" style="margin-bottom: 6px;">Orientación del Monitor:</p>
               <div class="monitor-orient-grid">
-                <button class="monitor-orient-btn active" data-orient="F" title="De Frente">
+                <button type="button" class="monitor-orient-btn active" data-orient="F" title="De Frente">
                   <i class="ri-tv-line"></i>
                   <span>Frente</span>
                 </button>
-                <button class="monitor-orient-btn" data-orient="R" title="Monitor mirando a la Derecha (Inclinado)">
+                <button type="button" class="monitor-orient-btn" data-orient="R" title="Monitor mirando a la Derecha (Inclinado)">
                   <i class="ri-arrow-right-up-line"></i>
                   <span>Derecha</span>
                 </button>
-                <button class="monitor-orient-btn" data-orient="L" title="Monitor mirando a la Izquierda (Inclinado)">
+                <button type="button" class="monitor-orient-btn" data-orient="L" title="Monitor mirando a la Izquierda (Inclinado)">
                   <i class="ri-arrow-left-up-line"></i>
                   <span>Izquierda</span>
                 </button>
-                <button class="monitor-orient-btn" data-orient="B" title="Monitor Visto por Detrás">
+                <button type="button" class="monitor-orient-btn" data-orient="B" title="Monitor Visto por Detrás">
                   <i class="ri-arrow-up-line"></i>
                   <span>Detrás</span>
                 </button>
@@ -429,6 +427,42 @@
               <span>Conexión de Puertas (Portales)</span>
               <i class="ri-arrow-right-s-line style-picker-chevron"></i>
             </button>
+          </div>
+        </section>
+
+        <!-- 6. Colocación de Personaje (Solo visible al seleccionar Personajes) -->
+        <section class="tool-section" id="sectionCharacterPlacement" style="display: none;">
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-user-smile-line"></i> Colocación de Personaje</span>
+              <span class="collapse-icon">▾</span>
+            </h2>
+          </div>
+
+          <div class="dimension-controls">
+            <p class="section-desc">Orientación inicial del personaje:</p>
+            <div class="monitor-orient-grid" id="charOrientGrid">
+              <button type="button" class="monitor-orient-btn active char-orient-btn" data-orient="F" title="Personaje mirando de Frente (Este)">
+                <i class="ri-user-3-line"></i>
+                <span>Frente</span>
+              </button>
+              <button type="button" class="monitor-orient-btn char-orient-btn" data-orient="R" title="Personaje mirando a la Derecha (Sur)">
+                <i class="ri-arrow-right-up-line"></i>
+                <span>Derecha</span>
+              </button>
+              <button type="button" class="monitor-orient-btn char-orient-btn" data-orient="L" title="Personaje mirando a la Izquierda (Norte)">
+                <i class="ri-arrow-left-up-line"></i>
+                <span>Izquierda</span>
+              </button>
+              <button type="button" class="monitor-orient-btn char-orient-btn" data-orient="B" title="Personaje mirando de Espaldas (Oeste)">
+                <i class="ri-arrow-up-line"></i>
+                <span>Detrás</span>
+              </button>
+            </div>
+            <div class="char-help-box" style="margin-top: 10px; padding: 8px 10px; background: rgba(229, 169, 59, 0.08); border: 1px solid rgba(229, 169, 59, 0.2); border-radius: 6px; font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.1rem; color: var(--accent-gold);"><i class="ri-information-line"></i></span>
+              <span>Haz clic en una celda para colocar o reorientar al personaje.</span>
+            </div>
           </div>
         </section>
 

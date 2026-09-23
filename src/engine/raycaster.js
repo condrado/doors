@@ -28,6 +28,8 @@ class RaycasterEngine {
     this.wallHeightScale = 3.0;
     this.doorHeightScale = 2.0;
     this.tableHeightScale = 0.995;
+    // Elevación visual del personaje: -0.18m (asienta perfectamente al personaje de 2.0m en la celda)
+    this.characterElevation = -0.18;
 
     if (typeof window !== 'undefined') {
       window.activeRaycasterEngine = this;
@@ -1457,7 +1459,7 @@ class RaycasterEngine {
     }
     this.pixelDepthBuffer.fill(Infinity);
 
-    // 1. Dibujar Techo y Suelo con degradado de iluminación ambiental
+    // 1. Dibujar Techo con degradado de iluminación ambiental
     // Formato de píxel en Little Endian Uint32: 0xAABBGGRR
     for (let y = 0; y < halfH; y++) {
       // Techo: de azul noche a oscuridad en el horizonte
@@ -1467,25 +1469,170 @@ class RaycasterEngine {
       const cB = Math.floor(22 + ceilRatio * 16);
       const ceilColor = (255 << 24) | (cB << 16) | (cG << 8) | cR;
 
-      // Suelo: de oscuridad en el horizonte a piedra oscura cerca de los pies
-      const floorY = h - 1 - y;
-      const floorRatio = 1 - (y / halfH);
-      const fR = Math.floor(18 + floorRatio * 20);
-      const fG = Math.floor(20 + floorRatio * 22);
-      const fB = Math.floor(24 + floorRatio * 26);
-      const floorColor = (255 << 24) | (fB << 16) | (fG << 8) | fR;
-
       const ceilOffset = y * w;
-      const floorOffset = floorY * w;
-
       for (let x = 0; x < w; x++) {
         pixels[ceilOffset + x] = ceilColor;
-        pixels[floorOffset + x] = floorColor;
+      }
+    }
+
+    // 1.1. Dibujar Suelo con perspectiva 3D tipo Tablero de Ajedrez (1 casilla = 1 celda del editor de 1.0m x 1.0m)
+    // Permite visualizar con total claridad la posición exacta de cada elemento y del personaje sentado
+    const eyeHeight = this.wallHeightScale / 2; // 1.5m
+    const rayDirX0 = dirX - planeX;
+    const rayDirY0 = dirY - planeY;
+    const rayDirX1 = dirX + planeX;
+    const rayDirY1 = dirY + planeY;
+
+    for (let y = halfH; y < h; y++) {
+      const rowOffset = y - halfH;
+      const rowPixelBase = y * w;
+
+      if (rowOffset === 0) {
+        const horizColor = (255 << 24) | (24 << 16) | (20 << 8) | 18;
+        for (let x = 0; x < w; x++) {
+          pixels[rowPixelBase + x] = horizColor;
+        }
+        continue;
+      }
+
+      const rowDist = (eyeHeight * h) / rowOffset;
+      const floorStepX = rowDist * (rayDirX1 - rayDirX0) / w;
+      const floorStepY = rowDist * (rayDirY1 - rayDirY0) / w;
+
+      let floorX = posX + rowDist * rayDirX0;
+      let floorY_w = posY + rowDist * rayDirY0;
+
+      // Iluminación por distancia y atenuación atmosférica suave hacia el horizonte
+      const shade = Math.min(1, 1 / (1 + rowDist * 0.16));
+      const fogRatio = Math.min(1, Math.max(0, (rowDist - 1.2) / 18.0));
+      const invFog = 1 - fogRatio;
+
+      for (let x = 0; x < w; x++, floorX += floorStepX, floorY_w += floorStepY) {
+        const cellX = Math.floor(floorX);
+        const cellY = Math.floor(floorY_w);
+        const tx = floorX - cellX;
+        const ty = floorY_w - cellY;
+
+        // Alternancia de casillas clara/oscura de 1m x 1m exacta con la cuadrícula del editor
+        const isDark = ((cellX + cellY) & 1) !== 0;
+
+        let tileR, tileG, tileB;
+
+        // Borde / junta perimetral de cada casilla (2.5 cm en cada extremo)
+        const isGrout = (tx < 0.025 || tx > 0.975 || ty < 0.025 || ty > 0.975);
+        // Marca central (+0.5, +0.5) para ubicar el centro donde se colocan el personaje y objetos
+        const isCenterMark = ((Math.abs(tx - 0.5) < 0.05 && Math.abs(ty - 0.5) < 0.015) ||
+                              (Math.abs(ty - 0.5) < 0.05 && Math.abs(tx - 0.5) < 0.015));
+
+        if (isGrout) {
+          tileR = 25;
+          tileG = 27;
+          tileB = 32;
+        } else if (isCenterMark) {
+          tileR = isDark ? 85 : 145;
+          tileG = isDark ? 88 : 148;
+          tileB = isDark ? 98 : 158;
+        } else if (isDark) {
+          // Baldosa oscura: grafito / pizarra profunda
+          tileR = 48;
+          tileG = 52;
+          tileB = 60;
+        } else {
+          // Baldosa clara: mármol blanco / gris claro luminoso
+          tileR = 196;
+          tileG = 198;
+          tileB = 205;
+        }
+
+        const litR = tileR * shade;
+        const litG = tileG * shade;
+        const litB = tileB * shade;
+
+        const finalR = Math.floor(litR * invFog + 18 * fogRatio);
+        const finalG = Math.floor(litG * invFog + 20 * fogRatio);
+        const finalB = Math.floor(litB * invFog + 24 * fogRatio);
+
+        pixels[rowPixelBase + x] = (255 << 24) | (finalB << 16) | (finalG << 8) | finalR;
       }
     }
 
     // Rayo central para registrar qué está mirando directamente el jugador
     const centerRayX = Math.floor(w / 2);
+
+    // Cola de renderizado para el pase diferido de transparencias (cristales, ventanas, puertas de cristal)
+    // Se procesa después de las mesas y sprites para que la tapa de la mesa y los personajes se vean a través del cristal
+    const transparentPassQueue = [];
+
+    // Dibuja una franja vertical translúcida en el pase diferido (después de mesas y sprites)
+    const blitTransparentBand = (colX, topPx, bottomPx, texArray, texXParam, shadeParam, clampMinY = -Infinity, clampMaxY = Infinity, distParam = Infinity) => {
+      const clipStart = Math.max(0, Math.floor(topPx), Math.floor(clampMinY));
+      const clipEnd = Math.min(h - 1, Math.floor(bottomPx), Math.floor(clampMaxY));
+      if (clipEnd < clipStart) return;
+
+      const texW = texArray.width || 64;
+      const texH = texArray.height || (texArray.length === 64 * 192 ? 192 : 64);
+      const totalHeight = Math.max(0.0001, bottomPx - topPx);
+      const step = texH / totalHeight;
+      let texPos = (clipStart - topPx) * step;
+
+      for (let y = clipStart; y <= clipEnd; y++) {
+        const pIdx = y * w + colX;
+        // Si hay un objeto opaco DELANTE del cristal (ej. una mesa colocada entre el jugador y el cristal), no dibujar el cristal encima
+        if (this.pixelDepthBuffer && distParam >= this.pixelDepthBuffer[pIdx]) {
+          texPos += step;
+          continue;
+        }
+
+        const texY = Math.min(texH - 1, Math.max(0, Math.floor(texPos)));
+        texPos += step;
+        const color = texArray[texY * texW + texXParam];
+        const a = (color >> 24) & 0xFF;
+        if (a === 0) continue;
+
+        const r = Math.floor((color & 0xFF) * shadeParam);
+        const g = Math.floor(((color >> 8) & 0xFF) * shadeParam);
+        const b = Math.floor(((color >> 16) & 0xFF) * shadeParam);
+
+        if (a >= 254) {
+          pixels[pIdx] = (255 << 24) | (b << 16) | (g << 8) | r;
+          this.pixelDepthBuffer[pIdx] = distParam;
+        } else {
+          const prev = pixels[pIdx];
+          const prevR = prev & 0xFF;
+          const prevG = (prev >> 8) & 0xFF;
+          const prevB = (prev >> 16) & 0xFF;
+          const alphaRatio = a / 255;
+          const invAlpha = 1 - alphaRatio;
+
+          const finalR = Math.min(255, Math.floor(r * alphaRatio + prevR * invAlpha));
+          const finalG = Math.min(255, Math.floor(g * alphaRatio + prevG * invAlpha));
+          const finalB = Math.min(255, Math.floor(b * alphaRatio + prevB * invAlpha));
+
+          pixels[pIdx] = (255 << 24) | (finalB << 16) | (finalG << 8) | finalR;
+        }
+      }
+    };
+
+    const blitFlatTransparentBand = (colX, topPx, bottomPx, color, shadeParam, clampMinY = -Infinity, clampMaxY = Infinity, distParam = Infinity) => {
+      const clipStart = Math.max(0, Math.floor(topPx), Math.floor(clampMinY));
+      const clipEnd = Math.min(h - 1, Math.floor(bottomPx), Math.floor(clampMaxY));
+      if (clipEnd < clipStart) return;
+      const r = Math.floor((color & 0xFF) * shadeParam);
+      const g = Math.floor(((color >> 8) & 0xFF) * shadeParam);
+      const b = Math.floor(((color >> 16) & 0xFF) * shadeParam);
+      for (let y = clipStart; y <= clipEnd; y++) {
+        const pIdx = y * w + colX;
+        if (this.pixelDepthBuffer && distParam >= this.pixelDepthBuffer[pIdx]) continue;
+        const prev = pixels[pIdx];
+        const prevR = prev & 0xFF;
+        const prevG = (prev >> 8) & 0xFF;
+        const prevB = (prev >> 16) & 0xFF;
+        const fR = Math.min(255, Math.floor(r * 0.4 + prevR * 0.6));
+        const fG = Math.min(255, Math.floor(g * 0.4 + prevG * 0.6));
+        const fB = Math.min(255, Math.floor(b * 0.4 + prevB * 0.6));
+        pixels[pIdx] = (255 << 24) | (fB << 16) | (fG << 8) | fR;
+      }
+    };
 
     // 2. Proyección de Rayos (DDA Algorithm)
     for (let x = 0; x < w; x++) {
@@ -1739,9 +1886,7 @@ class RaycasterEngine {
             const finalB = Math.min(255, Math.floor(b * alphaRatio + prevB * invAlpha));
 
             pixels[pIdx] = (255 << 24) | (finalB << 16) | (finalG << 8) | finalR;
-            if (distParam < this.pixelDepthBuffer[pIdx]) {
-              this.pixelDepthBuffer[pIdx] = distParam;
-            }
+            // No escribir en el Z-buffer opaco para píxeles translúcidos
           }
         }
       };
@@ -1789,7 +1934,36 @@ class RaycasterEngine {
       for (let i = 0; i < hitTransparents.length; i++) {
         const tHit = hitTransparents[i];
         if (tHit.dist < maxDist - 0.05) {
-          layers.push({ kind: 'transparent', hit: tHit, dist: tHit.dist });
+          const projT = h / Math.max(tHit.dist, 0.0001);
+          const wallTopYT = halfH - (this.wallHeightScale - eyeHeight) * projT;
+          const doorTopYT = halfH - (this.doorHeightScale - eyeHeight) * projT;
+          const bottomYT = halfH + eyeHeight * projT;
+
+          const tTex = resolveTex(tHit.seg.type, tHit.seg.style || 'cristal');
+          const tTexX = texXOf(tHit.wallX, tHit.side, tTex.width || 64);
+          const tShade = shadeOf(tHit.dist, tHit.side);
+
+          let dLintelTex = null;
+          let dLintelX = 0;
+          if (tHit.isDoor) {
+            const dLintelStyle = tHit.seg.lintelStyle || tHit.seg.style || 'cristal';
+            dLintelTex = resolveTex(1, dLintelStyle);
+            dLintelX = texXOf(tHit.wallX, tHit.side, dLintelTex.width || 64);
+          }
+
+          transparentPassQueue.push({
+            x,
+            dist: tHit.dist,
+            tHit,
+            wallTopYT,
+            doorTopYT,
+            bottomYT,
+            tTex,
+            tTexX,
+            tShade,
+            dLintelTex,
+            dLintelX
+          });
         }
       }
 
@@ -1800,6 +1974,7 @@ class RaycasterEngine {
       }
 
       // Guardar distancia en z-buffer para oclusión de floor casting
+      // Solo consideramos capas OPAVAS (hitBottom o mesas/dinteles opacos), NUNCA cristal
       this.zBuffer[x] = hitBottom ? hitBottom.dist : (layers[0] ? layers[0].dist : Infinity);
 
       // Algoritmo del pintor: de más lejano a más cercano
@@ -1878,31 +2053,6 @@ class RaycasterEngine {
             const lTexX = texXOf(lHit.wallX, lHit.side, lTex.width || 64);
             const lShade = shadeOf(lHit.dist, lHit.side);
             blitTexBand(wallTopYL, bottomYL, lTex, lTexX, lShade, wallTopYL, doorTopYL + 1, lHit.dist);
-          } else if (layer.kind === 'transparent') {
-            const tHit = layer.hit;
-            const projT = h / Math.max(tHit.dist, 0.0001);
-            const wallTopYT = halfH - (this.wallHeightScale - eyeHeight) * projT;
-            const doorTopYT = halfH - (this.doorHeightScale - eyeHeight) * projT;
-            const bottomYT = halfH + eyeHeight * projT;
-
-            const tTex = resolveTex(tHit.seg.type, tHit.seg.style || 'cristal');
-            const tTexX = texXOf(tHit.wallX, tHit.side, tTex.width || 64);
-            const tShade = shadeOf(tHit.dist, tHit.side);
-
-            if (tHit.seg.isJamb) {
-              blitTexBand(wallTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT, tHit.dist);
-            } else if (tHit.isDoor) {
-              // Puerta de cristal cerrada (0 a 2.2m)
-              blitTexBand(doorTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT, tHit.dist);
-              // Dintel propio sobre la puerta de cristal (2.2 a 3.0m)
-              const dLintelStyle = tHit.seg.lintelStyle || tHit.seg.style || 'cristal';
-              const dLintelTex = resolveTex(1, dLintelStyle);
-              const dLintelX = texXOf(tHit.wallX, tHit.side, dLintelTex.width || 64);
-              blitTexBand(wallTopYT, bottomYT, dLintelTex, dLintelX, tShade, wallTopYT, doorTopYT + 1, tHit.dist);
-            } else {
-              // Pared de cristal completa (0 a 3.0m)
-              blitTexBand(wallTopYT, bottomYT, tTex, tTexX, tShade, wallTopYT, bottomYT, tHit.dist);
-            }
           }
         }
       } else {
@@ -1943,18 +2093,6 @@ class RaycasterEngine {
             const doorTopYL = halfH - (this.doorHeightScale - eyeHeight) * projL;
             const bottomYL = halfH + eyeHeight * projL;
             blitFlatBand(wallTopYL, bottomYL, 0x888888, shadeOf(lHit.dist, lHit.side), wallTopYL, doorTopYL + 1, lHit.dist);
-          } else if (layer.kind === 'transparent') {
-            const tHit = layer.hit;
-            const projT = h / Math.max(tHit.dist, 0.0001);
-            const wallTopYT = halfH - (this.wallHeightScale - eyeHeight) * projT;
-            const doorTopYT = halfH - (this.doorHeightScale - eyeHeight) * projT;
-            const bottomYT = halfH + eyeHeight * projT;
-            const tShade = shadeOf(tHit.dist, tHit.side);
-            if (tHit.isDoor) {
-              blitFlatBand(doorTopYT, bottomYT, 0x2288bb, tShade, doorTopYT, bottomYT, tHit.dist);
-            } else {
-              blitFlatBand(wallTopYT, bottomYT, 0x2288bb, tShade, wallTopYT, bottomYT, tHit.dist);
-            }
           }
         }
       }
@@ -2028,6 +2166,32 @@ class RaycasterEngine {
     // 2.5. Renderizar Sprites Billboards (Monitores, etc.) que siempre miran al jugador
     this.renderSprites(player);
 
+    // 2.6. Pase diferido de transparencias (Cristales, ventanas y puertas de cristal)
+    // Se dibujan ordenadas de más lejanas a más cercanas, DESPUÉS de las mesas y los personajes,
+    // garantizando que la tapa de la mesa y los personajes se vean a través del cristal con su reflejo por encima
+    if (transparentPassQueue.length > 0) {
+      transparentPassQueue.sort((a, b) => b.dist - a.dist);
+      for (let i = 0; i < transparentPassQueue.length; i++) {
+        const item = transparentPassQueue[i];
+        const { x, dist, tHit, wallTopYT, doorTopYT, bottomYT, tTex, tTexX, tShade, dLintelTex, dLintelX } = item;
+
+        if (this.textureMode === 'classic') {
+          if (tHit.seg.isJamb) {
+            blitTransparentBand(x, wallTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT, dist);
+          } else if (tHit.isDoor) {
+            blitTransparentBand(x, doorTopYT, bottomYT, tTex, tTexX, tShade, doorTopYT, bottomYT, dist);
+            if (dLintelTex) {
+              blitTransparentBand(x, wallTopYT, bottomYT, dLintelTex, dLintelX, tShade, wallTopYT, doorTopYT + 1, dist);
+            }
+          } else {
+            blitTransparentBand(x, wallTopYT, bottomYT, tTex, tTexX, tShade, wallTopYT, bottomYT, dist);
+          }
+        } else {
+          blitFlatTransparentBand(x, wallTopYT, bottomYT, 0x2288bb, tShade, wallTopYT, bottomYT, dist);
+        }
+      }
+    }
+
     // Volcar el buffer al canvas
     this.ctx.putImageData(this.imgData, 0, 0);
 
@@ -2094,7 +2258,7 @@ class RaycasterEngine {
             mapY: y,
             type: 'character',
             facingAngle: facingAngle,
-            z: -0.06 // Asentado firmemente en el suelo con sus ruedas y sombra de contacto
+            z: this.characterElevation ?? -0.18 // Asentado y centrado en la celda
           });
         }
       }
@@ -2172,15 +2336,15 @@ class RaycasterEngine {
       const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
 
       // Escala del objeto en el mundo:
-      // Para el personaje sentado: altura 1.5m (exactamente la mitad de una pared de 3.0m, es decir 96px de 192px)
+      // Para el personaje sentado: altura 2.0m (exactamente 2/3 de una pared de 3.0m, es decir 128px de 192px)
       // Para el monitor encima de la mesa: ~0.72m de ancho y alto
-      const spriteWorldW = isChar ? 1.5 : 0.72;
-      const spriteWorldH = isChar ? 1.5 : 0.72;
+      const spriteWorldW = isChar ? 2.0 : 0.72;
+      const spriteWorldH = isChar ? 2.0 : 0.72;
       const spriteScreenWidth = Math.abs(Math.floor(spriteWorldW * proj));
       const spriteScreenHeight = Math.abs(Math.floor(spriteWorldH * proj));
 
-      // Elevación: personaje en suelo (z = -0.06m con ruedas asentadas), monitor elevado en mesa (z = tableHeightScale - 0.05)
-      const baseElevation = (typeof sprite.z === 'number') ? sprite.z : (isChar ? -0.06 : (this.tableHeightScale - 0.05));
+      // Elevación: personaje en suelo (z = -0.18m centrado en celda), monitor elevado en mesa (z = tableHeightScale - 0.05)
+      const baseElevation = (typeof sprite.z === 'number') ? sprite.z : (isChar ? (this.characterElevation ?? -0.18) : (this.tableHeightScale - 0.05));
       const bottomY = halfH + (eyeHeight - baseElevation) * proj;
       const topY = bottomY - spriteScreenHeight;
 

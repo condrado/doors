@@ -80,9 +80,10 @@ class LevelEditor {
 
     // Herramientas y selección
     this.currentTool = 'brush'; // 'brush', 'room', 'eraser'
-    this.selectedTile = 1; // 1 = pared, 0 = suelo, 'accessories' = accesorios, 'player' = spawn
+    this.selectedTile = 1; // 1 = pared, 0 = suelo, 'accessories' = accesorios, 'character' = personaje, 'player' = spawn
     this.selectedAccessory = 'door'; // 'door', 'window', 'monitor'
     this.monitorOrientation = 'F'; // 'F' (Frente), 'R' (Derecha), 'L' (Izquierda), 'B' (Detrás)
+    this.characterOrientation = 'F'; // 'F' (Frente), 'R' (Derecha), 'L' (Izquierda), 'B' (Detrás)
     this.tableType = 9; // código de celda de mesa activo (9=4patas, 15=sin patas, 16-21=variantes)
     this.isMouseDown = false;
     this.roomStart = null;
@@ -424,30 +425,26 @@ class LevelEditor {
       });
     });
 
-    // Paleta de elementos (auto-mostrar Colocación de Paredes o Accesorios según selección)
+    // Paleta de elementos (auto-mostrar Colocación de Paredes, Accesorios o Personajes según selección)
     document.querySelectorAll('input[name="tileSelect"]').forEach(radio => {
       radio.addEventListener('change', (e) => {
         document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
         e.target.closest('.palette-item').classList.add('active');
         const val = e.target.value;
-        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'door' || val === 'window' || val === 'table') ? val : parseInt(val, 10);
+        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'character' || val === 'door' || val === 'window' || val === 'table') ? val : parseInt(val, 10);
         this.updateToolPanelsVisibility();
         this.render();
         this.saveUIState();
       });
     });
 
-    // Selector de accesorios (Puerta, Ventana, etc.)
+    // Selector de accesorios (Puerta, Ventana, Monitor)
     document.querySelectorAll('.accessory-tile-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.accessory-tile-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.selectedAccessory = btn.dataset.accessory;
-        const name = this.selectedAccessory === 'door' ? 'Puerta' : (this.selectedAccessory === 'window' ? 'Ventana' : (this.selectedAccessory === 'character' ? 'Personaje' : 'Monitor PC'));
-        const orientDesc = document.getElementById('monitorOrientDesc');
-        if (orientDesc) {
-          orientDesc.textContent = this.selectedAccessory === 'character' ? 'Orientación del Personaje:' : 'Orientación del Monitor:';
-        }
+        const name = this.selectedAccessory === 'door' ? 'Puerta' : (this.selectedAccessory === 'window' ? 'Ventana' : 'Monitor PC');
         this.showToast(`Accesorio activo: ${name}`);
         this.updateToolPanelsVisibility();
         this.render();
@@ -455,15 +452,27 @@ class LevelEditor {
       });
     });
 
-    // Selector de orientación del monitor / personaje (F, R, L, B)
-    document.querySelectorAll('.monitor-orient-btn').forEach(btn => {
+    // Selector de orientación del monitor (F, R, L, B)
+    document.querySelectorAll('#monitorOrientationPanel .monitor-orient-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.monitor-orient-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#monitorOrientationPanel .monitor-orient-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.monitorOrientation = btn.dataset.orient || 'F';
         const orientNames = { F: 'Frente', R: 'Mirando Derecha', L: 'Mirando Izquierda', B: 'Por Detrás' };
-        const isChar = this.selectedAccessory === 'character';
-        this.showToast(`${isChar ? '🧑 Personaje' : '🖥️ Monitor'}: ${orientNames[this.monitorOrientation]}`);
+        this.showToast(`🖥️ Monitor: ${orientNames[this.monitorOrientation]}`);
+        this.render();
+        this.saveUIState();
+      });
+    });
+
+    // Selector de orientación del personaje (F, R, L, B)
+    document.querySelectorAll('.char-orient-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.char-orient-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.characterOrientation = btn.dataset.orient || 'F';
+        const orientNames = { F: 'Frente', R: 'Mirando Derecha', L: 'Mirando Izquierda', B: 'Por Detrás' };
+        this.showToast(`🧑 Personaje: ${orientNames[this.characterOrientation]}`);
         this.render();
         this.saveUIState();
       });
@@ -1095,9 +1104,9 @@ class LevelEditor {
         this.showToast('🖥️ Monitor colocado');
         changed = true;
       }
-    } else if (this.selectedTile === 'accessories' && this.selectedAccessory === 'character') {
+    } else if (this.selectedTile === 'character' || (this.selectedTile === 'accessories' && this.selectedAccessory === 'character')) {
       // Colocar o reorientar personaje en la celda
-      const orient = this.monitorOrientation || 'F';
+      const orient = this.characterOrientation || 'F';
       const charCode = (orient === 'F') ? 'CHAR' : ('CHAR_' + orient);
       const oldCharIdx = currentSegs.findIndex(s => typeof s === 'string' && (s === 'CHAR' || s.startsWith('CHAR_')));
       if (oldCharIdx !== -1) {
@@ -2018,11 +2027,11 @@ class LevelEditor {
       ctx.strokeRect(hpx, hpy, cs, cs);
 
       if (this.currentTool === 'brush') {
-        if (this.selectedTile === 'accessories') {
+        if (this.selectedTile === 'character') {
+          this.draw2DCharacter(ctx, hpx, hpy, cs, this.characterOrientation || 'F', true);
+        } else if (this.selectedTile === 'accessories') {
           if (this.selectedAccessory === 'monitor') {
             this.draw2DMonitor(ctx, hpx, hpy, cs, this.monitorOrientation || 'F', true);
-          } else if (this.selectedAccessory === 'character') {
-            this.draw2DCharacter(ctx, hpx, hpy, cs, this.monitorOrientation || 'F', true);
           } else {
             ctx.fillStyle = (this.selectedAccessory === 'door') ? 'rgba(229, 169, 59, 0.8)' : 'rgba(84, 160, 255, 0.8)';
           }
@@ -2034,7 +2043,7 @@ class LevelEditor {
           ctx.fillStyle = 'rgba(79, 163, 227, 0.8)';
         }
 
-        if (this.selectedTile === 'accessories' && (this.selectedAccessory === 'monitor' || this.selectedAccessory === 'character')) {
+        if (this.selectedTile === 'character' || (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor')) {
           // No dibujar bordes de pared para el monitor o personaje (ya dibujado en preview superior)
         } else if (this.selectedTile === 'table') {
           ctx.fillStyle = 'rgba(107, 68, 35, 0.55)';
@@ -2298,6 +2307,7 @@ class LevelEditor {
 
       const isWall = (this.selectedTile === 1 || this.selectedTile === '1');
       const isAccessory = (this.selectedTile === 'accessories');
+      const isCharacter = (this.selectedTile === 'character');
       const isMesa = (this.selectedTile === 'table');
 
       if (sectionWallPlacement) {
@@ -2313,8 +2323,13 @@ class LevelEditor {
         if (btnDoorStyle) btnDoorStyle.style.display = showDoorPickers ? '' : 'none';
         if (btnLintelStyle) btnLintelStyle.style.display = showDoorPickers ? '' : 'none';
 
-        const showMonitorOrient = isAccessory && (this.selectedAccessory === 'monitor' || this.selectedAccessory === 'character');
+        const showMonitorOrient = isAccessory && (this.selectedAccessory === 'monitor');
         if (monitorOrientPanel) monitorOrientPanel.style.display = showMonitorOrient ? '' : 'none';
+      }
+      const sectionCharacterPlacement = document.getElementById('sectionCharacterPlacement');
+      if (sectionCharacterPlacement) {
+        sectionCharacterPlacement.style.display = isCharacter ? '' : 'none';
+        if (isCharacter) sectionCharacterPlacement.classList.remove('collapsed');
       }
       if (sectionMesaPlacement) {
         sectionMesaPlacement.style.display = isMesa ? '' : 'none';
@@ -2365,6 +2380,7 @@ class LevelEditor {
         selectedTile: this.selectedTile,
         selectedAccessory: this.selectedAccessory,
         monitorOrientation: this.monitorOrientation || 'F',
+        characterOrientation: this.characterOrientation || 'F',
         placementMode: this.placementMode,
         activeWallTab,
         zoomMode: this.zoomMode,
@@ -2421,7 +2437,7 @@ class LevelEditor {
           radio.checked = true;
           document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
           radio.closest('.palette-item')?.classList.add('active');
-          this.selectedTile = (state.selectedTile === 'player' || state.selectedTile === 'accessories')
+          this.selectedTile = (state.selectedTile === 'player' || state.selectedTile === 'accessories' || state.selectedTile === 'character' || state.selectedTile === 'table')
             ? state.selectedTile
             : parseInt(state.selectedTile, 10);
         }
@@ -2466,8 +2482,16 @@ class LevelEditor {
       // 7b. Restaurar orientación del monitor
       if (state.monitorOrientation) {
         this.monitorOrientation = state.monitorOrientation;
-        document.querySelectorAll('.monitor-orient-btn').forEach(btn => {
+        document.querySelectorAll('#monitorOrientationPanel .monitor-orient-btn').forEach(btn => {
           btn.classList.toggle('active', btn.dataset.orient === this.monitorOrientation);
+        });
+      }
+
+      // 7c. Restaurar orientación del personaje
+      if (state.characterOrientation) {
+        this.characterOrientation = state.characterOrientation;
+        document.querySelectorAll('.char-orient-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.orient === this.characterOrientation);
         });
       }
 
