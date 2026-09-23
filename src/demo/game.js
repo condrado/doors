@@ -242,6 +242,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Guardar punto de spawn original para el botón de centrar
   let spawnX = player.posX;
   let spawnY = player.posY;
+  let spawnAngle = player.angle;
 
   // Soporte para proyectos multimapa:
   // 1. window.STANDALONE_PROJECT (en juego exportado)
@@ -301,6 +302,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       spawnX = player.posX;
       spawnY = player.posY;
+      spawnAngle = player.angle;
     }
     if (typeof updateCanvasResolution === 'function') {
       updateCanvasResolution();
@@ -1037,6 +1039,14 @@ window.addEventListener('DOMContentLoaded', () => {
     btnCenter.addEventListener('click', () => {
       player.posX = spawnX;
       player.posY = spawnY;
+      if (typeof spawnAngle === 'number') {
+        player.angle = spawnAngle;
+        player.dirX = Math.cos(player.angle);
+        player.dirY = Math.sin(player.angle);
+        if (typeof updateCanvasResolution === 'function') {
+          updateCanvasResolution();
+        }
+      }
     });
   }
 

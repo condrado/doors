@@ -787,6 +787,33 @@ class LevelEditor {
     return null;
   }
 
+  /**
+   * Determina la orientación del jugador según en qué cuadrante/vértice de la celda esté el cursor:
+   * Arriba (Norte: -Math.PI / 2), Abajo (Sur: Math.PI / 2), Izquierda (Oeste: Math.PI), Derecha (Este: 0)
+   */
+  getPlayerAngleFromLocal(lx, ly) {
+    const dx = lx - 0.5;
+    const dy = ly - 0.5;
+    // Si el cursor está muy en el centro, mantener el ángulo actual si existe
+    if (Math.hypot(dx, dy) < 0.08 && typeof this.player.angle === 'number') {
+      return this.player.angle;
+    }
+    // Determinar cuadrante cardinal predominante
+    if (Math.abs(dy) >= Math.abs(dx)) {
+      return (dy < 0) ? -Math.PI / 2 : Math.PI / 2; // Norte (-90°) o Sur (90°)
+    } else {
+      return (dx < 0) ? Math.PI : 0; // Oeste (180°) o Este (0°)
+    }
+  }
+
+  getPlayerDirectionName(angle) {
+    const norm = (angle % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+    if (Math.abs(norm - (3 * Math.PI / 2)) < 0.2 || Math.abs(norm - (-Math.PI / 2 + 2 * Math.PI)) < 0.2) return 'Norte';
+    if (Math.abs(norm - (Math.PI / 2)) < 0.2) return 'Sur';
+    if (Math.abs(norm - Math.PI) < 0.2) return 'Oeste';
+    return 'Este';
+  }
+
   handleMouseDown(e) {
     const cell = this.getCellFromEvent(e);
     if (!cell) return;
@@ -1077,8 +1104,13 @@ class LevelEditor {
     } else if (this.selectedTile === 'player') {
       this.player.x = x + 0.5;
       this.player.y = y + 0.5;
+      if (typeof this.lastLocalX === 'number' && typeof this.lastLocalY === 'number') {
+        this.player.angle = this.getPlayerAngleFromLocal(this.lastLocalX, this.lastLocalY);
+      }
       this.grid[y][x] = [];
       this.clearCellStyles(x, y);
+      const dirName = this.getPlayerDirectionName(this.player.angle);
+      this.showToast(`🧭 Jugador posicionado mirando al ${dirName}`);
       changed = true;
     } else if (this.selectedTile === 0 || this.hoverSubEdge === 'empty') {
       // Suelo libre: vaciar toda la casilla
@@ -2027,7 +2059,64 @@ class LevelEditor {
       ctx.strokeRect(hpx, hpy, cs, cs);
 
       if (this.currentTool === 'brush') {
-        if (this.selectedTile === 'character') {
+        if (this.selectedTile === 'player') {
+          // Previsualización interactiva del jugador con su orientación según la posición del cursor en la celda
+          const hoverAngle = (typeof this.lastLocalX === 'number' && typeof this.lastLocalY === 'number')
+            ? this.getPlayerAngleFromLocal(this.lastLocalX, this.lastLocalY)
+            : (this.player.angle ?? -Math.PI / 2);
+
+          const hcx = hpx + cs / 2;
+          const hcy = hpy + cs / 2;
+
+          ctx.save();
+          // Círculo central translúcido
+          ctx.beginPath();
+          ctx.arc(hcx, hcy, cs * 0.22, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0, 210, 211, 0.7)';
+          ctx.fill();
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Flecha de orientación en tiempo real
+          const arrowLen = cs * 0.45;
+          const endX = hcx + Math.cos(hoverAngle) * arrowLen;
+          const endY = hcy + Math.sin(hoverAngle) * arrowLen;
+          ctx.beginPath();
+          ctx.moveTo(hcx, hcy);
+          ctx.lineTo(endX, endY);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          // Punta de flecha
+          const headLen = cs * 0.16;
+          const hA1 = hoverAngle + Math.PI * 0.82;
+          const hA2 = hoverAngle - Math.PI * 0.82;
+          ctx.beginPath();
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(endX + Math.cos(hA1) * headLen, endY + Math.sin(hA1) * headLen);
+          ctx.moveTo(endX, endY);
+          ctx.lineTo(endX + Math.cos(hA2) * headLen, endY + Math.sin(hA2) * headLen);
+          ctx.strokeStyle = '#fff';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          // Letra cardinal (N, S, E, O)
+          const norm = (hoverAngle % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+          let dirLetter = 'E';
+          if (Math.abs(norm - (3 * Math.PI / 2)) < 0.2 || Math.abs(norm - (-Math.PI / 2 + 2 * Math.PI)) < 0.2) dirLetter = 'N';
+          else if (Math.abs(norm - (Math.PI / 2)) < 0.2) dirLetter = 'S';
+          else if (Math.abs(norm - Math.PI) < 0.2) dirLetter = 'O';
+
+          ctx.fillStyle = '#00d2d3';
+          ctx.font = `bold ${Math.max(10, Math.floor(cs * 0.22))}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(dirLetter, hcx, hcy - cs * 0.32);
+
+          ctx.restore();
+        } else if (this.selectedTile === 'character') {
           this.draw2DCharacter(ctx, hpx, hpy, cs, this.characterOrientation || 'F', true);
         } else if (this.selectedTile === 'accessories') {
           if (this.selectedAccessory === 'monitor') {
@@ -2043,8 +2132,8 @@ class LevelEditor {
           ctx.fillStyle = 'rgba(79, 163, 227, 0.8)';
         }
 
-        if (this.selectedTile === 'character' || (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor')) {
-          // No dibujar bordes de pared para el monitor o personaje (ya dibujado en preview superior)
+        if (this.selectedTile === 'character' || (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor') || this.selectedTile === 'player') {
+          // No dibujar bordes de pared para el monitor, personaje o jugador (ya dibujado en preview superior)
         } else if (this.selectedTile === 'table') {
           ctx.fillStyle = 'rgba(107, 68, 35, 0.55)';
           ctx.fillRect(hpx + cs * 0.1, hpy + cs * 0.1, cs * 0.8, cs * 0.8);
@@ -2198,8 +2287,22 @@ class LevelEditor {
     ctx.lineWidth = 2.5;
     ctx.stroke();
 
-    // Actualizar texto de estadísticas
-    this.mapStats.textContent = `Dimensiones: ${this.cols}x${this.rows} • Jugador: (X: ${this.player.x.toFixed(1)}, Y: ${this.player.y.toFixed(1)})`;
+    // Punta de flecha clara para indicar dirección
+    const headLen = cs * 0.16;
+    const hA1 = this.player.angle + Math.PI * 0.82;
+    const hA2 = this.player.angle - Math.PI * 0.82;
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(endX + Math.cos(hA1) * headLen, endY + Math.sin(hA1) * headLen);
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(endX + Math.cos(hA2) * headLen, endY + Math.sin(hA2) * headLen);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+
+    // Actualizar texto de estadísticas con la orientación cardinal
+    const dirName = this.getPlayerDirectionName(this.player.angle);
+    this.mapStats.textContent = `Dimensiones: ${this.cols}x${this.rows} • Jugador: (X: ${this.player.x.toFixed(1)}, Y: ${this.player.y.toFixed(1)}, ${dirName})`;
   }
 
   /**
