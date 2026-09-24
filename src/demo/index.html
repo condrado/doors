@@ -89,28 +89,28 @@
         <!-- Mensaje flotante de interacción / contexto (ahora oculto, mensajes van a barText) -->
         <div class="prompt-hud" id="promptHud" style="display:none"></div>
 
-        <!-- Indicador de Postura / Velocidad estilo DayZ -->
-        <div class="dayz-stance-indicator" id="dayzStanceHud" title="Modo de Desplazamiento (Shift)">
-          <div class="dayz-stance-icon-wrap">
-            <i class="ri-walk-line" id="dayzStanceIcon"></i>
-          </div>
-          <div class="dayz-stance-info">
-            <span class="dayz-stance-state" id="dayzStanceText">ANDAR</span>
-            <span class="dayz-chevrons" id="dayzChevrons">
-              <span class="chv c1 active">›</span>
-              <span class="chv c2">›</span>
-              <span class="chv c3">›</span>
-            </span>
-          </div>
-        </div>
 
         <!-- Overlay de transición de pantalla (Fundido entre mapas) -->
         <div class="viewport-transition-overlay" id="transitionOverlay"></div>
 
         <!-- BARRA DE ACCIONES INFERIOR -->
         <div class="bottom-action-bar" id="bottomActionBar">
-          <!-- Izquierda: indicador andar/correr -->
+          <!-- Izquierda: cara del personaje -->
           <div class="bar-section bar-section--left">
+            <div class="bar-face" id="barFace" title="Estado del personaje">
+              <canvas id="barFaceCanvas" width="56" height="56"></canvas>
+            </div>
+          </div>
+
+          <!-- Centro: texto de estado / acciones de puerta -->
+          <div class="bar-section bar-section--center">
+            <div class="bar-center-inner">
+              <div class="bar-text" id="barText"></div>
+            </div>
+          </div>
+
+          <!-- Derecha: indicador andar/correr -->
+          <div class="bar-section bar-section--right">
             <div class="bar-stance" id="barStance" title="Alternar Correr / Andar (Shift)">
               <i class="ri-walk-line" id="barStanceIcon"></i>
               <span id="barStanceText">ANDAR</span>
@@ -119,18 +119,6 @@
                 <span class="bchv bc2">›</span>
                 <span class="bchv bc3">›</span>
               </span>
-            </div>
-          </div>
-
-          <!-- Centro: área de texto / acciones -->
-          <div class="bar-section bar-section--center">
-            <div class="bar-text" id="barText"></div>
-          </div>
-
-          <!-- Derecha: minimapa -->
-          <div class="bar-section bar-section--right">
-            <div class="bar-minimap-wrap">
-              <canvas id="barMinimapCanvas" width="120" height="80"></canvas>
             </div>
           </div>
         </div>

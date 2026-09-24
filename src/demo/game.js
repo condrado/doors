@@ -118,6 +118,8 @@ window.addEventListener('DOMContentLoaded', () => {
   const barText = document.getElementById('barText');
   const barMinimapCanvas = document.getElementById('barMinimapCanvas');
   const barMinimapCtx = barMinimapCanvas ? barMinimapCanvas.getContext('2d') : null;
+  const barFaceCanvas = document.getElementById('barFaceCanvas');
+  const barFaceCtx = barFaceCanvas ? barFaceCanvas.getContext('2d') : null;
 
   // Menú contextual de puerta (inline en barText)
   let doorCtxPendingDoor = null;
@@ -182,9 +184,11 @@ window.addEventListener('DOMContentLoaded', () => {
     setBarMessage(`
       <div class="bar-door-prompt">
         <span class="bar-door-label"><i class="ri-hand-line"></i> ¡PUM PUM PUM! — ${doorName.toUpperCase()}</span>
-        <button class="bar-door-btn bar-door-open" id="barDoorOpenAfterKnock"><i class="ri-door-open-line"></i> Abrir</button>
-        <button class="bar-door-btn bar-door-knock" id="barDoorKnockAgain"><i class="ri-hand-line"></i> Llamar</button>
-        <button class="bar-door-btn bar-door-cancel" id="barDoorCancelAfterKnock">Cancelar</button>
+        <div class="bar-door-actions">
+          <button class="bar-door-btn bar-door-open" id="barDoorOpenAfterKnock"><i class="ri-door-open-line"></i> Abrir</button>
+          <button class="bar-door-btn bar-door-knock" id="barDoorKnockAgain"><i class="ri-hand-line"></i> Llamar</button>
+          <button class="bar-door-btn bar-door-cancel" id="barDoorCancelAfterKnock">Cancelar</button>
+        </div>
       </div>
     `);
     document.getElementById('barDoorOpenAfterKnock')?.addEventListener('click', (e) => {
@@ -217,9 +221,11 @@ window.addEventListener('DOMContentLoaded', () => {
       // Puerta abierta: solo Cerrar o Cancelar
       setBarMessage(`
         <div class="bar-door-prompt">
-          <span class="bar-door-label">${doorName.toUpperCase()} — ABIERTA</span>
-          <button class="bar-door-btn bar-door-open" id="barDoorClose"><i class="ri-door-closed-line"></i> Cerrar</button>
-          <button class="bar-door-btn bar-door-cancel" id="barDoorCancel">Cancelar</button>
+          <span class="bar-door-label"><i class="ri-door-open-line"></i> ${doorName.toUpperCase()} — ABIERTA</span>
+          <div class="bar-door-actions">
+            <button class="bar-door-btn bar-door-open" id="barDoorClose"><i class="ri-door-closed-line"></i> Cerrar</button>
+            <button class="bar-door-btn bar-door-cancel" id="barDoorCancel">Cancelar</button>
+          </div>
         </div>
       `);
       document.getElementById('barDoorClose')?.addEventListener('click', (e) => {
@@ -230,10 +236,12 @@ window.addEventListener('DOMContentLoaded', () => {
       // Puerta cerrada: Abrir, Llamar o Cancelar
       setBarMessage(`
         <div class="bar-door-prompt">
-          <span class="bar-door-label">${doorName.toUpperCase()} — CERRADA</span>
-          <button class="bar-door-btn bar-door-open" id="barDoorOpen"><i class="ri-door-open-line"></i> Abrir</button>
-          <button class="bar-door-btn bar-door-knock" id="barDoorKnock"><i class="ri-hand-line"></i> Llamar</button>
-          <button class="bar-door-btn bar-door-cancel" id="barDoorCancel">Cancelar</button>
+          <span class="bar-door-label"><i class="ri-door-closed-line"></i> ${doorName.toUpperCase()} — CERRADA</span>
+          <div class="bar-door-actions">
+            <button class="bar-door-btn bar-door-open" id="barDoorOpen"><i class="ri-door-open-line"></i> Abrir</button>
+            <button class="bar-door-btn bar-door-knock" id="barDoorKnock"><i class="ri-hand-line"></i> Llamar</button>
+            <button class="bar-door-btn bar-door-cancel" id="barDoorCancel">Cancelar</button>
+          </div>
         </div>
       `);
       document.getElementById('barDoorOpen')?.addEventListener('click', (e) => {
@@ -348,10 +356,6 @@ window.addEventListener('DOMContentLoaded', () => {
   const btnToggleSprint = document.getElementById('btnToggleSprint');
   const sprintIcon = document.getElementById('sprintIcon');
   const sprintLabel = document.getElementById('sprintLabel');
-  const dayzStanceHud = document.getElementById('dayzStanceHud');
-  const dayzStanceIcon = document.getElementById('dayzStanceIcon');
-  const dayzStanceText = document.getElementById('dayzStanceText');
-  const dayzChevrons = document.getElementById('dayzChevrons');
 
   function updateSprintUI() {
     // 1. Botón en el panel inferior
@@ -367,34 +371,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. Indicador táctico estilo DayZ en el Viewport
-    if (dayzStanceHud) {
-      if (isRunning) {
-        dayzStanceHud.classList.add('sprinting');
-        if (dayzStanceIcon) dayzStanceIcon.className = 'ri-run-line';
-        if (dayzStanceText) dayzStanceText.textContent = 'SPRINT';
-        if (dayzChevrons) {
-          dayzChevrons.innerHTML = `
-            <span class="chv c1 active">›</span>
-            <span class="chv c2 active">›</span>
-            <span class="chv c3 active">›</span>
-          `;
-        }
-      } else {
-        dayzStanceHud.classList.remove('sprinting');
-        if (dayzStanceIcon) dayzStanceIcon.className = 'ri-walk-line';
-        if (dayzStanceText) dayzStanceText.textContent = 'ANDAR';
-        if (dayzChevrons) {
-          dayzChevrons.innerHTML = `
-            <span class="chv c1 active">›</span>
-            <span class="chv c2">›</span>
-            <span class="chv c3">›</span>
-          `;
-        }
-      }
-    }
-
-    // 3. Indicador en la barra inferior
+    // Indicador en la barra inferior
     if (barStance) {
       if (isRunning) {
         barStance.classList.add('sprinting');
@@ -422,12 +399,6 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (dayzStanceHud) {
-    dayzStanceHud.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleSprint();
-    });
-  }
 
   // Guardar punto de spawn original para el botón de centrar
   let spawnX = player.posX;
@@ -819,44 +790,63 @@ window.addEventListener('DOMContentLoaded', () => {
     return ctx;
   }
 
+  // Genera un buffer de ruido blanco de la duración indicada
+  function _noiseBuffer(ctx, secs) {
+    const n = Math.ceil(ctx.sampleRate * secs);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  // Ruido filtrado genérico: source → biquad → gain → destination
+  function _noiseLayer(ctx, buf, bpType, freq, Q, vol, start, dur, freqEnd) {
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const filt = ctx.createBiquadFilter();
+    filt.type = bpType;
+    filt.frequency.setValueAtTime(freq, start);
+    if (freqEnd) filt.frequency.exponentialRampToValueAtTime(freqEnd, start + dur);
+    filt.Q.value = Q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, start);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    src.connect(filt); filt.connect(g); g.connect(ctx.destination);
+    src.start(start); src.stop(start + dur + 0.02);
+    return src;
+  }
+
   function playDoorOpenSound() {
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
       const now = ctx.currentTime;
+      const nb = _noiseBuffer(ctx, 1.2);
 
-      // Sonido de mecanismo abriendo puerta y chirrido de bisagra
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(120, now);
-      osc.frequency.exponentialRampToValueAtTime(190, now + 0.24);
+      // 1. Clic del pestillo al girar (noise bandpass corto, agudo)
+      _noiseLayer(ctx, nb, 'bandpass', 1800, 12, 0.22, now, 0.06);
 
-      gain.gain.setValueAtTime(0.18, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+      // 2. Mecanismo de cerradura (tono metálico breve)
+      const mec = ctx.createOscillator();
+      const mecG = ctx.createGain();
+      mec.type = 'triangle';
+      mec.frequency.setValueAtTime(520, now + 0.02);
+      mec.frequency.exponentialRampToValueAtTime(280, now + 0.1);
+      mecG.gain.setValueAtTime(0.12, now + 0.02);
+      mecG.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+      mec.connect(mecG); mecG.connect(ctx.destination);
+      mec.start(now + 0.02); mec.stop(now + 0.13);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.3);
+      // 3. Crujido de bisagra (noise bandpass subiendo de frecuencia)
+      _noiseLayer(ctx, nb, 'bandpass', 280, 6, 0.28, now + 0.08, 0.55, 620);
 
-      // Armónico metálico de pestillo
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(260, now + 0.03);
-      osc2.frequency.exponentialRampToValueAtTime(460, now + 0.18);
+      // 4. Segundo armónico de bisagra (más agudo, más suave)
+      _noiseLayer(ctx, nb, 'bandpass', 900, 8, 0.10, now + 0.12, 0.40, 1600);
 
-      gain2.gain.setValueAtTime(0.14, now + 0.03);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      // 5. Corriente de aire al abrir (lowpass suave)
+      _noiseLayer(ctx, nb, 'lowpass', 320, 1, 0.07, now + 0.2, 0.5);
 
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(now + 0.03);
-      osc2.stop(now + 0.24);
-    } catch (e) {
-      // Ignorar si audio está restringido
-    }
+    } catch (e) { /* audio restringido */ }
   }
 
   function playDoorCloseSound() {
@@ -864,39 +854,41 @@ window.addEventListener('DOMContentLoaded', () => {
       const ctx = getAudioContext();
       if (!ctx) return;
       const now = ctx.currentTime;
+      const nb = _noiseBuffer(ctx, 1.0);
 
-      // Golpe seco de madera contra marco (thump)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(140, now);
-      osc.frequency.exponentialRampToValueAtTime(45, now + 0.18);
+      // 1. Corriente de aire al cerrar (lowpass breve)
+      _noiseLayer(ctx, nb, 'lowpass', 400, 1, 0.09, now, 0.22);
 
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      // 2. Crujido de bisagra bajando al cerrarse
+      _noiseLayer(ctx, nb, 'bandpass', 600, 6, 0.20, now + 0.04, 0.30, 240);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.24);
+      // 3. Golpe seco de madera contra el marco (thud) — sine bajo + noise
+      const thud = ctx.createOscillator();
+      const thudG = ctx.createGain();
+      thud.type = 'sine';
+      thud.frequency.setValueAtTime(90, now + 0.28);
+      thud.frequency.exponentialRampToValueAtTime(38, now + 0.52);
+      thudG.gain.setValueAtTime(0.55, now + 0.28);
+      thudG.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+      thud.connect(thudG); thudG.connect(ctx.destination);
+      thud.start(now + 0.28); thud.stop(now + 0.56);
 
-      // Pestillo metálico encajando (clack)
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.type = 'triangle';
-      osc2.frequency.setValueAtTime(480, now + 0.08);
-      osc2.frequency.exponentialRampToValueAtTime(220, now + 0.18);
+      // Cuerpo del golpe: noise lowpass (madera)
+      _noiseLayer(ctx, nb, 'lowpass', 260, 1, 0.38, now + 0.28, 0.18);
 
-      gain2.gain.setValueAtTime(0.18, now + 0.08);
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      // 4. Pestillo encajando (clic metálico agudo)
+      _noiseLayer(ctx, nb, 'bandpass', 2200, 14, 0.18, now + 0.34, 0.05);
+      const latch = ctx.createOscillator();
+      const latchG = ctx.createGain();
+      latch.type = 'triangle';
+      latch.frequency.setValueAtTime(680, now + 0.35);
+      latch.frequency.exponentialRampToValueAtTime(320, now + 0.42);
+      latchG.gain.setValueAtTime(0.10, now + 0.35);
+      latchG.gain.exponentialRampToValueAtTime(0.0001, now + 0.43);
+      latch.connect(latchG); latchG.connect(ctx.destination);
+      latch.start(now + 0.35); latch.stop(now + 0.44);
 
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.start(now + 0.08);
-      osc2.stop(now + 0.22);
-    } catch (e) {
-      // Ignorar si audio está restringido
-    }
+    } catch (e) { /* audio restringido */ }
   }
 
   function playBlockedSound() {
@@ -1843,6 +1835,88 @@ window.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   // BUCLE PRINCIPAL (GAME LOOP)
   // ==========================================
+  // ── Cara del personaje en la barra inferior ──────────────────────────────
+  let facePrevAngle = Math.atan2(player.dirY, player.dirX);
+  let faceLookOffset = 0; // -1 izq, 0 centro, 1 der (suavizado)
+
+  function drawBarFace() {
+    if (!barFaceCtx) return;
+    const W = barFaceCanvas.width;
+    const H = barFaceCanvas.height;
+    const cx = W / 2;
+    const cy = H / 2;
+
+    // Detectar giro: comparar ángulo actual con el anterior
+    const curAngle = Math.atan2(player.dirY, player.dirX);
+    let delta = curAngle - facePrevAngle;
+    // Normalizar delta a [-π, π]
+    if (delta > Math.PI) delta -= 2 * Math.PI;
+    if (delta < -Math.PI) delta += 2 * Math.PI;
+    facePrevAngle = curAngle;
+
+    // Suavizar: acumular giro y decaer hacia 0
+    const turnDir = delta > 0.002 ? 1 : delta < -0.002 ? -1 : 0;
+    faceLookOffset += (turnDir - faceLookOffset) * 0.18;
+    const eyeShift = Math.round(faceLookOffset * 5); // píxeles laterales del ojo
+
+    barFaceCtx.clearRect(0, 0, W, H);
+
+    // Fondo
+    barFaceCtx.fillStyle = '#0a0b12';
+    barFaceCtx.fillRect(0, 0, W, H);
+
+    // Cara (óvalo)
+    barFaceCtx.fillStyle = '#c8a87a';
+    barFaceCtx.beginPath();
+    barFaceCtx.ellipse(cx, cy + 2, 18, 20, 0, 0, Math.PI * 2);
+    barFaceCtx.fill();
+
+    // Pelo
+    barFaceCtx.fillStyle = '#3a2810';
+    barFaceCtx.beginPath();
+    barFaceCtx.ellipse(cx, cy - 12, 19, 11, 0, Math.PI, 0);
+    barFaceCtx.fill();
+
+    // Cejas
+    barFaceCtx.strokeStyle = '#3a2810';
+    barFaceCtx.lineWidth = 2;
+    barFaceCtx.beginPath();
+    barFaceCtx.moveTo(cx - 10 + eyeShift, cy - 6); barFaceCtx.lineTo(cx - 3 + eyeShift, cy - 8);
+    barFaceCtx.stroke();
+    barFaceCtx.beginPath();
+    barFaceCtx.moveTo(cx + 3 + eyeShift, cy - 8); barFaceCtx.lineTo(cx + 10 + eyeShift, cy - 6);
+    barFaceCtx.stroke();
+
+    // Ojos (blanco)
+    barFaceCtx.fillStyle = '#fff';
+    barFaceCtx.beginPath(); barFaceCtx.ellipse(cx - 6 + eyeShift, cy - 1, 5, 4, 0, 0, Math.PI * 2); barFaceCtx.fill();
+    barFaceCtx.beginPath(); barFaceCtx.ellipse(cx + 6 + eyeShift, cy - 1, 5, 4, 0, 0, Math.PI * 2); barFaceCtx.fill();
+
+    // Iris
+    barFaceCtx.fillStyle = '#1a5fa0';
+    barFaceCtx.beginPath(); barFaceCtx.arc(cx - 6 + eyeShift, cy - 1, 3, 0, Math.PI * 2); barFaceCtx.fill();
+    barFaceCtx.beginPath(); barFaceCtx.arc(cx + 6 + eyeShift, cy - 1, 3, 0, Math.PI * 2); barFaceCtx.fill();
+
+    // Pupila
+    barFaceCtx.fillStyle = '#000';
+    barFaceCtx.beginPath(); barFaceCtx.arc(cx - 6 + eyeShift, cy - 1, 1.5, 0, Math.PI * 2); barFaceCtx.fill();
+    barFaceCtx.beginPath(); barFaceCtx.arc(cx + 6 + eyeShift, cy - 1, 1.5, 0, Math.PI * 2); barFaceCtx.fill();
+
+    // Nariz
+    barFaceCtx.strokeStyle = '#a07850';
+    barFaceCtx.lineWidth = 1.5;
+    barFaceCtx.beginPath();
+    barFaceCtx.moveTo(cx, cy); barFaceCtx.lineTo(cx - 3, cy + 6); barFaceCtx.lineTo(cx + 3, cy + 6);
+    barFaceCtx.stroke();
+
+    // Boca (neutra)
+    barFaceCtx.strokeStyle = '#7a4030';
+    barFaceCtx.lineWidth = 2;
+    barFaceCtx.beginPath();
+    barFaceCtx.arc(cx, cy + 10, 6, 0.1 * Math.PI, 0.9 * Math.PI);
+    barFaceCtx.stroke();
+  }
+
   let lastTime = performance.now();
 
   function gameLoop(currentTime) {
@@ -1883,6 +1957,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (barMinimapCtx && barMinimapCanvas && typeof engine.renderMinimap === 'function') {
       engine.renderMinimap(player, barMinimapCtx, barMinimapCanvas.width, barMinimapCanvas.height);
     }
+
+    // Cara del personaje en barra inferior
+    drawBarFace();
 
     requestAnimationFrame(gameLoop);
   }

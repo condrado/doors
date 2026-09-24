@@ -2185,21 +2185,21 @@ class RaycasterEngine {
           if (layer.kind === 'table') {
             const tblHit = layer.hit;
             const projTbl = h / Math.max(tblHit.dist, 0.0001);
-            const bottomYTbl = halfH + eyeHeight * projTbl;
-            const tableTopYTbl = halfH - (this.tableHeightScale - eyeHeight) * projTbl;
+            const bottomYTbl = horizon + eyeHeight * projTbl;
+            const tableTopYTbl = horizon - (this.tableHeightScale - eyeHeight) * projTbl;
             blitFlatBand(tableTopYTbl, bottomYTbl, 0x3a69a0, shadeOf(tblHit.dist, tblHit.side), tableTopYTbl, bottomYTbl, tblHit.dist);
           } else if (layer.kind === 'openDoor') {
             const od = layer.hit;
             const projDoor = h / Math.max(od.dist, 0.0001);
-            const bottomYDoor = halfH + eyeHeight * projDoor;
-            const doorTopYDoor = halfH - (this.doorHeightScale - eyeHeight) * projDoor;
+            const bottomYDoor = horizon + eyeHeight * projDoor;
+            const doorTopYDoor = horizon - (this.doorHeightScale - eyeHeight) * projDoor;
             blitFlatBand(doorTopYDoor, bottomYDoor, 0x00a5ff, shadeOf(od.dist, od.side), doorTopYDoor, bottomYDoor, od.dist);
           } else if (layer.kind === 'lintel') {
             const lHit = layer.hit;
             const projL = h / Math.max(lHit.dist, 0.0001);
-            const wallTopYL = halfH - (this.wallHeightScale - eyeHeight) * projL;
-            const doorTopYL = halfH - (this.doorHeightScale - eyeHeight) * projL;
-            const bottomYL = halfH + eyeHeight * projL;
+            const wallTopYL = horizon - (this.wallHeightScale - eyeHeight) * projL;
+            const doorTopYL = horizon - (this.doorHeightScale - eyeHeight) * projL;
+            const bottomYL = horizon + eyeHeight * projL;
             blitFlatBand(wallTopYL, bottomYL, 0x888888, shadeOf(lHit.dist, lHit.side), wallTopYL, doorTopYL + 1, lHit.dist);
           }
         }
@@ -2215,11 +2215,11 @@ class RaycasterEngine {
 
     if (tableTopTex) {
       const eyeHeight = this.wallHeightScale / 2;
-      const surfaceH = this.tableHeightScale; // 0.33
-      const eyeAbove = eyeHeight - surfaceH;  // 1.17
+      const surfaceH = this.tableHeightScale;
+      const eyeAbove = eyeHeight - surfaceH;
 
-      for (let y = Math.ceil(halfH) + 1; y < h; y++) {
-        const rowOffset = y - halfH;
+      for (let y = Math.ceil(horizon) + 1; y < h; y++) {
+        const rowOffset = y - horizon;
         if (rowOffset <= 0) continue;
         const rowDist = eyeAbove * h / rowOffset;
 
@@ -2388,6 +2388,7 @@ class RaycasterEngine {
     const w = this.width;
     const h = this.height;
     const halfH = this.halfHeight;
+    const horizon = halfH + Math.round(player.pitchOffset || 0); // sincronizar con render()
     const pixels = this.pixels;
 
     // Calcular distancia al cuadrado para ordenación
@@ -2441,7 +2442,9 @@ class RaycasterEngine {
       const transformX = invDet * (dirY * spriteX - dirX * spriteY);
       const transformY = invDet * (-planeY * spriteX + planeX * spriteY);
 
-      if (transformY <= 0.15) continue; // Detrás o muy cerca de la cámara
+      if (transformY <= 0.5) continue; // Detrás o muy cerca de la cámara
+      // Saltar sprites que estén en la misma celda que el jugador (evita zoom extremo en spawn)
+      if (Math.floor(posX) === sprite.mapX && Math.floor(posY) === sprite.mapY) continue;
 
       const proj = h / transformY;
       const spriteScreenX = Math.floor((w / 2) * (1 + transformX / transformY));
@@ -2456,7 +2459,7 @@ class RaycasterEngine {
 
       // Elevación: personaje en suelo (z = -0.18m centrado en celda), monitor elevado en mesa (z = tableHeightScale - 0.04)
       const baseElevation = (typeof sprite.z === 'number') ? sprite.z : (isChar ? (this.characterElevation ?? -0.18) : (this.tableHeightScale - 0.04));
-      const bottomY = halfH + (eyeHeight - baseElevation) * proj;
+      const bottomY = horizon + (eyeHeight - baseElevation) * proj;
       const topY = bottomY - spriteScreenHeight;
 
       const drawStartY = Math.max(0, Math.floor(topY));
