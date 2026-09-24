@@ -118,8 +118,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const barText = document.getElementById('barText');
   const barMinimapCanvas = document.getElementById('barMinimapCanvas');
   const barMinimapCtx = barMinimapCanvas ? barMinimapCanvas.getContext('2d') : null;
-  const barFaceCanvas = document.getElementById('barFaceCanvas');
-  const barFaceCtx = barFaceCanvas ? barFaceCanvas.getContext('2d') : null;
+  const barFaceImg = document.getElementById('barFaceImg');
 
   // Menú contextual de puerta (inline en barText)
   let doorCtxPendingDoor = null;
@@ -821,30 +820,20 @@ window.addEventListener('DOMContentLoaded', () => {
       const ctx = getAudioContext();
       if (!ctx) return;
       const now = ctx.currentTime;
-      const nb = _noiseBuffer(ctx, 1.2);
+      const nb = _noiseBuffer(ctx, 1.4);
 
-      // 1. Clic del pestillo al girar (noise bandpass corto, agudo)
-      _noiseLayer(ctx, nb, 'bandpass', 1800, 12, 0.22, now, 0.06);
+      // Clic seco del pestillo: ruido corto lowpass (no bandpass agudo = no "bip")
+      _noiseLayer(ctx, nb, 'lowpass', 600, 1, 0.30, now, 0.04);
 
-      // 2. Mecanismo de cerradura (tono metálico breve)
-      const mec = ctx.createOscillator();
-      const mecG = ctx.createGain();
-      mec.type = 'triangle';
-      mec.frequency.setValueAtTime(520, now + 0.02);
-      mec.frequency.exponentialRampToValueAtTime(280, now + 0.1);
-      mecG.gain.setValueAtTime(0.12, now + 0.02);
-      mecG.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
-      mec.connect(mecG); mecG.connect(ctx.destination);
-      mec.start(now + 0.02); mec.stop(now + 0.13);
+      // Crujido de bisagra: ruido coloreado ancho, sin barrido — Q bajo para que
+      // suene a fricción y no a filtro electrónico
+      _noiseLayer(ctx, nb, 'lowpass', 420, 1, 0.22, now + 0.05, 0.55);
 
-      // 3. Crujido de bisagra (noise bandpass subiendo de frecuencia)
-      _noiseLayer(ctx, nb, 'bandpass', 280, 6, 0.28, now + 0.08, 0.55, 620);
+      // Componente aguda del crujido (madera/metal) — muy suave
+      _noiseLayer(ctx, nb, 'bandpass', 1800, 2, 0.06, now + 0.07, 0.42);
 
-      // 4. Segundo armónico de bisagra (más agudo, más suave)
-      _noiseLayer(ctx, nb, 'bandpass', 900, 8, 0.10, now + 0.12, 0.40, 1600);
-
-      // 5. Corriente de aire al abrir (lowpass suave)
-      _noiseLayer(ctx, nb, 'lowpass', 320, 1, 0.07, now + 0.2, 0.5);
+      // Aire desplazado al abrir (muy suave, bajísima frecuencia)
+      _noiseLayer(ctx, nb, 'lowpass', 120, 0.5, 0.03, now + 0.18, 0.50);
 
     } catch (e) { /* audio restringido */ }
   }
@@ -854,39 +843,29 @@ window.addEventListener('DOMContentLoaded', () => {
       const ctx = getAudioContext();
       if (!ctx) return;
       const now = ctx.currentTime;
-      const nb = _noiseBuffer(ctx, 1.0);
+      const nb = _noiseBuffer(ctx, 1.2);
 
-      // 1. Corriente de aire al cerrar (lowpass breve)
-      _noiseLayer(ctx, nb, 'lowpass', 400, 1, 0.09, now, 0.22);
+      // Crujido al cerrar: igual que al abrir, coloreado ancho
+      _noiseLayer(ctx, nb, 'lowpass', 380, 1, 0.18, now, 0.40);
+      _noiseLayer(ctx, nb, 'bandpass', 1600, 2, 0.05, now + 0.02, 0.35);
 
-      // 2. Crujido de bisagra bajando al cerrarse
-      _noiseLayer(ctx, nb, 'bandpass', 600, 6, 0.20, now + 0.04, 0.30, 240);
-
-      // 3. Golpe seco de madera contra el marco (thud) — sine bajo + noise
+      // Golpe de madera contra el marco: sine bajo (65 Hz) decay rápido
+      // + ruido lowpass de impacto
       const thud = ctx.createOscillator();
       const thudG = ctx.createGain();
       thud.type = 'sine';
-      thud.frequency.setValueAtTime(90, now + 0.28);
-      thud.frequency.exponentialRampToValueAtTime(38, now + 0.52);
-      thudG.gain.setValueAtTime(0.55, now + 0.28);
-      thudG.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+      thud.frequency.setValueAtTime(65, now + 0.38);
+      thud.frequency.exponentialRampToValueAtTime(28, now + 0.70);
+      thudG.gain.setValueAtTime(0.0001, now + 0.38);
+      thudG.gain.linearRampToValueAtTime(0.70, now + 0.383);
+      thudG.gain.exponentialRampToValueAtTime(0.0001, now + 0.70);
       thud.connect(thudG); thudG.connect(ctx.destination);
-      thud.start(now + 0.28); thud.stop(now + 0.56);
+      thud.start(now + 0.38); thud.stop(now + 0.71);
 
-      // Cuerpo del golpe: noise lowpass (madera)
-      _noiseLayer(ctx, nb, 'lowpass', 260, 1, 0.38, now + 0.28, 0.18);
+      _noiseLayer(ctx, nb, 'lowpass', 300, 1, 0.60, now + 0.38, 0.16);
 
-      // 4. Pestillo encajando (clic metálico agudo)
-      _noiseLayer(ctx, nb, 'bandpass', 2200, 14, 0.18, now + 0.34, 0.05);
-      const latch = ctx.createOscillator();
-      const latchG = ctx.createGain();
-      latch.type = 'triangle';
-      latch.frequency.setValueAtTime(680, now + 0.35);
-      latch.frequency.exponentialRampToValueAtTime(320, now + 0.42);
-      latchG.gain.setValueAtTime(0.10, now + 0.35);
-      latchG.gain.exponentialRampToValueAtTime(0.0001, now + 0.43);
-      latch.connect(latchG); latchG.connect(ctx.destination);
-      latch.start(now + 0.35); latch.stop(now + 0.44);
+      // Clic del pestillo encajando: ruido muy corto lowpass medio
+      _noiseLayer(ctx, nb, 'lowpass', 500, 1, 0.28, now + 0.44, 0.04);
 
     } catch (e) { /* audio restringido */ }
   }
@@ -1836,85 +1815,32 @@ window.addEventListener('DOMContentLoaded', () => {
   // BUCLE PRINCIPAL (GAME LOOP)
   // ==========================================
   // ── Cara del personaje en la barra inferior ──────────────────────────────
+  const FACE_IMGS = {
+    f: '/src/assets/personaje-f.png',
+    l: '/src/assets/personaje-l.png',
+    r: '/src/assets/personaje-r.png',
+  };
   let facePrevAngle = Math.atan2(player.dirY, player.dirX);
-  let faceLookOffset = 0; // -1 izq, 0 centro, 1 der (suavizado)
+  let faceLookOffset = 0;
+  let faceCurrentVariant = 'f';
 
   function drawBarFace() {
-    if (!barFaceCtx) return;
-    const W = barFaceCanvas.width;
-    const H = barFaceCanvas.height;
-    const cx = W / 2;
-    const cy = H / 2;
+    if (!barFaceImg) return;
 
-    // Detectar giro: comparar ángulo actual con el anterior
     const curAngle = Math.atan2(player.dirY, player.dirX);
     let delta = curAngle - facePrevAngle;
-    // Normalizar delta a [-π, π]
     if (delta > Math.PI) delta -= 2 * Math.PI;
     if (delta < -Math.PI) delta += 2 * Math.PI;
     facePrevAngle = curAngle;
 
-    // Suavizar: acumular giro y decaer hacia 0
-    const turnDir = delta > 0.002 ? 1 : delta < -0.002 ? -1 : 0;
-    faceLookOffset += (turnDir - faceLookOffset) * 0.18;
-    const eyeShift = Math.round(faceLookOffset * 5); // píxeles laterales del ojo
+    const turnDir = delta > 0.003 ? 1 : delta < -0.003 ? -1 : 0;
+    faceLookOffset += (turnDir - faceLookOffset) * 0.15;
 
-    barFaceCtx.clearRect(0, 0, W, H);
-
-    // Fondo
-    barFaceCtx.fillStyle = '#0a0b12';
-    barFaceCtx.fillRect(0, 0, W, H);
-
-    // Cara (óvalo)
-    barFaceCtx.fillStyle = '#c8a87a';
-    barFaceCtx.beginPath();
-    barFaceCtx.ellipse(cx, cy + 2, 18, 20, 0, 0, Math.PI * 2);
-    barFaceCtx.fill();
-
-    // Pelo
-    barFaceCtx.fillStyle = '#3a2810';
-    barFaceCtx.beginPath();
-    barFaceCtx.ellipse(cx, cy - 12, 19, 11, 0, Math.PI, 0);
-    barFaceCtx.fill();
-
-    // Cejas
-    barFaceCtx.strokeStyle = '#3a2810';
-    barFaceCtx.lineWidth = 2;
-    barFaceCtx.beginPath();
-    barFaceCtx.moveTo(cx - 10 + eyeShift, cy - 6); barFaceCtx.lineTo(cx - 3 + eyeShift, cy - 8);
-    barFaceCtx.stroke();
-    barFaceCtx.beginPath();
-    barFaceCtx.moveTo(cx + 3 + eyeShift, cy - 8); barFaceCtx.lineTo(cx + 10 + eyeShift, cy - 6);
-    barFaceCtx.stroke();
-
-    // Ojos (blanco)
-    barFaceCtx.fillStyle = '#fff';
-    barFaceCtx.beginPath(); barFaceCtx.ellipse(cx - 6 + eyeShift, cy - 1, 5, 4, 0, 0, Math.PI * 2); barFaceCtx.fill();
-    barFaceCtx.beginPath(); barFaceCtx.ellipse(cx + 6 + eyeShift, cy - 1, 5, 4, 0, 0, Math.PI * 2); barFaceCtx.fill();
-
-    // Iris
-    barFaceCtx.fillStyle = '#1a5fa0';
-    barFaceCtx.beginPath(); barFaceCtx.arc(cx - 6 + eyeShift, cy - 1, 3, 0, Math.PI * 2); barFaceCtx.fill();
-    barFaceCtx.beginPath(); barFaceCtx.arc(cx + 6 + eyeShift, cy - 1, 3, 0, Math.PI * 2); barFaceCtx.fill();
-
-    // Pupila
-    barFaceCtx.fillStyle = '#000';
-    barFaceCtx.beginPath(); barFaceCtx.arc(cx - 6 + eyeShift, cy - 1, 1.5, 0, Math.PI * 2); barFaceCtx.fill();
-    barFaceCtx.beginPath(); barFaceCtx.arc(cx + 6 + eyeShift, cy - 1, 1.5, 0, Math.PI * 2); barFaceCtx.fill();
-
-    // Nariz
-    barFaceCtx.strokeStyle = '#a07850';
-    barFaceCtx.lineWidth = 1.5;
-    barFaceCtx.beginPath();
-    barFaceCtx.moveTo(cx, cy); barFaceCtx.lineTo(cx - 3, cy + 6); barFaceCtx.lineTo(cx + 3, cy + 6);
-    barFaceCtx.stroke();
-
-    // Boca (neutra)
-    barFaceCtx.strokeStyle = '#7a4030';
-    barFaceCtx.lineWidth = 2;
-    barFaceCtx.beginPath();
-    barFaceCtx.arc(cx, cy + 10, 6, 0.1 * Math.PI, 0.9 * Math.PI);
-    barFaceCtx.stroke();
+    const variant = faceLookOffset > 0.35 ? 'r' : faceLookOffset < -0.35 ? 'l' : 'f';
+    if (variant !== faceCurrentVariant) {
+      faceCurrentVariant = variant;
+      barFaceImg.src = FACE_IMGS[variant];
+    }
   }
 
   let lastTime = performance.now();
