@@ -308,92 +308,223 @@ function createWindowPixels(w = 64, h = 192) {
 // Idénticas a sus paredes, sin marcos y con solo el picaporte (sin círculo de orientación)
 // ============================================================
 
-/** Castillo: pared de piedra continua como la pared pero con picaporte, sin marco ni nada (64x128 px) */
+/** Castillo: puerta de madera maciza en tablones verticales con herrajes de forja y tirador medieval (64x128 px) */
 function createWoodDoorPixels(w = 64, h = 128) {
   const ctx = createCanvasCtx(w, h);
   if (!ctx) return toPixels(null, w, h);
 
-  // Muro de piedra idéntico a la pared de castillo de borde a borde (sin marco)
-  ctx.fillStyle = '#484b54';
-  ctx.fillRect(0, 0, w, h);
-
-  const brickH = 16;
-  const brickW = 32;
-  for (let y = 0; y < h; y += brickH) {
-    const row = Math.floor(y / brickH);
-    const offsetX = (row % 2 === 0) ? 0 : brickW / 2;
-    for (let x = -brickW; x < w + brickW; x += brickW) {
-      const actualX = x + offsetX;
-      const shade = 65 + Math.floor(Math.random() * 20);
-      ctx.fillStyle = `rgb(${shade}, ${shade + 2}, ${shade + 8})`;
-      ctx.fillRect(actualX + 1, y + 1, brickW - 2, brickH - 2);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.fillRect(actualX + 1, y + 1, brickW - 2, 2);
-      ctx.fillRect(actualX + 1, y + 1, 2, brickH - 2);
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-      ctx.fillRect(actualX + 1, y + brickH - 2, brickW - 2, 2);
-      ctx.fillRect(actualX + brickW - 2, y + 1, 2, brickH - 2);
-    }
-    ctx.fillStyle = '#26282e';
-    ctx.fillRect(0, y, w, 2);
+  // 1. 4 Tablones verticales de roble / castaño con variación de tono
+  const plankColors = ['#734929', '#7e512e', '#6b4325', '#774c2b'];
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = plankColors[i];
+    ctx.fillRect(i * 16, 0, 16, h);
   }
-  addNoise(ctx, w, h, 18);
 
-  // Picaporte dorado a media altura
-  const handleY = Math.floor(h / 2);
+  // 2. Vetas de madera verticales y textura orgánica
+  addNoise(ctx, w, h, 14);
+
+  // 3. Ranuras oscuras entre tablones con bisel de luz
+  for (const gx of [15, 31, 47]) {
+    ctx.fillStyle = '#201209';
+    ctx.fillRect(gx, 0, 1, h);
+    ctx.fillStyle = 'rgba(255, 200, 150, 0.18)';
+    ctx.fillRect(gx + 1, 0, 1, h);
+  }
+
+  // 4. Sombra perimetral para encajar en el marco
+  ctx.fillStyle = 'rgba(32, 18, 9, 0.6)';
+  ctx.fillRect(0, 0, w, 2);
+  ctx.fillRect(0, h - 2, w, 2);
+  ctx.fillRect(0, 0, 2, h);
+  ctx.fillRect(w - 2, 0, 2, h);
+
+  // 5. Herrajes de forja oscura (pletinas horizontales de refuerzo con remaches)
+  for (const strapY of [18, 98]) {
+    // Sombra proyectada
+    ctx.fillStyle = 'rgba(25, 15, 8, 0.55)';
+    ctx.fillRect(2, strapY + 8, w - 4, 2);
+
+    // Cuerpo de forja
+    ctx.fillStyle = '#24282e';
+    ctx.fillRect(2, strapY, w - 4, 8);
+
+    // Bisel superior claro
+    ctx.fillStyle = '#4b5360';
+    ctx.fillRect(2, strapY, w - 4, 1);
+
+    // Bisel inferior oscuro
+    ctx.fillStyle = '#101216';
+    ctx.fillRect(2, strapY + 7, w - 4, 1);
+
+    // Remaches de forja en cada tablón
+    for (const rx of [8, 24, 40, 56]) {
+      ctx.fillStyle = '#8c96aa';
+      ctx.fillRect(rx, strapY + 2, 2, 1);
+      ctx.fillStyle = '#24282e';
+      ctx.fillRect(rx, strapY + 3, 2, 1);
+      ctx.fillStyle = '#0a0b0e';
+      ctx.fillRect(rx, strapY + 4, 2, 1);
+    }
+  }
+
+  // 6. Placa y picaporte de latón/dorado medieval
+  // Placa posterior
+  ctx.fillStyle = '#785a14';
+  ctx.fillRect(45, 55, 11, 23);
+  ctx.fillStyle = '#cfac38';
+  ctx.fillRect(46, 56, 9, 21);
+  ctx.fillStyle = '#ffe066';
+  ctx.fillRect(46, 56, 9, 1);
+  ctx.fillRect(46, 56, 1, 21);
+  ctx.fillStyle = '#5a420e';
+  ctx.fillRect(46, 76, 9, 1);
+  ctx.fillRect(54, 56, 1, 21);
+
+  // Ojo de la cerradura
+  ctx.fillStyle = '#0f0a05';
+  ctx.fillRect(50, 68, 2, 4);
+  ctx.fillRect(49, 70, 4, 1);
+
+  // Manilla dorada horizontal
+  ctx.fillStyle = 'rgba(30, 20, 8, 0.4)';
+  ctx.fillRect(37, 65, 14, 2);
+  ctx.fillStyle = '#ffea80';
+  ctx.fillRect(38, 62, 13, 1);
   ctx.fillStyle = '#d4af37';
-  ctx.beginPath();
-  ctx.arc(w - 14, handleY, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#111';
-  ctx.fillRect(w - 15, handleY + 1, 2, 4);
+  ctx.fillRect(38, 63, 13, 2);
+  ctx.fillStyle = '#785a14';
+  ctx.fillRect(38, 65, 13, 1);
 
   return toPixels(ctx, w, h);
 }
 
-/** Blanca: puerta lisa como la pared blanca, sin marcos, solo picaporte (64x128 px) */
+/** Blanca: puerta blanca de oficina moderna con cuarterones moldeados en relieve 3D y manilla de acero inox (64x128 px) */
 function createWhiteDoorPixels(w = 64, h = 128) {
   const ctx = createCanvasCtx(w, h);
   if (!ctx) return toPixels(null, w, h);
 
+  // Fondo sutil blanco oficina con degradado
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#eef0f3');
-  grad.addColorStop(1, '#d9dce1');
+  grad.addColorStop(0, '#f5f6f8');
+  grad.addColorStop(1, '#e3e6ec');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
-  addNoise(ctx, w, h, 4);
+  addNoise(ctx, w, h, 3);
 
-  // Picaporte a media altura
-  const handleY = Math.floor(h / 2);
-  ctx.fillStyle = '#c3c6cc';
-  ctx.beginPath();
-  ctx.arc(w - 14, handleY, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#5b5f68';
-  ctx.fillRect(w - 15, handleY + 1, 2, 4);
+  // Sombra de borde perimetral
+  ctx.fillStyle = 'rgba(175, 180, 190, 0.5)';
+  ctx.fillRect(0, 0, w, 1);
+  ctx.fillRect(0, h - 1, w, 1);
+  ctx.fillRect(0, 0, 1, h);
+  ctx.fillRect(w - 1, 0, 1, h);
+
+  // 2 Cuarterones moldeados con biseles 3D
+  const panels = [
+    { x: 8, y: 10, w: 48, h: 45 },
+    { x: 8, y: 68, w: 48, h: 50 }
+  ];
+
+  for (const p of panels) {
+    // Ranura exterior sombreada (hueco rehundido)
+    ctx.fillStyle = '#969ca8';
+    ctx.fillRect(p.x, p.y, p.w, 1);
+    ctx.fillRect(p.x, p.y, 1, p.h);
+    ctx.fillStyle = '#b8bec8';
+    ctx.fillRect(p.x + 1, p.y + 1, p.w - 2, 1);
+    ctx.fillRect(p.x + 1, p.y + 1, 1, p.h - 2);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(p.x, p.y + p.h - 1, p.w, 1);
+    ctx.fillRect(p.x + p.w - 1, p.y, 1, p.h);
+
+    // Centro abombado / relieve interior
+    const ix = p.x + 4, iy = p.y + 4, iw = p.w - 8, ih = p.h - 8;
+    ctx.fillStyle = '#e4e8ee';
+    ctx.fillRect(ix, iy, iw, ih);
+
+    // Bisel de relieve centro
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(ix, iy, iw, 1);
+    ctx.fillRect(ix, iy, 1, ih);
+    ctx.fillStyle = '#b8bec8';
+    ctx.fillRect(ix, iy + ih - 1, iw, 1);
+    ctx.fillRect(ix + iw - 1, iy, 1, ih);
+  }
+
+  // Manilla moderna de acero inoxidable cepillado
+  // Roseta
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(48, 58, 6, 9);
+  ctx.fillStyle = '#aab0bc';
+  ctx.fillRect(49, 59, 4, 7);
+  ctx.fillStyle = '#5a5f69';
+  ctx.fillRect(48, 66, 6, 1);
+  ctx.fillRect(53, 58, 1, 9);
+
+  // Manilla palanca horizontal
+  ctx.fillStyle = 'rgba(80, 85, 95, 0.35)';
+  ctx.fillRect(37, 64, 14, 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(38, 61, 13, 1);
+  ctx.fillStyle = '#cfd4de';
+  ctx.fillRect(38, 62, 13, 1);
+  ctx.fillStyle = '#5a5f69';
+  ctx.fillRect(38, 63, 13, 1);
 
   return toPixels(ctx, w, h);
 }
 
-/** Negra: puerta lisa negra mate como la pared, sin paneles ni marcos, solo picaporte (64x128 px) */
+/** Negra: puerta ejecutiva de grafito mate oscuro con incrustaciones metálicas horizontales y manilla cromada (64x128 px) */
 function createBlackDoorPixels(w = 64, h = 128) {
   const ctx = createCanvasCtx(w, h);
   if (!ctx) return toPixels(null, w, h);
 
+  // Fondo grafito mate oscuro
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#1b1d22');
-  grad.addColorStop(1, '#0a0b0e');
+  grad.addColorStop(0, '#1a1b20');
+  grad.addColorStop(1, '#0e0f13');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
+  addNoise(ctx, w, h, 4);
 
-  // Picaporte a media altura
-  const handleY = Math.floor(h / 2);
-  ctx.fillStyle = '#5a5e68';
-  ctx.beginPath();
-  ctx.arc(w - 14, handleY, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.fillRect(w - 15, handleY + 1, 2, 4);
+  // 4 Tiras metálicas horizontales de aluminio cepillado (inlays modernos)
+  for (const sy of [22, 46, 82, 106]) {
+    ctx.fillStyle = '#0a0b0e';
+    ctx.fillRect(4, sy - 1, w - 8, 1);
+    ctx.fillStyle = '#e8ecf4';
+    ctx.fillRect(4, sy, w - 8, 1);
+    ctx.fillStyle = '#9aa1af';
+    ctx.fillRect(4, sy + 1, w - 8, 1);
+    ctx.fillStyle = '#32363e';
+    ctx.fillRect(4, sy + 2, w - 8, 1);
+  }
+
+  // Bisel de borde perimetral sutil
+  ctx.fillStyle = '#2c2f38';
+  ctx.fillRect(0, 0, w, 1);
+  ctx.fillRect(0, 0, 1, h);
+  ctx.fillStyle = '#08090b';
+  ctx.fillRect(0, h - 1, w, 1);
+  ctx.fillRect(w - 1, 0, 1, h);
+
+  // Manilla contemporánea de cromo / acero satinado
+  ctx.fillStyle = '#e8ecf4';
+  ctx.fillRect(48, 58, 6, 9);
+  ctx.fillStyle = '#9aa1af';
+  ctx.fillRect(49, 59, 4, 7);
+  ctx.fillStyle = '#14161a';
+  ctx.fillRect(48, 66, 6, 1);
+  ctx.fillRect(53, 58, 1, 9);
+
+  // Palanca horizontal
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(37, 64, 14, 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(38, 61, 13, 1);
+  ctx.fillStyle = '#c5ccd8';
+  ctx.fillRect(38, 62, 13, 1);
+  ctx.fillStyle = '#32363e';
+  ctx.fillRect(38, 63, 13, 1);
 
   return toPixels(ctx, w, h);
 }

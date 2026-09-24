@@ -82,7 +82,9 @@ window.addEventListener('DOMContentLoaded', () => {
     planeY: 0,
     // Velocidades
     rotSpeedBase: 2.2, // radianes por segundo (para giros con botones táctiles)
-    moveSpeedBase: 3.0 // bloques por segundo (avance, retroceso y strafe)
+    moveSpeedBase: 3.0, // bloques por segundo (avance, retroceso y strafe)
+    // Pitch: desplazamiento vertical del horizonte en píxeles (0 = horizontal)
+    pitchOffset: 0
   };
 
   // Estado de las teclas / botones pulsados
@@ -107,6 +109,179 @@ window.addEventListener('DOMContentLoaded', () => {
   const levelNameText = document.getElementById('levelNameText');
   const promptHud = document.getElementById('promptHud');
   const renderQualitySelect = document.getElementById('renderQualitySelect');
+
+  // Barra de acciones inferior
+  const barStance = document.getElementById('barStance');
+  const barStanceIcon = document.getElementById('barStanceIcon');
+  const barStanceText = document.getElementById('barStanceText');
+  const barStanceChevrons = document.getElementById('barStanceChevrons');
+  const barText = document.getElementById('barText');
+  const barMinimapCanvas = document.getElementById('barMinimapCanvas');
+  const barMinimapCtx = barMinimapCanvas ? barMinimapCanvas.getContext('2d') : null;
+
+  // Menú contextual de puerta (inline en barText)
+  let doorCtxPendingDoor = null;
+  let isMenuOpen = false; // bloquea movimiento y giro mientras el menú está visible
+  let barTextFeedbackTimeout = null;
+  // true cuando el usuario suelta el pointer lock de forma deliberada (Ctrl+ESC o Ctrl+M)
+  // evita que onPointerLockChange lo re-adquiera automáticamente
+  let intentionalUnlock = false;
+
+  function setBarMessage(html) {
+    if (barText) barText.innerHTML = html;
+  }
+
+  function clearBarMessage() {
+    if (barTextFeedbackTimeout) { clearTimeout(barTextFeedbackTimeout); barTextFeedbackTimeout = null; }
+    if (barText) barText.innerHTML = '';
+  }
+
+  function showBarFeedback(html, ms = 2400) {
+    if (barTextFeedbackTimeout) clearTimeout(barTextFeedbackTimeout);
+    setBarMessage(html);
+    barTextFeedbackTimeout = setTimeout(clearBarMessage, ms);
+  }
+
+  function closeDoorCtxMenu() {
+    isMenuOpen = false;
+    doorCtxPendingDoor = null;
+    clearBarMessage();
+    // Intentar re-adquirir el lock directamente. Si el navegador lo acepta,
+    // pointerlockchange disparará onPointerLockChange con isLocked=true → UI actualizada.
+    requestLock();
+    // Fallback: si en 350ms el lock no se re-adquirió (el navegador rechazó la
+    // petición por venir de un keydown de ESC), mostrar "Haz clic para retomar el ratón".
+    setTimeout(() => {
+      if (!isMenuOpen) {
+        const locked = document.pointerLockElement === canvas || document.mozPointerLockElement === canvas;
+        if (!locked) {
+          intentionalUnlock = true; // forzar UI de "unlocked" en onPointerLockChange
+          onPointerLockChange();
+        }
+      }
+    }, 350);
+  }
+
+  function openDoorFromMenu() {
+    const pending = doorCtxPendingDoor;
+    closeDoorCtxMenu();
+    // Iniciar animación de estirar el brazo y abrir la puerta
+    armState.reachAnim.active = true;
+    armState.reachAnim.phase = 'reach';
+    armState.reachAnim.progress = 0;
+    armState.reachAnim.touchTriggered = false;
+    armState.reachAnim.targetDoor = pending;
+  }
+
+  function knockFromMenu() {
+    if (barTextFeedbackTimeout) { clearTimeout(barTextFeedbackTimeout); barTextFeedbackTimeout = null; }
+    // Sonar los golpes pero mantener el menú abierto y el movimiento bloqueado
+    playKnockSound();
+    // Mostrar feedback + opciones de seguir (Abrir) o salir (Cancelar)
+    const doorName = doorCtxPendingDoor && doorCtxPendingDoor.name ? doorCtxPendingDoor.name : 'Puerta';
+    setBarMessage(`
+      <div class="bar-door-prompt">
+        <span class="bar-door-label"><i class="ri-hand-line"></i> ¡PUM PUM PUM! — ${doorName.toUpperCase()}</span>
+        <button class="bar-door-btn bar-door-open" id="barDoorOpenAfterKnock"><i class="ri-door-open-line"></i> Abrir</button>
+        <button class="bar-door-btn bar-door-knock" id="barDoorKnockAgain"><i class="ri-hand-line"></i> Llamar</button>
+        <button class="bar-door-btn bar-door-cancel" id="barDoorCancelAfterKnock">Cancelar</button>
+      </div>
+    `);
+    document.getElementById('barDoorOpenAfterKnock')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDoorFromMenu();
+    });
+    document.getElementById('barDoorKnockAgain')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      knockFromMenu();
+    });
+    document.getElementById('barDoorCancelAfterKnock')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeDoorCtxMenu();
+    });
+    // isMenuOpen sigue en true → movimiento sigue bloqueado
+  }
+
+  function showDoorCtxMenu(targetDoor) {
+    // Cancelar cualquier timer de feedback previo para que no borre el menú
+    if (barTextFeedbackTimeout) { clearTimeout(barTextFeedbackTimeout); barTextFeedbackTimeout = null; }
+    isMenuOpen = true;
+    doorCtxPendingDoor = targetDoor;
+    // Liberar el ratón para que el jugador pueda hacer clic en los botones
+    releaseLock();
+
+    const isOpen = targetDoor && targetDoor.action === 'close'; // puerta ya abierta
+    const doorName = targetDoor && targetDoor.name ? targetDoor.name : 'Puerta';
+
+    if (isOpen) {
+      // Puerta abierta: solo Cerrar o Cancelar
+      setBarMessage(`
+        <div class="bar-door-prompt">
+          <span class="bar-door-label">${doorName.toUpperCase()} — ABIERTA</span>
+          <button class="bar-door-btn bar-door-open" id="barDoorClose"><i class="ri-door-closed-line"></i> Cerrar</button>
+          <button class="bar-door-btn bar-door-cancel" id="barDoorCancel">Cancelar</button>
+        </div>
+      `);
+      document.getElementById('barDoorClose')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDoorFromMenu(); // reutiliza la misma animación de brazo; interactDoor cierra si ya está abierta
+      });
+    } else {
+      // Puerta cerrada: Abrir, Llamar o Cancelar
+      setBarMessage(`
+        <div class="bar-door-prompt">
+          <span class="bar-door-label">${doorName.toUpperCase()} — CERRADA</span>
+          <button class="bar-door-btn bar-door-open" id="barDoorOpen"><i class="ri-door-open-line"></i> Abrir</button>
+          <button class="bar-door-btn bar-door-knock" id="barDoorKnock"><i class="ri-hand-line"></i> Llamar</button>
+          <button class="bar-door-btn bar-door-cancel" id="barDoorCancel">Cancelar</button>
+        </div>
+      `);
+      document.getElementById('barDoorOpen')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDoorFromMenu();
+      });
+      document.getElementById('barDoorKnock')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        knockFromMenu();
+      });
+    }
+
+    document.getElementById('barDoorCancel')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeDoorCtxMenu();
+    });
+  }
+
+  // Gestión de ESC en capture phase (antes que el browser procese pointer lock / fullscreen)
+  window.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape') {
+      if (ev.ctrlKey) {
+        // Ctrl+ESC → soltar el ratón de forma intencional
+        ev.preventDefault();
+        intentionalUnlock = true;
+        releaseLock();
+        return;
+      }
+      if (isMenuOpen) {
+        // ESC solo con acción en curso → cerrar menú (el browser no libera lock aquí
+        // porque ya estaba libre cuando se abrió el menú)
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeDoorCtxMenu();
+      }
+      // ESC solo sin menú → el browser libera el pointer lock; onPointerLockChange
+      // lo re-adquiere automáticamente (comportamiento transparente para el jugador)
+    }
+  }, true);
+
+  // Clic en barStance alterna sprint (igual que Shift)
+  if (barStance) {
+    barStance.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSprint();
+    });
+  }
+
 
   // ==========================================
   // RESOLUCIÓN DINÁMICA & NITIDEZ 1:1 NATIVA
@@ -216,6 +391,21 @@ window.addEventListener('DOMContentLoaded', () => {
             <span class="chv c3">›</span>
           `;
         }
+      }
+    }
+
+    // 3. Indicador en la barra inferior
+    if (barStance) {
+      if (isRunning) {
+        barStance.classList.add('sprinting');
+        if (barStanceIcon) barStanceIcon.className = 'ri-run-line';
+        if (barStanceText) barStanceText.textContent = 'SPRINT';
+        if (barStanceChevrons) barStanceChevrons.innerHTML = `<span class="bchv bc1 active">›</span><span class="bchv bc2 active">›</span><span class="bchv bc3 active">›</span>`;
+      } else {
+        barStance.classList.remove('sprinting');
+        if (barStanceIcon) barStanceIcon.className = 'ri-walk-line';
+        if (barStanceText) barStanceText.textContent = 'ANDAR';
+        if (barStanceChevrons) barStanceChevrons.innerHTML = `<span class="bchv bc1 active">›</span><span class="bchv bc2">›</span><span class="bchv bc3">›</span>`;
       }
     }
   }
@@ -513,6 +703,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function toggleMouseLook() {
     const isLocked = (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas);
     if (isLocked) {
+      intentionalUnlock = true; // marcar como intencional para no re-adquirir
       releaseLock();
     } else {
       requestLock();
@@ -572,7 +763,7 @@ window.addEventListener('DOMContentLoaded', () => {
         btnFullscreen.classList.add('active');
         if (iconFullscreen) iconFullscreen.className = 'ri-fullscreen-exit-line';
         if (textFullscreen) textFullscreen.textContent = 'Salir Fullscreen';
-        btnFullscreen.title = 'Salir de pantalla completa (ESC / F)';
+        btnFullscreen.title = 'Salir de pantalla completa (F)';
       } else {
         btnFullscreen.classList.remove('active');
         if (iconFullscreen) iconFullscreen.className = 'ri-fullscreen-line';
@@ -595,11 +786,14 @@ window.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('webkitfullscreenchange', onFullscreenChange);
   document.addEventListener('mozfullscreenchange', onFullscreenChange);
 
-  canvas.addEventListener('click', requestLock);
+  canvas.addEventListener('click', () => {
+    if (!isMenuOpen) requestLock();
+  });
 
   // En pantalla completa, cualquier clic en el contenedor bloquea el ratón de nuevo
   if (viewportWrapper) {
     viewportWrapper.addEventListener('click', () => {
+      if (isMenuOpen) return; // no re-bloquear mientras el menú está abierto
       const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
       if (isFs && document.pointerLockElement !== canvas) {
         requestLock();
@@ -728,13 +922,45 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function showDoorFeedback(message, color = '#f1c40f') {
-    if (!promptHud) return;
-    promptHud.innerHTML = `<span style="color: ${color}; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><i class="ri-door-open-line"></i> ${message}</span>`;
-    if (feedbackTimeout) clearTimeout(feedbackTimeout);
-    feedbackTimeout = setTimeout(() => {
-      onPointerLockChange();
-    }, 2400);
+    showBarFeedback(`<span style="color: ${color}; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><i class="ri-door-open-line"></i> ${message}</span>`, 2400);
   }
+
+  function playKnockSound() {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      // Tres golpes de nudillo en madera: pum-pum-pum
+      const knocks = [0, 0.18, 0.36];
+      knocks.forEach(offset => {
+        const now = ctx.currentTime + offset;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.10);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.11);
+
+        // Armónico de madera (cuerpo de la puerta)
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(320, now);
+        osc2.frequency.exponentialRampToValueAtTime(140, now + 0.06);
+        gain2.gain.setValueAtTime(0.2, now);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start(now);
+        osc2.stop(now + 0.10);
+      });
+    } catch (e) {}
+  }
+
 
   // ==========================================
   // ==========================================
@@ -937,27 +1163,33 @@ window.addEventListener('DOMContentLoaded', () => {
     const idleBobL = Math.sin(armState.idlePhase) * (1.5 * scale);
     const idleBobR = Math.sin(armState.idlePhase + 0.6) * (1.5 * scale);
 
+    // Elevar brazos para que no queden detrás de la barra inferior (88px CSS)
+    const barCssPx = 88;
+    const viewportH = window.innerHeight || height;
+    const armFloor = lowH * (1 - barCssPx / viewportH);
+
     // Brazo izquierdo (asomando solo la mitad en la esquina inferior izquierda)
     const rootLX = lowW * 0.12;
-    const rootLY = lowH * 1.14;
+    const rootLY = armFloor * 1.14;
     const handLX = lowW * 0.26 + (armState.isMoving ? walkSwayL : 0) - (reachT * 10 * scale);
-    const handLY = lowH * 0.885 + (armState.isMoving ? walkBobL : idleBobL) + (reachT * 14 * scale);
+    const handLY = armFloor * 0.885 + (armState.isMoving ? walkBobL : idleBobL) + (reachT * 14 * scale);
 
     drawChibiArm(offCtx, false, rootLX, rootLY, handLX, handLY, 0, scale);
 
     // Brazo derecho (descanso a 0.885, estira hasta 0.52 al tocar la puerta)
     const rootRX = lowW * 0.88;
-    const rootRY = lowH * 1.14;
+    const rootRY = armFloor * 1.14;
 
     const restHandRX = lowW * 0.74 + (armState.isMoving ? walkSwayR : 0);
-    const restHandRY = lowH * 0.885 + (armState.isMoving ? walkBobR : idleBobR);
+    const restHandRY = armFloor * 0.885 + (armState.isMoving ? walkBobR : idleBobR);
 
-    // Objetivo al estirar hacia la puerta (frente y centro)
+    // Objetivo al estirar hacia la puerta: se desplaza al centro horizontalmente
+    // pero mantiene la misma altura (sin subir, para no parecer un puñetazo)
     const targetHandRX = lowW * 0.50;
-    const targetHandRY = lowH * 0.52;
+    const targetHandRY = restHandRY; // sin cambio vertical
 
     const handRX = restHandRX + (targetHandRX - restHandRX) * reachT;
-    const handRY = restHandRY + (targetHandRY - restHandRY) * reachT;
+    const handRY = restHandRY; // altura fija durante toda la animación
 
     const armScaleR = scale * (1.0 - reachT * 0.15); // perspectiva hacia el fondo
 
@@ -988,8 +1220,11 @@ window.addEventListener('DOMContentLoaded', () => {
   function tryInteractDoor() {
     if (armState.reachAnim.active) return;
 
+    // Si el menú ya está abierto, ignorar clics en el canvas (solo botones / ESC lo cierran)
+    if (isMenuOpen) return;
+
     // Verificar si hay puerta interactuable en rango
-    const targetDoor = (typeof engine.getDoorInReach === 'function') ? engine.getDoorInReach(player, 2.6) : null;
+    const targetDoor = (typeof engine.getDoorInReach === 'function') ? engine.getDoorInReach(player, 1.0) : null;
     if (!targetDoor) {
       // Intento breve al aire si no hay puerta inmediata
       armState.reachAnim.active = true;
@@ -1000,16 +1235,12 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Hay puerta al alcance: iniciar animación de estirar el brazo hacia la puerta
-    armState.reachAnim.active = true;
-    armState.reachAnim.phase = 'reach';
-    armState.reachAnim.progress = 0;
-    armState.reachAnim.touchTriggered = false;
-    armState.reachAnim.targetDoor = targetDoor;
+    // Hay puerta al alcance: mostrar menú contextual
+    showDoorCtxMenu(targetDoor);
   }
 
   function executeDoorTouchInteraction() {
-    const res = engine.interactDoor(player, 2.6);
+    const res = engine.interactDoor(player, 1.0);
     if (!res) return;
 
     if (res.blocked) {
@@ -1116,34 +1347,46 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   function onPointerLockChange() {
+    if (isMenuOpen) return; // no cambiar mensaje mientras el menú está abierto
     const isLocked = (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas);
+
+    // Lock perdido sin intención (ESC del browser u otro evento externo).
+    // Re-adquirir silenciosamente sin actualizar la UI: el jugador no debe notar nada.
+    // Si requestLock tiene éxito, pointerlockchange vuelve a disparar con isLocked=true.
+    if (!isLocked && !intentionalUnlock) {
+      requestLock();
+      return;
+    }
+    intentionalUnlock = false; // reset tras unlock intencional (Ctrl+M)
+
     const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
 
     if (btnMouseLook) {
       if (isLocked) {
         btnMouseLook.classList.add('active');
         if (iconMouseLook) iconMouseLook.className = 'ri-mouse-fill';
-        if (textMouseLook) textMouseLook.textContent = 'Mirando (ESC)';
-        btnMouseLook.title = 'Liberar ratón (ESC)';
+        if (textMouseLook) textMouseLook.textContent = 'Mirando (Ctrl+M)';
+        btnMouseLook.title = 'Liberar ratón (Ctrl+M)';
       } else {
         btnMouseLook.classList.remove('active');
         if (iconMouseLook) iconMouseLook.className = 'ri-mouse-line';
         if (textMouseLook) textMouseLook.textContent = 'Mirar con el ratón';
-        btnMouseLook.title = 'Haz clic para mirar con el ratón';
+        btnMouseLook.title = 'Haz clic o Ctrl+M para mirar con el ratón';
       }
     }
 
-    if (promptHud) {
+    // Mensajes de ayuda en la barra inferior
+    if (!barTextFeedbackTimeout) {
       const panelsHidden = appContainer && appContainer.classList.contains('panels-hidden');
       const panelHint = panelsHidden ? 'mostrar paneles' : 'ocultar paneles';
       if (isFs) {
-        promptHud.innerHTML = isLocked
-          ? `Pantalla Completa • Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> strafe • <strong>[Clic Izq / Enter]</strong> abrir/cerrar puerta • [ESC] o [F] salir`
-          : `Haz clic o pulsa <strong>[Mirar con el ratón]</strong> para bloquear de nuevo • [ESC] o [F] salir`;
+        setBarMessage(isLocked
+          ? `Mueve el ratón para <strong>mirar</strong> • <strong>[Clic / Enter]</strong> interactuar con puertas • [Ctrl+M] liberar ratón`
+          : `Haz clic para retomar el control del ratón • [F] salir pantalla completa`);
       } else {
-        promptHud.innerHTML = isLocked
-          ? `Mueve el ratón para <strong>mirar</strong> • <strong>[A][D]</strong> strafe • <strong>[Clic Izq / Enter]</strong> abrir/cerrar puerta • [ESC] liberar ratón`
-          : `Haz clic o usa <strong>[Mirar con el ratón]</strong> para apuntar • <strong>[H]</strong> ${panelHint} • <strong>[F]</strong> pantalla completa`;
+        setBarMessage(isLocked
+          ? `Mueve el ratón para <strong>mirar</strong> • <strong>[Clic / Enter]</strong> interactuar con puertas • [Ctrl+M] liberar ratón`
+          : `Haz clic en la pantalla para retomar el control del ratón • <strong>[H]</strong> ${panelHint} • <strong>[F]</strong> pantalla completa`);
       }
     }
   }
@@ -1153,10 +1396,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Girar la cámara al mover el ratón cuando está bloqueado
   window.addEventListener('mousemove', (e) => {
+    if (isMenuOpen) return; // bloquear rotación mientras el menú está abierto
     if (document.pointerLockElement === canvas || document.mozPointerLockElement === canvas) {
       const movementX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
+      const movementY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
       if (movementX !== 0) {
         rotatePlayer(movementX * mouseSensitivity);
+      }
+      if (movementY !== 0) {
+        // Límite de pitch: ±60% de la altura de pantalla (evita girar 360°)
+        // Negativo porque ratón arriba = movementY negativo = pitchOffset baja el horizonte = mirar arriba
+        const maxPitch = canvas.height * 0.60;
+        player.pitchOffset = Math.max(-maxPitch, Math.min(maxPitch, player.pitchOffset - movementY * mouseSensitivity * canvas.height * 0.5));
       }
     }
   });
@@ -1207,6 +1458,13 @@ window.addEventListener('DOMContentLoaded', () => {
     // Alternar Correr / Andar con tecla Shift (Mayúsculas)
     if (e.key === 'Shift') {
       toggleSprint();
+      e.preventDefault();
+      return;
+    }
+
+    // Ctrl+M → alternar pointer lock (Mirar con el ratón)
+    if ((e.key === 'm' || e.key === 'M') && (e.ctrlKey || e.metaKey)) {
+      toggleMouseLook();
       e.preventDefault();
       return;
     }
@@ -1314,6 +1572,7 @@ window.addEventListener('DOMContentLoaded', () => {
     btnCenter.addEventListener('click', () => {
       player.posX = spawnX;
       player.posY = spawnY;
+      player.pitchOffset = 0; // resetear pitch al volver al spawn
       if (typeof spawnAngle === 'number') {
         player.angle = spawnAngle;
         player.dirX = Math.cos(player.angle);
@@ -1593,22 +1852,14 @@ window.addEventListener('DOMContentLoaded', () => {
     const speedMult = isRunning ? 1.8 : 1.0;
     const moveStep = player.moveSpeedBase * speedMult * dt;
 
-    // Desplazamiento lateral (A / D)
-    if (keys.strafeLeft) {
-      strafePlayer(-moveStep);
-    }
-    if (keys.strafeRight) {
-      strafePlayer(moveStep);
-    }
-
-    // Avanzar (W / ▲)
-    if (keys.moveForward) {
-      movePlayer(moveStep);
-    }
-
-    // Retroceder (S / ▼)
-    if (keys.moveBackward) {
-      movePlayer(-moveStep);
+    if (!isMenuOpen) {
+      // Desplazamiento lateral (A / D)
+      if (keys.strafeLeft)  strafePlayer(-moveStep);
+      if (keys.strafeRight) strafePlayer(moveStep);
+      // Avanzar (W / ▲)
+      if (keys.moveForward)  movePlayer(moveStep);
+      // Retroceder (S / ▼)
+      if (keys.moveBackward) movePlayer(-moveStep);
     }
 
     // Estado del sistema de brazos según movimiento
@@ -1619,7 +1870,7 @@ window.addEventListener('DOMContentLoaded', () => {
     // Comprobar umbral de portales / puertas conectadas a otros mapas
     checkPortalThreshold();
 
-    // Renderizar escena 3D y minimapa
+    // Renderizar escena 3D y minimapa principal
     engine.render(player);
 
     // Renderizar brazos chibi en primera persona (balanceo al andar/correr y animación al abrir puertas)
@@ -1627,6 +1878,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Actualizar HUD
     updateHUD();
+
+    // Renderizar minimapa en barra inferior
+    if (barMinimapCtx && barMinimapCanvas && typeof engine.renderMinimap === 'function') {
+      engine.renderMinimap(player, barMinimapCtx, barMinimapCanvas.width, barMinimapCanvas.height);
+    }
 
     requestAnimationFrame(gameLoop);
   }

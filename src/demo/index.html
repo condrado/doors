@@ -76,7 +76,7 @@
             <i class="ri-eye-line" id="iconTogglePanels"></i>
             <span id="textTogglePanels">Mostrar Paneles</span>
           </button>
-          <button class="hud-action-btn" id="btnMouseLook" title="Haz clic para mirar con el ratón (ESC para liberar)" type="button">
+          <button class="hud-action-btn" id="btnMouseLook" title="Haz clic o Ctrl+M para mirar con el ratón" type="button">
             <i class="ri-mouse-line" id="iconMouseLook"></i>
             <span id="textMouseLook">Mirar con el ratón</span>
           </button>
@@ -86,10 +86,8 @@
           </button>
         </div>
 
-        <!-- Mensaje flotante de interacción / contexto -->
-        <div class="prompt-hud" id="promptHud">
-          Usa <strong>[Mirar con el ratón]</strong> o haz clic para apuntar • <strong>[H]</strong> mostrar paneles • <strong>[F]</strong> pantalla completa
-        </div>
+        <!-- Mensaje flotante de interacción / contexto (ahora oculto, mensajes van a barText) -->
+        <div class="prompt-hud" id="promptHud" style="display:none"></div>
 
         <!-- Indicador de Postura / Velocidad estilo DayZ -->
         <div class="dayz-stance-indicator" id="dayzStanceHud" title="Modo de Desplazamiento (Shift)">
@@ -108,6 +106,35 @@
 
         <!-- Overlay de transición de pantalla (Fundido entre mapas) -->
         <div class="viewport-transition-overlay" id="transitionOverlay"></div>
+
+        <!-- BARRA DE ACCIONES INFERIOR -->
+        <div class="bottom-action-bar" id="bottomActionBar">
+          <!-- Izquierda: indicador andar/correr -->
+          <div class="bar-section bar-section--left">
+            <div class="bar-stance" id="barStance" title="Alternar Correr / Andar (Shift)">
+              <i class="ri-walk-line" id="barStanceIcon"></i>
+              <span id="barStanceText">ANDAR</span>
+              <span class="bar-stance-chevrons" id="barStanceChevrons">
+                <span class="bchv bc1 active">›</span>
+                <span class="bchv bc2">›</span>
+                <span class="bchv bc3">›</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Centro: área de texto / acciones -->
+          <div class="bar-section bar-section--center">
+            <div class="bar-text" id="barText"></div>
+          </div>
+
+          <!-- Derecha: minimapa -->
+          <div class="bar-section bar-section--right">
+            <div class="bar-minimap-wrap">
+              <canvas id="barMinimapCanvas" width="120" height="80"></canvas>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- Panel de Controles -->

@@ -215,7 +215,7 @@ body {
 /* Workspace Layout */
 .workspace {
   display: grid;
-  grid-template-columns: 280px 1fr 340px;
+  grid-template-columns: 280px 1fr 380px;
   height: calc(100vh - 60px);
   overflow: hidden;
   transition: grid-template-columns 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -1694,7 +1694,7 @@ i[class*=" ri-"] {
   color: var(--text-muted);
 }
 
-.dimension-controls > .style-picker-btn:first-child {
+.dimension-controls>.style-picker-btn:first-child {
   margin-top: 0;
   margin-bottom: 2px;
 }
@@ -1920,8 +1920,15 @@ i[class*=" ri-"] {
 }
 
 @keyframes slideDownFade {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .new-style-header {
