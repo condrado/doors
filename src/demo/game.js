@@ -1837,7 +1837,7 @@ window.addEventListener('DOMContentLoaded', () => {
     r: '/src/assets/personaje-r.png',
   };
   // Tiempo que el personaje mantiene la mirada lateral antes de volver al frente (ms)
-  const FACE_SIDE_HOLD_MS = 1000;
+  const FACE_SIDE_HOLD_MS = 300;
 
   let facePrevAngle = Math.atan2(player.dirY, player.dirX);
   let faceLookOffset = 0;
@@ -1855,33 +1855,41 @@ window.addEventListener('DOMContentLoaded', () => {
     facePrevAngle = curAngle;
 
     const now = performance.now();
-    const turnDir = delta > 0.003 ? 1 : delta < -0.003 ? -1 : 0;
 
-    // Si hay giro activo, actualizar el offset y registrar el momento
-    if (turnDir !== 0) {
-      faceLastTurnTime = now;
+    // Umbral más alto (0.008) para ignorar micro-ajustes al andar recto
+    const isTurning = Math.abs(delta) > 0.008;
+    const turnDir   = delta > 0.008 ? 1 : delta < -0.008 ? -1 : 0;
+
+    // Detectar el momento exacto en que se DEJA de girar (flanco descendente)
+    if (isTurning) {
+      // Girando activamente: acumular offset y refrescar el lado bloqueado
+      faceLookOffset    += (turnDir - faceLookOffset) * 0.18;
+      faceLastTurnTime   = now;
+      faceLockedSide     = faceLookOffset > 0.3 ? 'r' : faceLookOffset < -0.3 ? 'l' : faceLockedSide;
+    } else {
+      // No girando: decaer el offset hacia 0 inmediatamente
+      faceLookOffset += (0 - faceLookOffset) * 0.18;
     }
-    faceLookOffset += (turnDir - faceLookOffset) * 0.15;
-
-    // Variante natural según offset
-    const naturalVariant = faceLookOffset > 0.35 ? 'r' : faceLookOffset < -0.35 ? 'l' : 'f';
 
     let variant;
-    if (naturalVariant !== 'f') {
-      // Girando activamente hacia un lado: mostrar y guardar el lado
-      variant = naturalVariant;
-      faceLockedSide = naturalVariant;
-    } else {
-      // El offset ha vuelto al centro — pero ¿ha pasado el delay?
+
+    if (isTurning && Math.abs(faceLookOffset) > 0.3) {
+      // Giro activo y suficiente offset: mostrar lateral
+      variant = faceLookOffset > 0 ? 'r' : 'l';
+      faceLockedSide = variant;
+    } else if (!isTurning && faceLockedSide) {
+      // Parado de girar: hold de 1 segundo
       const elapsed = now - faceLastTurnTime;
-      if (faceLockedSide && elapsed < FACE_SIDE_HOLD_MS) {
-        // Todavía dentro del período de hold: mantener el lado bloqueado
+      if (elapsed < FACE_SIDE_HOLD_MS) {
         variant = faceLockedSide;
       } else {
-        // Delay superado: volver al frente y limpiar el bloqueo
-        variant = 'f';
+        // Hold terminado: frente y limpiar
+        variant        = 'f';
         faceLockedSide = null;
+        faceLookOffset = 0;
       }
+    } else {
+      variant = 'f';
     }
 
     if (variant !== faceCurrentVariant) {
