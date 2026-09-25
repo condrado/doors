@@ -411,28 +411,41 @@
               </button>
             </div>
 
-            <!-- Selector de Orientación del Monitor -->
+            <!-- Selector de Orientación + Posición del Monitor -->
             <div class="monitor-orientation-panel" id="monitorOrientationPanel"
               style="display: none; margin-top: 10px;">
-              <p class="section-desc" id="monitorOrientDesc" style="margin-bottom: 6px;">Orientación del Monitor:</p>
+              <p class="section-desc" style="margin-bottom: 6px;">Orientación de la pantalla:</p>
               <div class="monitor-orient-grid">
-                <button type="button" class="monitor-orient-btn active" data-orient="F" title="De Frente">
+                <button type="button" class="monitor-orient-btn active" data-orient="F" title="Pantalla mira al Este">
                   <i class="ri-tv-line"></i>
                   <span>Frente</span>
                 </button>
-                <button type="button" class="monitor-orient-btn" data-orient="R"
-                  title="Monitor mirando a la Derecha (Inclinado)">
+                <button type="button" class="monitor-orient-btn" data-orient="R" title="Pantalla mira al Sur">
                   <i class="ri-arrow-right-up-line"></i>
                   <span>Derecha</span>
                 </button>
-                <button type="button" class="monitor-orient-btn" data-orient="L"
-                  title="Monitor mirando a la Izquierda (Inclinado)">
+                <button type="button" class="monitor-orient-btn" data-orient="L" title="Pantalla mira al Norte">
                   <i class="ri-arrow-left-up-line"></i>
                   <span>Izquierda</span>
                 </button>
-                <button type="button" class="monitor-orient-btn" data-orient="B" title="Monitor Visto por Detrás">
+                <button type="button" class="monitor-orient-btn" data-orient="B" title="Pantalla mira al Oeste">
                   <i class="ri-arrow-up-line"></i>
                   <span>Detrás</span>
+                </button>
+              </div>
+              <p class="section-desc" style="margin: 8px 0 4px;">Posición en la mesa:</p>
+              <div class="monitor-orient-grid">
+                <button type="button" class="monitor-pos-btn" data-pos="b" title="Fondo de la mesa (lejos de la pantalla)">
+                  <i class="ri-arrow-right-double-line" style="transform:rotate(90deg)"></i>
+                  <span>Fondo</span>
+                </button>
+                <button type="button" class="monitor-pos-btn active" data-pos="c" title="Centro de la mesa">
+                  <i class="ri-focus-3-line"></i>
+                  <span>Centro</span>
+                </button>
+                <button type="button" class="monitor-pos-btn" data-pos="t" title="Borde frontal de la mesa (cerca de la pantalla)">
+                  <i class="ri-arrow-right-double-line" style="transform:rotate(-90deg)"></i>
+                  <span>Frente</span>
                 </button>
               </div>
             </div>

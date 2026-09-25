@@ -83,6 +83,7 @@ class LevelEditor {
     this.selectedTile = 1; // 1 = pared, 0 = suelo, 'accessories' = accesorios, 'character' = personaje, 'player' = spawn
     this.selectedAccessory = 'door'; // 'door', 'window', 'monitor'
     this.monitorOrientation = 'F'; // 'F' (Frente), 'R' (Derecha), 'L' (Izquierda), 'B' (Detrás)
+    this.monitorPosition = 'c'; // 'b' (fondo), 'c' (centro), 't' (tope/borde frente)
     this.characterOrientation = 'F'; // 'F' (Frente), 'R' (Derecha), 'L' (Izquierda), 'B' (Detrás)
     this.tableType = 9; // código de celda de mesa activo (9=4patas, 15=sin patas, 16-21=variantes)
     this.isMouseDown = false;
@@ -467,6 +468,37 @@ class LevelEditor {
         this.saveUIState();
       });
     });
+
+    // Selector de posición del monitor en la mesa (b, c, t)
+    const posPresets = { b: 0.25, c: 0.5, t: 0.75 };
+    document.querySelectorAll('#monitorOrientationPanel .monitor-pos-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#monitorOrientationPanel .monitor-pos-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.monitorPosition = btn.dataset.pos || 'c';
+        // Sincronizar input numérico con el preset
+        const exactInput = document.getElementById('monitorPosExact');
+        if (exactInput) exactInput.value = posPresets[this.monitorPosition] ?? 0.5;
+        const posNames = { b: 'Fondo de mesa', c: 'Centro de mesa', t: 'Borde frontal' };
+        this.showToast(`🖥️ Posición: ${posNames[this.monitorPosition]}`);
+        this.render();
+        this.saveUIState();
+      });
+    });
+
+    // Input de offset exacto
+    const exactInput = document.getElementById('monitorPosExact');
+    if (exactInput) {
+      exactInput.addEventListener('input', () => {
+        const v = parseFloat(exactInput.value);
+        if (isNaN(v) || v < 0 || v > 1) return;
+        // Desactivar botones b/c/t (ninguno activo = offset libre)
+        document.querySelectorAll('#monitorOrientationPanel .monitor-pos-btn').forEach(b => b.classList.remove('active'));
+        this.monitorPosition = String(v); // guarda el valor numérico como string
+        this.render();
+        this.saveUIState();
+      });
+    }
 
     // Selector de orientación del personaje (F, R, L, B)
     document.querySelectorAll('.char-orient-btn').forEach(btn => {
@@ -1148,16 +1180,30 @@ class LevelEditor {
         }
       }
     } else if (this.selectedTile === 'player') {
-      this.player.x = x + 0.5;
-      this.player.y = y + 0.5;
-      if (typeof this.lastLocalX === 'number' && typeof this.lastLocalY === 'number') {
-        this.player.angle = this.getPlayerAngleFromLocal(this.lastLocalX, this.lastLocalY);
+      // Bloquear si hay una pared central (CH, CV, CN, CS, CE, CW) que impide pasar
+      const hasCenterWall = currentSegs.some(s => {
+        if (typeof s !== 'string') return false;
+        const code = s.replace(/^[DW]/, '');
+        return ['CH','CV','CN','CS','CE','CW'].includes(code);
+      });
+      if (hasCenterWall) {
+        this.showToast('⚠️ No se puede colocar el jugador: hay una pared central');
+      } else {
+        this.player.x = x + 0.5;
+        this.player.y = y + 0.5;
+        if (typeof this.lastLocalX === 'number' && typeof this.lastLocalY === 'number') {
+          this.player.angle = this.getPlayerAngleFromLocal(this.lastLocalX, this.lastLocalY);
+        }
+        // Solo eliminar accesorios de celda (MON, CHAR) que ocupan el centro, no las paredes de borde
+        this.grid[y][x] = currentSegs.filter(s => {
+          if (typeof s !== 'string') return true; // números (paredes antiguas) → conservar
+          if (s.startsWith('MON') || s.startsWith('CHAR')) return false; // accesorios → eliminar
+          return true; // paredes (N,S,E,W), puertas (DN…) → conservar
+        });
+        const dirName = this.getPlayerDirectionName(this.player.angle);
+        this.showToast(`🧭 Jugador posicionado mirando al ${dirName}`);
+        changed = true;
       }
-      this.grid[y][x] = [];
-      this.clearCellStyles(x, y);
-      const dirName = this.getPlayerDirectionName(this.player.angle);
-      this.showToast(`🧭 Jugador posicionado mirando al ${dirName}`);
-      changed = true;
     } else if (this.selectedTile === 0 || this.hoverSubEdge === 'empty') {
       // Suelo libre: vaciar toda la casilla
       if (currentSegs.length > 0) {
@@ -1168,7 +1214,11 @@ class LevelEditor {
     } else if (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor') {
       // Colocar o reorientar monitor en la celda
       const orient = this.monitorOrientation || 'F';
-      const monCode = (orient === 'F') ? 'MON' : ('MON_' + orient);
+      const rawPos = this.monitorPosition || 'c';
+      // Si rawPos es numérico (offset exacto), formatearlo; si es b/c/t usarlo tal cual
+      const isNumeric = !isNaN(parseFloat(rawPos)) && !['b','c','t'].includes(rawPos);
+      const pos = isNumeric ? parseFloat(rawPos).toFixed(2).replace(/\.?0+$/, '') || '0' : rawPos;
+      const monCode = 'MON_' + orient + pos;
       const oldMonIdx = currentSegs.findIndex(s => typeof s === 'string' && (s === 'MON' || s.startsWith('MON_')));
       if (oldMonIdx !== -1) {
         if (currentSegs[oldMonIdx] !== monCode) {
@@ -1183,21 +1233,32 @@ class LevelEditor {
         changed = true;
       }
     } else if (this.selectedTile === 'character' || (this.selectedTile === 'accessories' && this.selectedAccessory === 'character')) {
-      // Colocar o reorientar personaje en la celda
-      const orient = this.characterOrientation || 'F';
-      const charCode = (orient === 'F') ? 'CHAR' : ('CHAR_' + orient);
-      const oldCharIdx = currentSegs.findIndex(s => typeof s === 'string' && (s === 'CHAR' || s.startsWith('CHAR_')));
-      if (oldCharIdx !== -1) {
-        if (currentSegs[oldCharIdx] !== charCode) {
-          currentSegs[oldCharIdx] = charCode;
-          const orientNames = { F: 'Frente', R: 'Derecha', L: 'Izquierda', B: 'Detrás' };
-          this.showToast(`🧑 Personaje reorientado (${orientNames[orient]})`);
+      // Bloquear si hay pared central o accesorio de centro (MON)
+      const hasCenterObstacle = currentSegs.some(s => {
+        if (typeof s !== 'string') return false;
+        const code = s.replace(/^[DW]/, '');
+        if (['CH','CV','CN','CS','CE','CW'].includes(code)) return true;
+        if (s.startsWith('MON')) return true;
+        return false;
+      });
+      if (hasCenterObstacle) {
+        this.showToast('⚠️ No se puede colocar el personaje aquí');
+      } else {
+        const orient = this.characterOrientation || 'F';
+        const charCode = (orient === 'F') ? 'CHAR' : ('CHAR_' + orient);
+        const oldCharIdx = currentSegs.findIndex(s => typeof s === 'string' && (s === 'CHAR' || s.startsWith('CHAR_')));
+        if (oldCharIdx !== -1) {
+          if (currentSegs[oldCharIdx] !== charCode) {
+            currentSegs[oldCharIdx] = charCode;
+            const orientNames = { F: 'Frente', R: 'Derecha', L: 'Izquierda', B: 'Detrás' };
+            this.showToast(`🧑 Personaje reorientado (${orientNames[orient]})`);
+            changed = true;
+          }
+        } else {
+          currentSegs.push(charCode);
+          this.showToast('🧑 Personaje colocado');
           changed = true;
         }
-      } else {
-        currentSegs.push(charCode);
-        this.showToast('🧑 Personaje colocado');
-        changed = true;
       }
     } else if (this.selectedTile === 'table') {
       const tableCode = 'T' + this.tableType;
@@ -1621,16 +1682,30 @@ class LevelEditor {
   }
 
   /**
-   * Dibuja el monitor de PC en la vista 2D del editor con sus 4 orientaciones posibles (F, R, L, B)
+   * Dibuja el monitor de PC en la vista 2D del editor.
+   * orient: letra de dirección sola ('F','B','L','R') o con posición ('Fb','Fc','Ft', …)
    */
   draw2DMonitor(ctx, px, py, cs, orient = 'F', isPreview = false) {
     ctx.save();
-    if (isPreview) {
-      ctx.globalAlpha = 0.7;
-    }
+    if (isPreview) ctx.globalAlpha = 0.7;
 
-    const cx = px + cs / 2;
-    const cy = py + cs / 2;
+    // Separar dirección y posición del código (acepta b/c/t o decimal "0.85")
+    const dir = (orient[0] || 'F').toUpperCase();
+    const posStr = orient.slice(1) || 'c';
+    const posOffsets = { b: 0.25, c: 0.5, t: 0.75 };
+    const po = (posStr[0] >= '0' && posStr[0] <= '9')
+      ? (parseFloat(posStr) || 0.5)
+      : (posOffsets[posStr[0]?.toLowerCase()] ?? 0.5);
+
+    // Aplicar offset dentro de la celda según dirección + posición
+    let basePx = px, basePy = py;
+    if (dir === 'F') basePx = px + cs * (po - 0.5);
+    else if (dir === 'B') basePx = px - cs * (po - 0.5);
+    else if (dir === 'L') basePy = py - cs * (po - 0.5);
+    else if (dir === 'R') basePy = py + cs * (po - 0.5);
+
+    const cx = basePx + cs / 2;
+    const cy = basePy + cs / 2;
     const monW = Math.max(14, cs * 0.54);
     const monH = Math.max(9, cs * 0.36);
 
@@ -1639,7 +1714,7 @@ class LevelEditor {
     ctx.fillRect(cx - cs * 0.1, cy + cs * 0.18, cs * 0.2, Math.max(2, cs * 0.06));
     ctx.fillRect(cx - cs * 0.04, cy + cs * 0.08, cs * 0.08, Math.max(3, cs * 0.1));
 
-    if (orient === 'B') {
+    if (dir === 'B') {
       // MONITOR POR DETRÁS: Chasis oscuro elegante, logo/rejilla, bisagra metálica
       const bx = cx - monW / 2;
       const by = cy - monH / 2 - cs * 0.02;
@@ -1656,7 +1731,7 @@ class LevelEditor {
       ctx.fillStyle = '#0f172a';
       ctx.fillRect(bx + monW * 0.2, by + 3, monW * 0.6, Math.max(1, cs * 0.04));
       ctx.fillRect(bx + monW * 0.2, by + 6, monW * 0.6, Math.max(1, cs * 0.04));
-    } else if (orient === 'R') {
+    } else if (dir === 'R') {
       // MONITOR MIRANDO A LA DERECHA (inclinado)
       const bx = cx - monW * 0.4;
       const by = cy - monH / 2 - cs * 0.02;
@@ -1685,7 +1760,7 @@ class LevelEditor {
       // Mini detalle de brillo
       ctx.fillStyle = '#bae6fd';
       ctx.fillRect(bx + monW * 0.38, by + monH * 0.3, monW * 0.25, Math.max(1, cs * 0.04));
-    } else if (orient === 'L') {
+    } else if (dir === 'L') {
       // MONITOR MIRANDO A LA IZQUIERDA (inclinado)
       const bx = cx + monW * 0.4;
       const by = cy - monH / 2 - cs * 0.02;
@@ -1734,12 +1809,12 @@ class LevelEditor {
       ctx.fillRect(bx + 3, by + 3 + Math.max(2, cs * 0.07), monW * 0.55, Math.max(1, cs * 0.04));
     }
 
-    // Pequeña insignia indicadora de orientación
+    // Insignia: dirección + posición (ej. "F·c")
     ctx.fillStyle = '#38bdf8';
     ctx.font = `bold ${Math.max(8, Math.floor(cs * 0.22))}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(orient, cx, cy - monH / 2 - Math.max(5, cs * 0.12));
+    ctx.fillText(`${dir}·${posStr}`, cx, cy - monH / 2 - Math.max(5, cs * 0.12));
 
     ctx.restore();
   }
@@ -2168,7 +2243,10 @@ class LevelEditor {
           this.draw2DCharacter(ctx, hpx, hpy, cs, this.characterOrientation || 'F', true);
         } else if (this.selectedTile === 'accessories') {
           if (this.selectedAccessory === 'monitor') {
-            this.draw2DMonitor(ctx, hpx, hpy, cs, this.monitorOrientation || 'F', true);
+            const _rawPos = this.monitorPosition || 'c';
+            const _isNum = !isNaN(parseFloat(_rawPos)) && !['b','c','t'].includes(_rawPos);
+            const _pos = _isNum ? String(parseFloat(_rawPos)) : _rawPos;
+            this.draw2DMonitor(ctx, hpx, hpy, cs, (this.monitorOrientation || 'F') + _pos, true);
           } else {
             ctx.fillStyle = (this.selectedAccessory === 'door') ? 'rgba(229, 169, 59, 0.8)' : 'rgba(84, 160, 255, 0.8)';
           }
@@ -3018,6 +3096,7 @@ class LevelEditor {
         selectedTile: this.selectedTile,
         selectedAccessory: this.selectedAccessory,
         monitorOrientation: this.monitorOrientation || 'F',
+        monitorPosition: this.monitorPosition || 'c',
         characterOrientation: this.characterOrientation || 'F',
         placementMode: this.placementMode,
         activeWallTab,
@@ -3124,6 +3203,18 @@ class LevelEditor {
           btn.classList.toggle('active', btn.dataset.orient === this.monitorOrientation);
         });
       }
+      if (state.monitorPosition) {
+        this.monitorPosition = state.monitorPosition;
+        const isNum = !isNaN(parseFloat(state.monitorPosition)) && !['b','c','t'].includes(state.monitorPosition);
+        document.querySelectorAll('#monitorOrientationPanel .monitor-pos-btn').forEach(btn => {
+          btn.classList.toggle('active', !isNum && btn.dataset.pos === this.monitorPosition);
+        });
+        const exactInput = document.getElementById('monitorPosExact');
+        if (exactInput) {
+          const presets = { b: 0.25, c: 0.5, t: 0.75 };
+          exactInput.value = isNum ? parseFloat(state.monitorPosition) : (presets[state.monitorPosition] ?? 0.5);
+        }
+      }
 
       // 7c. Restaurar orientación del personaje
       if (state.characterOrientation) {
@@ -3186,15 +3277,33 @@ class LevelEditor {
   }
 
   downloadJson() {
+    // Guardar sala activa antes de exportar
     this.updateJSON();
-    const blob = new Blob([this.jsonOutput.value], { type: 'application/json' });
+
+    // Exportar proyecto completo (todas las salas)
+    const proj = this.currentProject;
+    const projName = (proj && proj.name) ? proj.name.replace(/\s+/g, '_') : 'proyecto';
+    const exportData = {
+      name: proj ? proj.name : projName,
+      customStyles: proj ? (proj.customStyles || {}) : {},
+      maps: {}
+    };
+    if (proj && proj.maps) {
+      Object.entries(proj.maps).forEach(([id, mapData]) => {
+        exportData.maps[id] = mapData;
+      });
+    }
+
+    const json = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `laberinto_${this.cols}x${this.rows}.json`;
+    a.download = `${projName}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    this.showToast('Archivo JSON descargado');
+    const numSalas = Object.keys(exportData.maps).length;
+    this.showToast(`Proyecto descargado (${numSalas} sala${numSalas !== 1 ? 's' : ''})`);
   }
 
   importFile(e) {

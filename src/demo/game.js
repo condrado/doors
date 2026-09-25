@@ -119,6 +119,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const barMinimapCanvas = document.getElementById('barMinimapCanvas');
   const barMinimapCtx = barMinimapCanvas ? barMinimapCanvas.getContext('2d') : null;
   const barFaceImg = document.getElementById('barFaceImg');
+  const doorMenuOverlay = document.getElementById('doorMenuOverlay');
 
   // Menú contextual de puerta (inline en barText)
   let doorCtxPendingDoor = null;
@@ -143,10 +144,24 @@ window.addEventListener('DOMContentLoaded', () => {
     barTextFeedbackTimeout = setTimeout(clearBarMessage, ms);
   }
 
+  function setDoorMenuHtml(html) {
+    if (doorMenuOverlay) {
+      doorMenuOverlay.innerHTML = html;
+      doorMenuOverlay.style.display = '';
+    }
+  }
+
+  function clearDoorMenu() {
+    if (doorMenuOverlay) {
+      doorMenuOverlay.innerHTML = '';
+      doorMenuOverlay.style.display = 'none';
+    }
+  }
+
   function closeDoorCtxMenu() {
     isMenuOpen = false;
     doorCtxPendingDoor = null;
-    clearBarMessage();
+    clearDoorMenu();
     // Intentar re-adquirir el lock directamente. Si el navegador lo acepta,
     // pointerlockchange disparará onPointerLockChange con isLocked=true → UI actualizada.
     requestLock();
@@ -175,14 +190,14 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function knockFromMenu() {
-    if (barTextFeedbackTimeout) { clearTimeout(barTextFeedbackTimeout); barTextFeedbackTimeout = null; }
     // Sonar los golpes pero mantener el menú abierto y el movimiento bloqueado
     playKnockSound();
-    // Mostrar feedback + opciones de seguir (Abrir) o salir (Cancelar)
-    const doorName = doorCtxPendingDoor && doorCtxPendingDoor.name ? doorCtxPendingDoor.name : 'Puerta';
-    setBarMessage(`
+    // PUM PUM PUM en la barra inferior
+    showBarFeedback('<i class="ri-hand-line"></i> ¡PUM PUM PUM!', 1800);
+    // Overlay: mantener "¿Qué quieres hacer?" con botones actualizados
+    setDoorMenuHtml(`
       <div class="bar-door-prompt">
-        <span class="bar-door-label"><i class="ri-hand-line"></i> ¡PUM PUM PUM! — ${doorName.toUpperCase()}</span>
+        <span class="bar-door-label">¿Qué quieres hacer?</span>
         <div class="bar-door-actions">
           <button class="bar-door-btn bar-door-open" id="barDoorOpenAfterKnock"><i class="ri-door-open-line"></i> Abrir</button>
           <button class="bar-door-btn bar-door-knock" id="barDoorKnockAgain"><i class="ri-hand-line"></i> Llamar</button>
@@ -206,8 +221,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function showDoorCtxMenu(targetDoor) {
-    // Cancelar cualquier timer de feedback previo para que no borre el menú
-    if (barTextFeedbackTimeout) { clearTimeout(barTextFeedbackTimeout); barTextFeedbackTimeout = null; }
     isMenuOpen = true;
     doorCtxPendingDoor = targetDoor;
     // Liberar el ratón para que el jugador pueda hacer clic en los botones
@@ -218,9 +231,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (isOpen) {
       // Puerta abierta: solo Cerrar o Cancelar
-      setBarMessage(`
+      setDoorMenuHtml(`
         <div class="bar-door-prompt">
-          <span class="bar-door-label"><i class="ri-door-open-line"></i> ${doorName.toUpperCase()} — ABIERTA</span>
+          <span class="bar-door-label">¿Qué quieres hacer?</span>
           <div class="bar-door-actions">
             <button class="bar-door-btn bar-door-open" id="barDoorClose"><i class="ri-door-closed-line"></i> Cerrar</button>
             <button class="bar-door-btn bar-door-cancel" id="barDoorCancel">Cancelar</button>
@@ -229,13 +242,13 @@ window.addEventListener('DOMContentLoaded', () => {
       `);
       document.getElementById('barDoorClose')?.addEventListener('click', (e) => {
         e.stopPropagation();
-        openDoorFromMenu(); // reutiliza la misma animación de brazo; interactDoor cierra si ya está abierta
+        openDoorFromMenu();
       });
     } else {
       // Puerta cerrada: Abrir, Llamar o Cancelar
-      setBarMessage(`
+      setDoorMenuHtml(`
         <div class="bar-door-prompt">
-          <span class="bar-door-label"><i class="ri-door-closed-line"></i> ${doorName.toUpperCase()} — CERRADA</span>
+          <span class="bar-door-label">¿Qué quieres hacer?</span>
           <div class="bar-door-actions">
             <button class="bar-door-btn bar-door-open" id="barDoorOpen"><i class="ri-door-open-line"></i> Abrir</button>
             <button class="bar-door-btn bar-door-knock" id="barDoorKnock"><i class="ri-hand-line"></i> Llamar</button>
@@ -1195,7 +1208,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (isMenuOpen) return;
 
     // Verificar si hay puerta interactuable en rango
-    const targetDoor = (typeof engine.getDoorInReach === 'function') ? engine.getDoorInReach(player, 1.0) : null;
+    const targetDoor = (typeof engine.getDoorInReach === 'function') ? engine.getDoorInReach(player, 1.5) : null;
     if (!targetDoor) {
       // Intento breve al aire si no hay puerta inmediata
       armState.reachAnim.active = true;
@@ -1211,7 +1224,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function executeDoorTouchInteraction() {
-    const res = engine.interactDoor(player, 1.0);
+    const res = engine.interactDoor(player, 1.5);
     if (!res) return;
 
     if (res.blocked) {
@@ -1474,6 +1487,12 @@ window.addEventListener('DOMContentLoaded', () => {
         break;
       case 'f':
         toggleFullscreen();
+        e.preventDefault();
+        break;
+      case 'g':
+        if (engine) {
+          engine.debugGuide = !engine.debugGuide;
+        }
         e.preventDefault();
         break;
       case 'h':

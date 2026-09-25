@@ -325,9 +325,11 @@ class RaycasterEngine {
   /**
    * Detecta si hay una puerta al alcance del jugador para interactuar,
    * sin modificar el estado del mapa (usado para anticipar animaciones de brazo).
+   * La distancia se calcula desde el jugador hasta la pared real de la puerta,
+   * no desde el centro de la celda.
    */
   getDoorInReach(player, maxDistance = 2.8) {
-    // 1. Probar primero si el rayo central apunta a una puerta (cerrada o abierta)
+    // 1. Usar el objetivo del rayo central (ya da distancia real a la pared)
     if (this.facingTarget && (this.facingTarget.type === 'door' || this.facingTarget.type === 'door-open')) {
       const dist = (this.facingTarget.rawDist !== undefined)
         ? this.facingTarget.rawDist
@@ -341,93 +343,57 @@ class RaycasterEngine {
       }
     }
 
-    // 2. Probar celdas directamente en frente de la mirada del jugador (filtradas por maxDistance)
-    const checkDists = [0.25, 0.5, 0.75, 1.0, maxDistance].filter(d => d <= maxDistance);
-    for (let i = 0; i < checkDists.length; i++) {
-      const d = checkDists[i];
-      const frontX = Math.floor(player.posX + player.dirX * d);
-      const frontY = Math.floor(player.posY + player.dirY * d);
-      if (frontX >= 0 && frontX < this.mapWidth && frontY >= 0 && frontY < this.mapHeight) {
-        const cell = this.map[frontY][frontX];
-        const isNumDoor = typeof cell === 'number' && cell >= 2 && cell <= 5;
-        const isArrClosed = Array.isArray(cell) && cell.some(c => ['DN', 'DE', 'DS', 'DW'].includes(c));
-        const isArrOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
+    // 2. Escanear celdas cercanas midiendo distancia a la pared real de la puerta
+    const _wallCenter = (code, mx, my) => {
+      switch (code) {
+        case 'DN': case 'ODN': return [mx + 0.5, my];
+        case 'DS': case 'ODS': return [mx + 0.5, my + 1];
+        case 'DE': case 'ODE': return [mx + 1,   my + 0.5];
+        case 'DW': case 'ODW': return [mx,        my + 0.5];
+        default: return null;
+      }
+    };
 
-        if (isArrOpen) {
-          return { mapX: frontX, mapY: frontY, action: 'close', distance: d };
-        } else if (isNumDoor || isArrClosed) {
-          return { mapX: frontX, mapY: frontY, action: 'open', distance: d };
+    const scanR = Math.ceil(maxDistance) + 1;
+    const cx = Math.floor(player.posX);
+    const cy = Math.floor(player.posY);
+    let best = null;
+    let bestDist = Infinity;
+
+    for (let dy = -scanR; dy <= scanR; dy++) {
+      for (let dx = -scanR; dx <= scanR; dx++) {
+        const mx = cx + dx;
+        const my = cy + dy;
+        if (mx < 0 || mx >= this.mapWidth || my < 0 || my >= this.mapHeight) continue;
+        const cell = this.map[my][mx];
+        if (!Array.isArray(cell)) continue;
+        for (const c of cell) {
+          if (typeof c !== 'string') continue;
+          const wc = _wallCenter(c, mx, my);
+          if (!wc) continue;
+          const d = Math.hypot(player.posX - wc[0], player.posY - wc[1]);
+          if (d <= maxDistance && d < bestDist) {
+            bestDist = d;
+            best = { mapX: mx, mapY: my, action: c.startsWith('OD') ? 'close' : 'open', distance: d };
+          }
         }
       }
     }
 
-    // 3. Probar la celda actual donde se encuentra el jugador (solo si está dentro del rango)
-    const curX = Math.floor(player.posX);
-    const curY = Math.floor(player.posY);
-    if (curX >= 0 && curX < this.mapWidth && curY >= 0 && curY < this.mapHeight) {
-      const curCell = this.map[curY][curX];
-      if (Array.isArray(curCell) && curCell.some(c => typeof c === 'string' && c.startsWith('OD'))) {
-        return { mapX: curX, mapY: curY, action: 'close', distance: 0 };
-      }
-    }
-
-    return null;
+    return best;
   }
 
   /**
-   * Alterna (abre o cierra) una puerta en el rango de interacción (≤ maxDist).
-   * Prioriza el objetivo enfocado en la mirilla central y luego las celdas frontales inmediatas.
+   * Alterna (abre o cierra) la puerta más cercana dentro del rango de interacción.
    */
   interactDoor(player, maxDistance = 2.8) {
-    // 1. Probar primero si el rayo central apunta a una puerta (cerrada o abierta)
-    if (this.facingTarget && (this.facingTarget.type === 'door' || this.facingTarget.type === 'door-open')) {
-      const dist = (this.facingTarget.rawDist !== undefined)
-        ? this.facingTarget.rawDist
-        : parseFloat(this.facingTarget.distance);
-      if (dist <= maxDistance && this.facingTarget.mapX !== undefined && this.facingTarget.mapY !== undefined) {
-        const mX = this.facingTarget.mapX;
-        const mY = this.facingTarget.mapY;
-        const cell = this.map[mY][mX];
-        const isAlreadyOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
-        if (isAlreadyOpen) {
-          return this.closeDoor(mX, mY, player);
-        } else {
-          return this.openDoor(mX, mY);
-        }
-      }
+    const found = this.getDoorInReach(player, maxDistance);
+    if (!found) return null;
+    if (found.action === 'close') {
+      return this.closeDoor(found.mapX, found.mapY, player);
+    } else {
+      return this.openDoor(found.mapX, found.mapY);
     }
-
-    // 2. Probar celdas directamente en frente de la mirada del jugador (por cercanía o ángulo)
-    const checkDists = [0.6, 1.1, 1.6, 2.2, maxDistance];
-    for (let i = 0; i < checkDists.length; i++) {
-      const d = checkDists[i];
-      const frontX = Math.floor(player.posX + player.dirX * d);
-      const frontY = Math.floor(player.posY + player.dirY * d);
-      if (frontX >= 0 && frontX < this.mapWidth && frontY >= 0 && frontY < this.mapHeight) {
-        const cell = this.map[frontY][frontX];
-        const isNumDoor = typeof cell === 'number' && cell >= 2 && cell <= 5;
-        const isArrClosed = Array.isArray(cell) && cell.some(c => ['DN', 'DE', 'DS', 'DW'].includes(c));
-        const isArrOpen = Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('OD'));
-
-        if (isArrOpen) {
-          return this.closeDoor(frontX, frontY, player);
-        } else if (isNumDoor || isArrClosed) {
-          return this.openDoor(frontX, frontY);
-        }
-      }
-    }
-
-    // 3. Probar la celda actual donde se encuentra el jugador (por si acaba de cruzar y se gira)
-    const curX = Math.floor(player.posX);
-    const curY = Math.floor(player.posY);
-    if (curX >= 0 && curX < this.mapWidth && curY >= 0 && curY < this.mapHeight) {
-      const curCell = this.map[curY][curX];
-      if (Array.isArray(curCell) && curCell.some(c => typeof c === 'string' && c.startsWith('OD'))) {
-        return this.closeDoor(curX, curY, player);
-      }
-    }
-
-    return null;
   }
 
   /**
@@ -575,7 +541,7 @@ class RaycasterEngine {
       // Hoja de la puerta (rehundida, ancho completo del vano)
       faces.push(
         { axis: 'y', pos: doorB, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Norte (Frontal)', style, lintelStyle },
-        { axis: 'y', pos: doorA, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Norte (Trasera)', style, lintelStyle }
+        { axis: 'y', pos: doorA, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, isDoorBack: true, name: 'Hoja Puerta Norte (Trasera)', style, lintelStyle }
       );
 
       // Dintel superior (0.10m de grosor enrasado con las paredes)
@@ -605,7 +571,7 @@ class RaycasterEngine {
       // Hoja de la puerta (rehundida, ancho completo del vano)
       faces.push(
         { axis: 'y', pos: doorA, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Sur (Frontal)', style, lintelStyle },
-        { axis: 'y', pos: doorB, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Sur (Trasera)', style, lintelStyle }
+        { axis: 'y', pos: doorB, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, isDoorBack: true, name: 'Hoja Puerta Sur (Trasera)', style, lintelStyle }
       );
 
       // Dintel superior
@@ -635,7 +601,7 @@ class RaycasterEngine {
       // Hoja de la puerta (rehundida, alto completo del vano)
       faces.push(
         { axis: 'x', pos: doorB, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Oeste (Frontal)', style, lintelStyle },
-        { axis: 'x', pos: doorA, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Oeste (Trasera)', style, lintelStyle }
+        { axis: 'x', pos: doorA, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, isDoorBack: true, name: 'Hoja Puerta Oeste (Trasera)', style, lintelStyle }
       );
 
       // Dintel superior
@@ -665,7 +631,7 @@ class RaycasterEngine {
       // Hoja de la puerta (rehundida, alto completo del vano)
       faces.push(
         { axis: 'x', pos: doorA, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Este (Frontal)', style, lintelStyle },
-        { axis: 'x', pos: doorB, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Este (Trasera)', style, lintelStyle }
+        { axis: 'x', pos: doorB, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, isDoorBack: true, name: 'Hoja Puerta Este (Trasera)', style, lintelStyle }
       );
 
       // Dintel superior
@@ -1936,11 +1902,27 @@ class RaycasterEngine {
         if (side === 1) s *= 0.72; // Sombreado clásico Wolfenstein 3D
         return s;
       };
-      // Coordenada horizontal de la textura (corregida para evitar inversión/espejado)
+      // Coordenada horizontal de la textura para PAREDES (flip según dirección del rayo)
       const texXOf = (coord, side, texW = 64) => {
         let tx = Math.floor(Math.max(0, Math.min(0.999, coord)) * texW);
         if (side === 0 && rayDirX < 0) tx = texW - tx - 1;
         if (side === 1 && rayDirY > 0) tx = texW - tx - 1;
+        return tx;
+      };
+      // Coordenada horizontal para PUERTAS:
+      // El picaporte está en el lado DERECHO de la textura (tx≈47 en 64px).
+      // Para que aparezca a la IZQUIERDA desde dentro y a la DERECHA desde fuera:
+      // DN (pos≈mY)   y DE (pos≈mX+1): flip → mueven picaporte al rango 0.25 wallX → izquierda.
+      // DS (pos≈mY+1) y DW (pos≈mX):   sin flip → wallX≈0.73 ya cae a la izquierda de pantalla.
+      // isDoorBack: la cara trasera (visible desde fuera) se espeja para que el
+      // picaporte siempre quede en el mismo lado de la hoja, mires por donde mires.
+      const doorTexXOf = (coord, side, mX, mY, segPos, texW = 64, isDoorBack = false) => {
+        let tx = Math.floor(Math.max(0, Math.min(0.999, coord)) * texW);
+        let flip = side === 1
+          ? segPos < mY + 0.5   // DN (cara norte, pos ≈ mY)
+          : segPos > mX + 0.5;  // DE (cara este,  pos ≈ mX+1)
+        if (isDoorBack) flip = !flip;
+        if (flip) tx = texW - tx - 1;
         return tx;
       };
 
@@ -2042,7 +2024,9 @@ class RaycasterEngine {
           const bottomYT = horizon + eyeHeight * projT;
 
           const tTex = resolveTex(tHit.seg.type, tHit.seg.style || 'cristal');
-          const tTexX = texXOf(tHit.wallX, tHit.side, tTex.width || 64);
+          const tTexX = tHit.isDoor
+            ? doorTexXOf(tHit.wallX, tHit.side, tHit.mapX, tHit.mapY, tHit.seg.pos, tTex.width || 64, !!tHit.seg.isDoorBack)
+            : texXOf(tHit.wallX, tHit.side, tTex.width || 64);
           const tShade = shadeOf(tHit.dist, tHit.side);
 
           let dLintelTex = null;
@@ -2102,7 +2086,9 @@ class RaycasterEngine {
         // 1. Dibujar el fondo opaco (hitBottom: pared completa, jamba o puerta cerrada)
         if (hitBottom) {
           const bTex = resolveTex(hitBottom.seg.type, hitBottom.seg.style || 'castillo');
-          const bTexX = texXOf(hitBottom.wallX, hitBottom.side, bTex.width || 64);
+          const bTexX = hitBottom.isDoor
+            ? doorTexXOf(hitBottom.wallX, hitBottom.side, hitBottom.mapX, hitBottom.mapY, hitBottom.seg.pos, bTex.width || 64, !!hitBottom.seg.isDoorBack)
+            : texXOf(hitBottom.wallX, hitBottom.side, bTex.width || 64);
           const bShade = shadeOf(hitBottom.dist, hitBottom.side);
 
           if (hitBottom.seg.isJamb || hitBottom.seg.isFrame) {
@@ -2146,7 +2132,7 @@ class RaycasterEngine {
             const bottomYDoor = horizon + eyeHeight * projDoor;
             const doorTopYDoor = horizon - (this.doorHeightScale - eyeHeight) * projDoor;
             const odTex = resolveTex(od.seg.type, od.seg.style || 'castillo');
-            const odTexX = texXOf(od.wallX, od.side, odTex.width || 64);
+            const odTexX = doorTexXOf(od.wallX, od.side, od.mapX, od.mapY, od.seg.pos, odTex.width || 64, !!od.seg.isDoorBack);
             const odShade = shadeOf(od.dist, od.side);
             blitTexBand(doorTopYDoor, bottomYDoor, odTex, odTexX, odShade, doorTopYDoor, bottomYDoor, od.dist);
           } else if (layer.kind === 'lintel') {
@@ -2306,10 +2292,74 @@ class RaycasterEngine {
     // Volcar el buffer al canvas
     this.ctx.putImageData(this.imgData, 0, 0);
 
+    // Debug: guías de centrado (activar con 'G')
+    if (this.debugGuide) {
+      this._drawDebugGuide(this.ctx, w, h, player);
+    }
+
     // 3. Renderizar Minimapa
     if (this.minimapCtx) {
       this.renderMinimap(player);
     }
+  }
+
+  _drawDebugGuide(ctx, w, h, player) {
+    const { posX, posY, dirX, dirY, planeX, planeY } = player;
+    const horizon = h / 2 + Math.round(player.pitchOffset || 0);
+
+    const project = (wx, wy, wz) => {
+      const dx = wx - posX, dy = wy - posY;
+      const invDet = 1.0 / (planeX * dirY - dirX * planeY);
+      const tX = invDet * (dirY * dx - dirX * dy);
+      const tY = invDet * (-planeY * dx + planeX * dy);
+      if (tY <= 0.01) return null;
+      const sx = (w / 2) * (1 + tX / tY);
+      const sy = horizon + (0.5 - wz) * h / tY;
+      return [sx, sy];
+    };
+
+    ctx.save();
+
+    // Línea vertical amarilla en el centro de la pantalla
+    ctx.strokeStyle = 'rgba(255, 220, 0, 0.75)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 0);
+    ctx.lineTo(w / 2, h);
+    ctx.stroke();
+
+    // Guías sobre la mesa que el jugador mira
+    const t = this.facingTarget;
+    if (t && t.type === 'monitor' && t.mapX != null) {
+      const mx = t.mapX, my = t.mapY;
+      const th = this.tableHeightScale ?? 0.42;
+
+      const ctr  = project(mx + 0.5, my + 0.5, th);
+      const lft  = project(mx + 0.5, my,        th);
+      const rgt  = project(mx + 0.5, my + 1,    th);
+
+      // Líneas amarillas del centro a cada lateral de la mesa
+      ctx.setLineDash([]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(255, 220, 0, 0.9)';
+      if (ctr && lft) {
+        ctx.beginPath(); ctx.moveTo(ctr[0], ctr[1]); ctx.lineTo(lft[0], lft[1]); ctx.stroke();
+      }
+      if (ctr && rgt) {
+        ctx.beginPath(); ctx.moveTo(ctr[0], ctr[1]); ctx.lineTo(rgt[0], rgt[1]); ctx.stroke();
+      }
+
+      // Línea vertical roja en el centro proyectado de la celda
+      if (ctr) {
+        ctx.strokeStyle = 'rgba(255, 60, 0, 0.85)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath(); ctx.moveTo(ctr[0], 0); ctx.lineTo(ctr[0], h); ctx.stroke();
+      }
+    }
+
+    ctx.restore();
   }
 
   /**
@@ -2334,24 +2384,51 @@ class RaycasterEngine {
         }
 
         if (monCode) {
-          // Orientación del monitor en el mundo:
-          // MON_L: mira hacia la Izquierda (Norte, -Math.PI / 2)
-          // MON_R: mira hacia la Derecha (Sur, Math.PI / 2)
-          // MON / MON_F: mira hacia el Frente (Este, 0)
-          // MON_B: mira hacia Detrás (Oeste, Math.PI)
-          let facingAngle = 0; // Frente (Este)
-          if (monCode === 'MON_R') facingAngle = Math.PI / 2; // Derecha (Sur)
-          else if (monCode === 'MON_L') facingAngle = -Math.PI / 2; // Izquierda (Norte)
-          else if (monCode === 'MON_B') facingAngle = Math.PI; // Detrás (Oeste)
+          // Formato: MON_<Dir><Pos>
+          // Dir: F=Este(frente), B=Oeste(detrás), L=Norte(izq), R=Sur(der)
+          // Pos: b=fondo(0.25), c=centro(0.5), t=tope/frente(0.75) — relativo a la dirección de la pantalla
+          // Ej: MON_Fb = frontal en el fondo de la mesa, MON_Rt = derecha al borde cercano
+          const suffix = monCode.startsWith('MON_') ? monCode.slice(4) : '';
+          const dir = (['F','B','L','R'].includes(suffix[0]?.toUpperCase()) ? suffix[0].toUpperCase() : 'F');
+          const posStr = suffix.slice(1); // todo lo que viene después de la letra de dirección
+          // Soporta letras b/c/t O un decimal directo ("0.85", "0.3", etc.)
+          // Offsets calibrados por orientación.
+          const posOffsets  = { b: 0.25, c: 0.50, t: 0.75 }; // F/B (por defecto)
+          const posOffsetsL = { b: 0.35, c: 0.45, t: 0.65 };
+          const posOffsetsR = { b: 0.35, c: 0.45, t: 0.65 };
+          const _offsets = dir === 'L' ? posOffsetsL : dir === 'R' ? posOffsetsR : posOffsets;
+          const _rawPo = posStr === '' ? 0.5
+            : (posStr[0] >= '0' && posStr[0] <= '9') ? (parseFloat(posStr) || 0.5)
+            : (_offsets[posStr[0]?.toLowerCase()] ?? 0.5);
+          // Clamp: evitar que el sprite clippe en la pared (nunca en el borde exacto)
+          const po = Math.max(0.001, Math.min(0.999, _rawPo));
+
+          let facingAngle = 0;
+          if (dir === 'R') facingAngle = Math.PI / 2;
+          else if (dir === 'L') facingAngle = -Math.PI / 2;
+          else if (dir === 'B') facingAngle = Math.PI;
+
+          // Offset de profundidad en el eje correcto según orientación.
+          // 't' = hacia el lado de la pantalla (cerca del espectador frontal).
+          // 'b' = hacia el lado trasero (lejos del espectador frontal).
+          let sx = x + 0.5, sy = y + 0.5;
+          if (dir === 'F') sx = x + po;
+          else if (dir === 'B') sx = x + (1 - po);
+          else if (dir === 'L') sy = y + (1 - po);
+          else if (dir === 'R') sy = y + po;
+
+          const posKey = posStr[0]?.toLowerCase() || 'c';
 
           sprites.push({
-            x: x + 0.5,
-            y: y + 0.5,
+            x: sx,
+            y: sy,
             mapX: x,
             mapY: y,
             type: 'monitor',
-            facingAngle: facingAngle,
-            z: this.tableHeightScale - 0.04 // Bajado a 0.955m
+            facingAngle,
+            monitorDir: dir,
+            monitorPos: posKey,
+            z: this.tableHeightScale - 0.04
           });
         }
 
@@ -2436,8 +2513,27 @@ class RaycasterEngine {
       const texW = monTex.width || 256;
       const texH = monTex.height || 256;
 
-      const spriteX = sprite.x - posX;
-      const spriteY = sprite.y - posY;
+      // Ajuste fino por caso (dir_pos) y variante de textura activa.
+      // dx>0=Este, dy>0=Sur. Se acumula caso a caso según pruebas.
+      // Ajuste fino por caso+variante. dy>0=Sur, dy<0=Norte, dx>0=Este, dx<0=Oeste.
+      // dy:0 = sin cambio (posición base del preset b/c/t).
+      // Se va completando caso a caso según pruebas.
+      const _variantFix = {
+        'L_b_front': { dy: 0.2 },
+        'L_b_back':  { dy: 0.2 },
+        'L_b_left':  { dy: 0.2 },
+        'L_b_right': { dy: 0.2 },
+        'R_b_front': { dy: -0.2 },
+        'R_b_back':  { dy: -0.2 },
+        'R_b_left':  { dy: -0.2 },
+        'R_b_right': { dy: -0.2 },
+      };
+      const _mDir = sprite.monitorDir || '';
+      const _mPos = sprite.monitorPos || 'c';
+      const _vf = _variantFix[`${_mDir}_${_mPos}_${activeVariant}`] || {};
+
+      const spriteX = sprite.x + (_vf.dx || 0) - posX;
+      const spriteY = sprite.y + (_vf.dy || 0) - posY;
 
       const transformX = invDet * (dirY * spriteX - dirX * spriteY);
       const transformY = invDet * (-planeY * spriteX + planeX * spriteY);
@@ -2465,13 +2561,7 @@ class RaycasterEngine {
       const drawStartY = Math.max(0, Math.floor(topY));
       const drawEndY = Math.min(h - 1, Math.floor(bottomY));
 
-      // Ajuste de eje para monitores:
-      // En vista lateral, el soporte ya está en el fondo de la mesa (+52.5px en textura de 256px = +20.5% del ancho del sprite).
-      // Para vistas frontal y trasera, desplazamos la posición horizontal para que el soporte se coloque en el punto rojo (alineado con la línea).
-      let effScreenX = spriteScreenX;
-      if (!isChar && (activeVariant === 'front' || activeVariant === 'back')) {
-        effScreenX += Math.round(spriteScreenWidth * (52.5 / 256));
-      }
+      const effScreenX = spriteScreenX;
 
       const drawStartX = Math.max(0, Math.floor(effScreenX - spriteScreenWidth / 2));
       const drawEndX = Math.min(w - 1, Math.floor(effScreenX + spriteScreenWidth / 2));
