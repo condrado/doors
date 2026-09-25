@@ -112,9 +112,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Barra de acciones inferior
   const barStance = document.getElementById('barStance');
-  const barStanceIcon = document.getElementById('barStanceIcon');
+  const barStanceImg  = document.getElementById('barStanceImg');
   const barStanceText = document.getElementById('barStanceText');
-  const barStanceChevrons = document.getElementById('barStanceChevrons');
   const barText = document.getElementById('barText');
   const barMinimapCanvas = document.getElementById('barMinimapCanvas');
   const barMinimapCtx = barMinimapCanvas ? barMinimapCanvas.getContext('2d') : null;
@@ -387,14 +386,12 @@ window.addEventListener('DOMContentLoaded', () => {
     if (barStance) {
       if (isRunning) {
         barStance.classList.add('sprinting');
-        if (barStanceIcon) barStanceIcon.className = 'ri-run-line';
-        if (barStanceText) barStanceText.textContent = 'SPRINT';
-        if (barStanceChevrons) barStanceChevrons.innerHTML = `<span class="bchv bc1 active">›</span><span class="bchv bc2 active">›</span><span class="bchv bc3 active">›</span>`;
+        if (barStanceImg)  barStanceImg.src = '/src/assets/personaje-correr.png';
+        if (barStanceText) barStanceText.textContent = 'CORRER';
       } else {
         barStance.classList.remove('sprinting');
-        if (barStanceIcon) barStanceIcon.className = 'ri-walk-line';
+        if (barStanceImg)  barStanceImg.src = '/src/assets/personaje-andar.png';
         if (barStanceText) barStanceText.textContent = 'ANDAR';
-        if (barStanceChevrons) barStanceChevrons.innerHTML = `<span class="bchv bc1 active">›</span><span class="bchv bc2">›</span><span class="bchv bc3">›</span>`;
       }
     }
   }
@@ -1839,9 +1836,14 @@ window.addEventListener('DOMContentLoaded', () => {
     l: '/src/assets/personaje-l.png',
     r: '/src/assets/personaje-r.png',
   };
+  // Tiempo que el personaje mantiene la mirada lateral antes de volver al frente (ms)
+  const FACE_SIDE_HOLD_MS = 1000;
+
   let facePrevAngle = Math.atan2(player.dirY, player.dirX);
   let faceLookOffset = 0;
   let faceCurrentVariant = 'f';
+  let faceLastTurnTime = 0;      // última vez que hubo giro activo
+  let faceLockedSide = null;     // 'l' | 'r' | null — variante bloqueada durante el hold
 
   function drawBarFace() {
     if (!barFaceImg) return;
@@ -1852,10 +1854,36 @@ window.addEventListener('DOMContentLoaded', () => {
     if (delta < -Math.PI) delta += 2 * Math.PI;
     facePrevAngle = curAngle;
 
+    const now = performance.now();
     const turnDir = delta > 0.003 ? 1 : delta < -0.003 ? -1 : 0;
+
+    // Si hay giro activo, actualizar el offset y registrar el momento
+    if (turnDir !== 0) {
+      faceLastTurnTime = now;
+    }
     faceLookOffset += (turnDir - faceLookOffset) * 0.15;
 
-    const variant = faceLookOffset > 0.35 ? 'r' : faceLookOffset < -0.35 ? 'l' : 'f';
+    // Variante natural según offset
+    const naturalVariant = faceLookOffset > 0.35 ? 'r' : faceLookOffset < -0.35 ? 'l' : 'f';
+
+    let variant;
+    if (naturalVariant !== 'f') {
+      // Girando activamente hacia un lado: mostrar y guardar el lado
+      variant = naturalVariant;
+      faceLockedSide = naturalVariant;
+    } else {
+      // El offset ha vuelto al centro — pero ¿ha pasado el delay?
+      const elapsed = now - faceLastTurnTime;
+      if (faceLockedSide && elapsed < FACE_SIDE_HOLD_MS) {
+        // Todavía dentro del período de hold: mantener el lado bloqueado
+        variant = faceLockedSide;
+      } else {
+        // Delay superado: volver al frente y limpiar el bloqueo
+        variant = 'f';
+        faceLockedSide = null;
+      }
+    }
+
     if (variant !== faceCurrentVariant) {
       faceCurrentVariant = variant;
       barFaceImg.src = FACE_IMGS[variant];

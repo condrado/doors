@@ -524,7 +524,7 @@ class RaycasterEngine {
     // - Grosor de la hoja: 0.045m (inferior a los 0.10m de la pared)
     // - Rehundido de la hoja centrado: 0.0275m
     // - Sin jamba: la puerta abarca el ancho completo del vano
-    const doorInset = 0.0275;
+    const doorInset = 0;
     const doorThick = 0.045;
 
     if (has('DN')) {
@@ -541,7 +541,7 @@ class RaycasterEngine {
       // Hoja de la puerta (rehundida, ancho completo del vano)
       faces.push(
         { axis: 'y', pos: doorB, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Norte (Frontal)', style, lintelStyle },
-        { axis: 'y', pos: doorA, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, isDoorBack: true, name: 'Hoja Puerta Norte (Trasera)', style, lintelStyle }
+        { axis: 'y', pos: doorA, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Norte (Trasera)', style, lintelStyle }
       );
 
       // Dintel superior (0.10m de grosor enrasado con las paredes)
@@ -571,7 +571,7 @@ class RaycasterEngine {
       // Hoja de la puerta (rehundida, ancho completo del vano)
       faces.push(
         { axis: 'y', pos: doorA, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Sur (Frontal)', style, lintelStyle },
-        { axis: 'y', pos: doorB, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, isDoorBack: true, name: 'Hoja Puerta Sur (Trasera)', style, lintelStyle }
+        { axis: 'y', pos: doorB, minX: x0, maxX: x1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Sur (Trasera)', style, lintelStyle }
       );
 
       // Dintel superior
@@ -601,7 +601,7 @@ class RaycasterEngine {
       // Hoja de la puerta (rehundida, alto completo del vano)
       faces.push(
         { axis: 'x', pos: doorB, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Oeste (Frontal)', style, lintelStyle },
-        { axis: 'x', pos: doorA, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, isDoorBack: true, name: 'Hoja Puerta Oeste (Trasera)', style, lintelStyle }
+        { axis: 'x', pos: doorA, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Oeste (Trasera)', style, lintelStyle }
       );
 
       // Dintel superior
@@ -631,7 +631,7 @@ class RaycasterEngine {
       // Hoja de la puerta (rehundida, alto completo del vano)
       faces.push(
         { axis: 'x', pos: doorA, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Este (Frontal)', style, lintelStyle },
-        { axis: 'x', pos: doorB, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, isDoorBack: true, name: 'Hoja Puerta Este (Trasera)', style, lintelStyle }
+        { axis: 'x', pos: doorB, minY: y0, maxY: y1, type, isCap: true, isDoorLeaf: true, name: 'Hoja Puerta Este (Trasera)', style, lintelStyle }
       );
 
       // Dintel superior
@@ -963,8 +963,8 @@ class RaycasterEngine {
       const odLeafX0 = x0;
       const odLeafX1 = x0 + doorThick;
       faces.push(
-        { axis: 'x', pos: odLeafX1, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, isCap: true, lintelStyle: lintelStyleS },
-        { axis: 'x', pos: odLeafX0, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, isCap: true, lintelStyle: lintelStyleS },
+        { axis: 'x', pos: odLeafX1, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, isCap: true, flipTex: true, lintelStyle: lintelStyleS },
+        { axis: 'x', pos: odLeafX0, minY: y0, maxY: y1, type, name, style, isOpenDoor: true, isCap: true, flipTex: true, lintelStyle: lintelStyleS },
         { axis: 'y', pos: y0, minX: odLeafX0, maxX: odLeafX1, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleS },
         { axis: 'y', pos: y1, minX: odLeafX0, maxX: odLeafX1, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleS }
       );
@@ -1025,8 +1025,8 @@ class RaycasterEngine {
       const odLeafY0 = y0;
       const odLeafY1 = y0 + doorThick;
       faces.push(
-        { axis: 'y', pos: odLeafY1, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, isCap: true, lintelStyle: lintelStyleE },
-        { axis: 'y', pos: odLeafY0, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, isCap: true, lintelStyle: lintelStyleE },
+        { axis: 'y', pos: odLeafY1, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, isCap: true, flipTex: true, lintelStyle: lintelStyleE },
+        { axis: 'y', pos: odLeafY0, minX: x0, maxX: x1, type, name, style, isOpenDoor: true, isCap: true, flipTex: true, lintelStyle: lintelStyleE },
         { axis: 'x', pos: x0, minY: odLeafY0, maxY: odLeafY1, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleE },
         { axis: 'x', pos: x1, minY: odLeafY0, maxY: odLeafY1, type: 11, isCap: true, name: 'Canto Puerta (Abierta)', isOpenDoor: true, style, lintelStyle: lintelStyleE }
       );
@@ -1911,18 +1911,11 @@ class RaycasterEngine {
       };
       // Coordenada horizontal para PUERTAS:
       // El picaporte está en el lado DERECHO de la textura (tx≈47 en 64px).
-      // Para que aparezca a la IZQUIERDA desde dentro y a la DERECHA desde fuera:
-      // DN (pos≈mY)   y DE (pos≈mX+1): flip → mueven picaporte al rango 0.25 wallX → izquierda.
-      // DS (pos≈mY+1) y DW (pos≈mX):   sin flip → wallX≈0.73 ya cae a la izquierda de pantalla.
-      // isDoorBack: la cara trasera (visible desde fuera) se espeja para que el
-      // picaporte siempre quede en el mismo lado de la hoja, mires por donde mires.
-      const doorTexXOf = (coord, side, mX, mY, segPos, texW = 64, isDoorBack = false) => {
+      // wallX=0 → lado bisagra (inicio hoja), wallX=1 → lado picaporte.
+      // flipTex=true cuando la rotación de apertura invierte el mapeo (ODS, ODE).
+      const doorTexXOf = (coord, side, mX, mY, segPos, texW = 64, flipTex = false) => {
         let tx = Math.floor(Math.max(0, Math.min(0.999, coord)) * texW);
-        let flip = side === 1
-          ? segPos < mY + 0.5   // DN (cara norte, pos ≈ mY)
-          : segPos > mX + 0.5;  // DE (cara este,  pos ≈ mX+1)
-        if (isDoorBack) flip = !flip;
-        if (flip) tx = texW - tx - 1;
+        if (flipTex) tx = texW - tx - 1;
         return tx;
       };
 
@@ -2025,7 +2018,7 @@ class RaycasterEngine {
 
           const tTex = resolveTex(tHit.seg.type, tHit.seg.style || 'cristal');
           const tTexX = tHit.isDoor
-            ? doorTexXOf(tHit.wallX, tHit.side, tHit.mapX, tHit.mapY, tHit.seg.pos, tTex.width || 64, !!tHit.seg.isDoorBack)
+            ? doorTexXOf(tHit.wallX, tHit.side, tHit.mapX, tHit.mapY, tHit.seg.pos, tTex.width || 64, !!tHit.seg.flipTex)
             : texXOf(tHit.wallX, tHit.side, tTex.width || 64);
           const tShade = shadeOf(tHit.dist, tHit.side);
 
@@ -2087,7 +2080,7 @@ class RaycasterEngine {
         if (hitBottom) {
           const bTex = resolveTex(hitBottom.seg.type, hitBottom.seg.style || 'castillo');
           const bTexX = hitBottom.isDoor
-            ? doorTexXOf(hitBottom.wallX, hitBottom.side, hitBottom.mapX, hitBottom.mapY, hitBottom.seg.pos, bTex.width || 64, !!hitBottom.seg.isDoorBack)
+            ? doorTexXOf(hitBottom.wallX, hitBottom.side, hitBottom.mapX, hitBottom.mapY, hitBottom.seg.pos, bTex.width || 64, !!hitBottom.seg.flipTex)
             : texXOf(hitBottom.wallX, hitBottom.side, bTex.width || 64);
           const bShade = shadeOf(hitBottom.dist, hitBottom.side);
 
@@ -2132,7 +2125,7 @@ class RaycasterEngine {
             const bottomYDoor = horizon + eyeHeight * projDoor;
             const doorTopYDoor = horizon - (this.doorHeightScale - eyeHeight) * projDoor;
             const odTex = resolveTex(od.seg.type, od.seg.style || 'castillo');
-            const odTexX = doorTexXOf(od.wallX, od.side, od.mapX, od.mapY, od.seg.pos, odTex.width || 64, !!od.seg.isDoorBack);
+            const odTexX = doorTexXOf(od.wallX, od.side, od.mapX, od.mapY, od.seg.pos, odTex.width || 64, !!od.seg.flipTex);
             const odShade = shadeOf(od.dist, od.side);
             blitTexBand(doorTopYDoor, bottomYDoor, odTex, odTexX, odShade, doorTopYDoor, bottomYDoor, od.dist);
           } else if (layer.kind === 'lintel') {

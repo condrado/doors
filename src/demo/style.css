@@ -998,11 +998,11 @@ kbd i {
 
 /* Imagen del personaje en la barra — sin marco, la barra es el marco */
 .bar-face-img {
-  height: 56px;
+  height: 64px;
   width: auto;
   display: block;
   flex-shrink: 0;
-  image-rendering: pixelated;
+  image-rendering: auto;
   user-select: none;
   pointer-events: none;
 }
@@ -1020,27 +1020,64 @@ kbd i {
 .bar-stance {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px;
-  padding: 6px 12px;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 0 4px;
   pointer-events: all;
   cursor: pointer;
-  transition: background 0.2s;
-  font-family: var(--font-retro);
-  font-size: 8px;
-  color: var(--text-muted);
-  letter-spacing: 0.5px;
+  transition: opacity 0.2s;
 }
-.bar-stance:hover { background: rgba(255,255,255,0.09); }
-.bar-stance.sprinting { color: var(--accent-gold); border-color: rgba(229,169,59,0.3); }
-.bar-stance i { font-size: 18px; }
+.bar-stance:hover { opacity: 0.8; }
 
-.bar-stance-chevrons { display: flex; gap: 1px; align-items: center; }
-.bchv { opacity: 0.18; font-size: 14px; transition: opacity 0.15s; }
-.bchv.active { opacity: 1; }
-.bar-stance.sprinting .bchv { color: var(--accent-gold); }
+/* Imagen del personaje andando/corriendo */
+.bar-stance-img {
+  height: 56px;
+  width: auto;
+  display: block;
+  flex-shrink: 0;
+  image-rendering: auto;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));
+  transition: filter 0.2s;
+}
+.bar-stance.sprinting .bar-stance-img {
+  filter: drop-shadow(0 2px 8px rgba(229,169,59,0.6));
+}
+
+/* Info: texto + tecla — ancho fijo para que no desplace la imagen */
+.bar-stance-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 60px;  /* fijo — aguanta tanto ANDAR como CORRER */
+  flex-shrink: 0;
+}
+.bar-stance-label {
+  font-family: var(--font-retro);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+.bar-stance.sprinting .bar-stance-label {
+  color: var(--accent-gold);
+}
+.bar-stance-key {
+  font-family: var(--font-retro);
+  font-size: 7px;
+  letter-spacing: 0.5px;
+  color: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
 
 /* Área de texto central */
 .bar-text {
