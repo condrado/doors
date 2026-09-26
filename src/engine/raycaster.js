@@ -1426,6 +1426,32 @@ class RaycasterEngine {
     return { bestOpaqueBottom: bestOpaqueWall, bestTable, bestLintel, transparentHits, openDoorHits };
   }
 
+  _ensureCeilingGrid() {
+    if (this._ceilingGrid && this._ceilingGridMapRef === this.ceilingsMap && this._ceilingGridW === this.mapWidth && this._ceilingGridH === this.mapHeight) {
+      return this._ceilingGrid;
+    }
+    const mw = this.mapWidth;
+    const mh = this.mapHeight;
+    const grid = Array.from({ length: mh }, () => new Array(mw).fill(null));
+    if (this.ceilingsMap && this.ceilingsMap.size > 0) {
+      for (const [key, style] of this.ceilingsMap.entries()) {
+        const comma = key.indexOf(',');
+        if (comma !== -1) {
+          const cx = parseInt(key.slice(0, comma), 10);
+          const cy = parseInt(key.slice(comma + 1), 10);
+          if (cy >= 0 && cy < mh && cx >= 0 && cx < mw) {
+            grid[cy][cx] = style;
+          }
+        }
+      }
+    }
+    this._ceilingGrid = grid;
+    this._ceilingGridMapRef = this.ceilingsMap;
+    this._ceilingGridW = mw;
+    this._ceilingGridH = mh;
+    return grid;
+  }
+
   /**
    * Renderiza un frame completo del mundo 3D
    */
@@ -1451,9 +1477,13 @@ class RaycasterEngine {
     const rayDirX1 = dirX + planeX;
     const rayDirY1 = dirY + planeY;
 
-    // Mapa de techo: key "x,y" → styleKey (o Set legacy convertido)
+    // Mapa de techo: acceso O(1) vía matriz 2D sin crear strings en bucle interno
     const ceilingsMap = this.ceilingsMap;
     const hasCeilings = ceilingsMap && ceilingsMap.size > 0;
+    const ceilGrid = hasCeilings ? this._ensureCeilingGrid() : null;
+    const mapW = this.mapWidth;
+    const mapH = this.mapHeight;
+
     // Cache de texturas por styleKey para no buscar en cada píxel
     const ceilTexCache = {};
     const getCeilTex = (styleKey) => {
@@ -1481,7 +1511,7 @@ class RaycasterEngine {
       const cB0 = Math.floor(22 + ceilRatio * 16);
       const bgCeilColor = (255 << 24) | (cB0 << 16) | (cG0 << 8) | cR0;
 
-      if (!hasCeilings) {
+      if (!hasCeilings || !ceilGrid) {
         // Sin techos definidos: solo degradado
         for (let x = 0; x < w; x++) pixels[ceilOffset + x] = bgCeilColor;
         continue;
@@ -1501,10 +1531,12 @@ class RaycasterEngine {
       for (let x = 0; x < w; x++, ceilFloorX += ceilStepX, ceilFloorY += ceilStepY) {
         const cellX = Math.floor(ceilFloorX);
         const cellY = Math.floor(ceilFloorY);
-        const cellKey = `${cellX},${cellY}`;
-        const styleKey = ceilingsMap.get(cellKey);
+        let styleKey = null;
+        if (cellY >= 0 && cellY < mapH && cellX >= 0 && cellX < mapW) {
+          styleKey = ceilGrid[cellY][cellX];
+        }
 
-        if (styleKey !== undefined) {
+        if (styleKey) {
           const ceilTexPx = getCeilTex(styleKey);
           if (!ceilTexPx) { pixels[ceilOffset + x] = bgCeilColor; continue; }
           const ceilTexW = ceilTexPx.width || 64;
@@ -2491,6 +2523,28 @@ class RaycasterEngine {
     for (let st = 0; st < stairsList.length; st++) {
       const stair = stairsList[st];
       const { mx, my, dir, orient, level } = stair;
+
+      // Frustum culling: descartar escaleras que queden a la espalda o completamente fuera de pantalla
+      const invDetCell = 1.0 / (planeX * dirY - dirX * planeY);
+      const corners = [ [mx, my], [mx + 1, my], [mx + 1, my + 1], [mx, my + 1] ];
+      let anyInFront = false;
+      let minCol = w;
+      let maxCol = -1;
+      for (let c = 0; c < 4; c++) {
+        const cdx = corners[c][0] - posX;
+        const cdy = corners[c][1] - posY;
+        const camY = invDetCell * (-planeY * cdx + planeX * cdy);
+        if (camY > 0.05) {
+          anyInFront = true;
+          const camX = invDetCell * (dirY * cdx - dirX * cdy);
+          const sx = Math.floor((w / 2) * (1 + camX / camY));
+          if (sx < minCol) minCol = sx;
+          if (sx > maxCol) maxCol = sx;
+        }
+      }
+      if (!anyInFront) continue;
+      if (maxCol < 0 || minCol >= w) continue;
+
       const isUp = (dir === 'UP');
 
       // Comprobar si hay celdas vecinas con escalera del mismo sentido y nivel
@@ -2790,8 +2844,38 @@ class RaycasterEngine {
     const h = this.height;
     const pixels = this.pixels;
     const invDet = 1.0 / (player.planeX * player.dirY - player.dirX * player.planeY);
+    const p1x = (axis === 'y') ? minCoord : pos;
+    const p1y = (axis === 'y') ? pos : minCoord;
+    const p2x = (axis === 'y') ? maxCoord : pos;
+    const p2y = (axis === 'y') ? pos : maxCoord;
 
-    for (let col = 0; col < w; col++) {
+    const dx1 = p1x - player.posX, dy1 = p1y - player.posY;
+    const dx2 = p2x - player.posX, dy2 = p2y - player.posY;
+
+    let camY1 = invDet * (-player.planeY * dx1 + player.planeX * dy1);
+    let camX1 = invDet * (player.dirY * dx1 - player.dirX * dy1);
+    let camY2 = invDet * (-player.planeY * dx2 + player.planeX * dy2);
+    let camX2 = invDet * (player.dirY * dx2 - player.dirX * dy2);
+
+    if (camY1 <= 0.05 && camY2 <= 0.05) return;
+
+    if (camY1 < 0.05) {
+      const t = (0.05 - camY1) / (camY2 - camY1);
+      camX1 = camX1 + t * (camX2 - camX1);
+      camY1 = 0.05;
+    } else if (camY2 < 0.05) {
+      const t = (0.05 - camY2) / (camY1 - camY2);
+      camX2 = camX2 + t * (camX1 - camX2);
+      camY2 = 0.05;
+    }
+
+    const sx1 = (w / 2) * (1 + camX1 / camY1);
+    const sx2 = (w / 2) * (1 + camX2 / camY2);
+    const startCol = Math.max(0, Math.floor(Math.min(sx1, sx2)) - 1);
+    const endCol = Math.min(w - 1, Math.ceil(Math.max(sx1, sx2)) + 1);
+    if (startCol > endCol) return;
+
+    for (let col = startCol; col <= endCol; col++) {
       const cameraX = (2 * col / w) - 1;
       const rayDirX = player.dirX + player.planeX * cameraX;
       const rayDirY = player.dirY + player.planeY * cameraX;
@@ -2863,22 +2947,36 @@ class RaycasterEngine {
     ];
     let minYScreen = Infinity;
     let maxYScreen = -Infinity;
+    let minXScreen = Infinity;
+    let maxXScreen = -Infinity;
+    let anyInFront = false;
 
+    const invDet = 1.0 / (planeX * dirY - dirX * planeY);
     for (let c = 0; c < 4; c++) {
       const dx = corners[c][0] - posX;
       const dy = corners[c][1] - posY;
-      const invDet = 1.0 / (planeX * dirY - dirX * planeY);
       const camY = invDet * (-planeY * dx + planeX * dy);
       if (camY > 0.05) {
+        anyInFront = true;
+        const camX = invDet * (dirY * dx - dirX * dy);
         const sy = horizon - (maxZ - eyeHeight) * (h / camY);
+        const sx = (w / 2) * (1 + camX / camY);
         if (sy < minYScreen) minYScreen = sy;
         if (sy > maxYScreen) maxYScreen = sy;
+        if (sx < minXScreen) minXScreen = sx;
+        if (sx > maxXScreen) maxXScreen = sx;
       }
     }
+
+    if (!anyInFront) return;
 
     const startY = Math.max(Math.ceil(horizon) + 1, Math.floor(minYScreen) - 2);
     const endY = Math.min(h - 1, Math.ceil(maxYScreen) + 2);
     if (endY < startY) return;
+
+    const startX = Math.max(0, Math.floor(minXScreen) - 3);
+    const endX = Math.min(w - 1, Math.ceil(maxXScreen) + 3);
+    if (endX < startX) return;
 
     for (let y = startY; y <= endY; y++) {
       const rowOffset = y - horizon;
@@ -2889,11 +2987,11 @@ class RaycasterEngine {
       const floorStepX = rowDist * (rayDirX1 - rayDirX0) / w;
       const floorStepY = rowDist * (rayDirY1 - rayDirY0) / w;
 
-      let floorX = posX + rowDist * rayDirX0;
-      let floorY = posY + rowDist * rayDirY0;
+      let floorX = posX + rowDist * (rayDirX0 + (rayDirX1 - rayDirX0) * (startX / w));
+      let floorY = posY + rowDist * (rayDirY0 + (rayDirY1 - rayDirY0) * (startX / w));
       const rowPixelBase = y * w;
 
-      for (let x = 0; x < w; x++, floorX += floorStepX, floorY += floorStepY) {
+      for (let x = startX; x <= endX; x++, floorX += floorStepX, floorY += floorStepY) {
         if (floorX < minX || floorX > maxX || floorY < minY || floorY > maxY) continue;
 
         const pIdx = rowPixelBase + x;
@@ -2956,7 +3054,29 @@ class RaycasterEngine {
 
     const numerBase = (Z_base - prog0) - eyeHeight;
 
-    for (let col = 0; col < w; col++) {
+    const corners = [ [minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY] ];
+    const invDet = 1.0 / (planeX * dirY - dirX * planeY);
+    let minColScreen = Infinity;
+    let maxColScreen = -Infinity;
+    let anyInFront = false;
+    for (let c = 0; c < 4; c++) {
+      const dx = corners[c][0] - posX;
+      const dy = corners[c][1] - posY;
+      const camY = invDet * (-planeY * dx + planeX * dy);
+      if (camY > 0.05) {
+        anyInFront = true;
+        const camX = invDet * (dirY * dx - dirX * dy);
+        const sx = (w / 2) * (1 + camX / camY);
+        if (sx < minColScreen) minColScreen = sx;
+        if (sx > maxColScreen) maxColScreen = sx;
+      }
+    }
+    if (!anyInFront) return;
+    const startCol = Math.max(0, Math.floor(minColScreen) - 2);
+    const endCol = Math.min(w - 1, Math.ceil(maxColScreen) + 2);
+    if (startCol > endCol) return;
+
+    for (let col = startCol; col <= endCol; col++) {
       const cameraX = (2 * col / w) - 1;
       const rayDirX = dirX + planeX * cameraX;
       const rayDirY = dirY + planeY * cameraX;
@@ -3040,7 +3160,38 @@ class RaycasterEngine {
     const len = maxCoord - minCoord;
     if (len <= 1e-6) return;
 
-    for (let col = 0; col < w; col++) {
+    const p1x = (axis === 'y') ? minCoord : pos;
+    const p1y = (axis === 'y') ? pos : minCoord;
+    const p2x = (axis === 'y') ? maxCoord : pos;
+    const p2y = (axis === 'y') ? pos : maxCoord;
+
+    const dx1 = p1x - player.posX, dy1 = p1y - player.posY;
+    const dx2 = p2x - player.posX, dy2 = p2y - player.posY;
+
+    let camY1 = invDet * (-player.planeY * dx1 + player.planeX * dy1);
+    let camX1 = invDet * (player.dirY * dx1 - player.dirX * dy1);
+    let camY2 = invDet * (-player.planeY * dx2 + player.planeX * dy2);
+    let camX2 = invDet * (player.dirY * dx2 - player.dirX * dy2);
+
+    if (camY1 <= 0.05 && camY2 <= 0.05) return;
+
+    if (camY1 < 0.05) {
+      const t = (0.05 - camY1) / (camY2 - camY1);
+      camX1 = camX1 + t * (camX2 - camX1);
+      camY1 = 0.05;
+    } else if (camY2 < 0.05) {
+      const t = (0.05 - camY2) / (camY1 - camY2);
+      camX2 = camX2 + t * (camX1 - camX2);
+      camY2 = 0.05;
+    }
+
+    const sx1 = (w / 2) * (1 + camX1 / camY1);
+    const sx2 = (w / 2) * (1 + camX2 / camY2);
+    const startCol = Math.max(0, Math.floor(Math.min(sx1, sx2)) - 1);
+    const endCol = Math.min(w - 1, Math.ceil(Math.max(sx1, sx2)) + 1);
+    if (startCol > endCol) return;
+
+    for (let col = startCol; col <= endCol; col++) {
       const cameraX = (2 * col / w) - 1;
       const rayDirX = player.dirX + player.planeX * cameraX;
       const rayDirY = player.dirY + player.planeY * cameraX;

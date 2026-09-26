@@ -398,6 +398,70 @@ body {
   color: #2ecc71;
 }
 
+/* Indicador de FPS en tiempo real */
+.hud-fps-pill {
+  background: rgba(15, 20, 32, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(79, 163, 227, 0.25);
+  color: #8d98af;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+}
+
+.hud-fps-pill i {
+  font-size: 0.95rem;
+  color: var(--accent-cyan);
+}
+
+.hud-fps-pill .fps-val {
+  font-family: var(--font-title);
+  font-size: 0.72rem;
+  color: #2ed573;
+  min-width: 18px;
+  text-align: right;
+  transition: color 0.2s ease;
+}
+
+.hud-fps-pill .fps-unit {
+  font-size: 0.68rem;
+  color: #63708a;
+  margin-right: 2px;
+}
+
+.hud-fps-pill .fps-ms {
+  font-size: 0.72rem;
+  color: #8d98af;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  padding-left: 6px;
+  width: 60px;
+  display: inline-block;
+  text-align: right;
+  box-sizing: border-box;
+}
+
+.hud-fps-pill.fps-good .fps-val {
+  color: #2ed573;
+}
+
+.hud-fps-pill.fps-warn .fps-val {
+  color: #ffa502;
+}
+
+.hud-fps-pill.fps-bad .fps-val {
+  color: #ff4757;
+}
+
 .hud-action-btn.panel-toggle-active {
   background: rgba(229, 169, 59, 0.18);
   border-color: var(--accent-gold);

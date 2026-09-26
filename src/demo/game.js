@@ -109,6 +109,9 @@ window.addEventListener('DOMContentLoaded', () => {
   const levelNameText = document.getElementById('levelNameText');
   const promptHud = document.getElementById('promptHud');
   const renderQualitySelect = document.getElementById('renderQualitySelect');
+  const hudFpsPill = document.getElementById('hudFpsPill');
+  const fpsVal = document.getElementById('fpsVal');
+  const fpsMs = document.getElementById('fpsMs');
 
   // Barra de acciones inferior
   const barStance = document.getElementById('barStance');
@@ -1178,19 +1181,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     drawChibiArm(offCtx, true, rootRX, rootRY, handRX, handRY, reachT, armScaleR);
 
-    // 4. Umbral de alfa para que los contornos tengan píxeles 100% nítidos sin bordes borrosos
-    const imgData = offCtx.getImageData(0, 0, lowW, lowH);
-    const d = imgData.data;
-    for (let i = 3; i < d.length; i += 4) {
-      if (d[i] > 60) {
-        d[i] = 255;
-      } else {
-        d[i] = 0;
-      }
-    }
-    offCtx.putImageData(imgData, 0, 0);
-
-    // 5. Dibujar en el canvas principal con interpolación desactivada (nearest-neighbor = píxeles duros retro)
+    // 4. Dibujar en el canvas principal con interpolación desactivada (nearest-neighbor = píxeles duros retro)
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     if ('mozImageSmoothingEnabled' in ctx) ctx.mozImageSmoothingEnabled = false;
@@ -1775,8 +1766,137 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
-   * Desplaza al jugador aplicando subdivisión de pasos (sub-stepping) y deslizamiento (wall/body sliding).
-   * Garantiza que, incluso corriendo a máxima velocidad con Shift, jamás se atraviese una mesa o pared.
+   * Resuelve colisiones circulares empujando suavemente al jugador hacia afuera de paredes, mesas y obstáculos.
+   * Permite un deslizamiento continuo y fluido (Wall Sliding real) sin bloquear el movimiento lateral.
+   */
+  function resolvePosition(px, py, radius = PLAYER_RADIUS) {
+    let curX = px;
+    let curY = py;
+
+    for (let iter = 0; iter < 3; iter++) {
+      let maxPen = 0;
+
+      // 1. Límites del mapa
+      if (curX - radius < 0) {
+        maxPen = Math.max(maxPen, radius - curX);
+        curX = radius;
+      }
+      if (curX + radius > engine.mapWidth) {
+        maxPen = Math.max(maxPen, (curX + radius) - engine.mapWidth);
+        curX = engine.mapWidth - radius;
+      }
+      if (curY - radius < 0) {
+        maxPen = Math.max(maxPen, radius - curY);
+        curY = radius;
+      }
+      if (curY + radius > engine.mapHeight) {
+        maxPen = Math.max(maxPen, (curY + radius) - engine.mapHeight);
+        curY = engine.mapHeight - radius;
+      }
+
+      const minCX = Math.max(0, Math.floor(curX - radius));
+      const maxCX = Math.min(engine.mapWidth - 1, Math.floor(curX + radius));
+      const minCY = Math.max(0, Math.floor(curY - radius));
+      const maxCY = Math.min(engine.mapHeight - 1, Math.floor(curY + radius));
+
+      for (let cy = minCY; cy <= maxCY; cy++) {
+        for (let cx = minCX; cx <= maxCX; cx++) {
+          // Bloques sólidos y mesas completas
+          if (isCellTable(cx, cy) || isCellSolidBlock(cx, cy)) {
+            const clX = Math.max(cx, Math.min(curX, cx + 1.0));
+            const clY = Math.max(cy, Math.min(curY, cy + 1.0));
+            const dx = curX - clX;
+            const dy = curY - clY;
+            const dist = Math.hypot(dx, dy);
+            if (dist < radius) {
+              const pen = radius - dist;
+              maxPen = Math.max(maxPen, pen);
+              if (dist > 1e-5) {
+                curX += (dx / dist) * pen;
+                curY += (dy / dist) * pen;
+              } else {
+                curX += pen;
+              }
+            }
+            continue;
+          }
+
+          const segments = engine.getCellSegments(cx, cy);
+          if (!segments || segments.length === 0) continue;
+
+          for (let s = 0; s < segments.length; s++) {
+            const seg = segments[s];
+            if (seg.isLintelOnly || seg.isOpenDoor) continue;
+
+            if (seg.isTable) {
+              const clX = Math.max(cx, Math.min(curX, cx + 1.0));
+              const clY = Math.max(cy, Math.min(curY, cy + 1.0));
+              const dx = curX - clX;
+              const dy = curY - clY;
+              const dist = Math.hypot(dx, dy);
+              if (dist < radius) {
+                const pen = radius - dist;
+                maxPen = Math.max(maxPen, pen);
+                if (dist > 1e-5) {
+                  curX += (dx / dist) * pen;
+                  curY += (dy / dist) * pen;
+                } else {
+                  curX += pen;
+                }
+              }
+              continue;
+            }
+
+            if (seg.axis === 'y') {
+              const minX = seg.minX !== undefined ? seg.minX : cx;
+              const maxX = seg.maxX !== undefined ? seg.maxX : (cx + 1.0);
+              const clX = Math.max(minX, Math.min(curX, maxX));
+              const clY = seg.pos;
+              const dx = curX - clX;
+              const dy = curY - clY;
+              const dist = Math.hypot(dx, dy);
+              if (dist < radius) {
+                const pen = radius - dist;
+                maxPen = Math.max(maxPen, pen);
+                if (dist > 1e-5) {
+                  curX += (dx / dist) * pen;
+                  curY += (dy / dist) * pen;
+                } else {
+                  curY += (dy >= 0 ? pen : -pen);
+                }
+              }
+            } else if (seg.axis === 'x') {
+              const minY = seg.minY !== undefined ? seg.minY : cy;
+              const maxY = seg.maxY !== undefined ? seg.maxY : (cy + 1.0);
+              const clX = seg.pos;
+              const clY = Math.max(minY, Math.min(curY, maxY));
+              const dx = curX - clX;
+              const dy = curY - clY;
+              const dist = Math.hypot(dx, dy);
+              if (dist < radius) {
+                const pen = radius - dist;
+                maxPen = Math.max(maxPen, pen);
+                if (dist > 1e-5) {
+                  curX += (dx / dist) * pen;
+                  curY += (dy / dist) * pen;
+                } else {
+                  curX += (dx >= 0 ? pen : -pen);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (maxPen < 1e-4) break;
+    }
+
+    return { x: curX, y: curY };
+  }
+
+  /**
+   * Desplaza al jugador aplicando subdivisión de pasos (sub-stepping) y deslizamiento continuo (wall/body sliding).
+   * Garantiza que, incluso corriendo a máxima velocidad con Shift, jamás se atraviese una pared ni se atasque al rozarla.
    */
   function stepPlayer(dx, dy) {
     const totalDist = Math.hypot(dx, dy);
@@ -1788,34 +1908,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const stepY = dy / numSteps;
 
     for (let i = 0; i < numSteps; i++) {
-      // 1. Intentar avance en eje X (permite deslizamiento si Y está bloqueado)
-      if (stepX !== 0) {
-        const nextX = player.posX + stepX;
-        const penNext = getPenetration(nextX, player.posY, PLAYER_RADIUS);
-        if (penNext <= 0) {
-          player.posX = nextX;
-        } else {
-          // Si ya estábamos en penetración, permitir salir si la reduce
-          const penCurr = getPenetration(player.posX, player.posY, PLAYER_RADIUS);
-          if (penCurr > 0 && penNext < penCurr - 1e-5) {
-            player.posX = nextX;
-          }
-        }
-      }
-
-      // 2. Intentar avance en eje Y (permite deslizamiento si X está bloqueado)
-      if (stepY !== 0) {
-        const nextY = player.posY + stepY;
-        const penNext = getPenetration(player.posX, nextY, PLAYER_RADIUS);
-        if (penNext <= 0) {
-          player.posY = nextY;
-        } else {
-          const penCurr = getPenetration(player.posX, player.posY, PLAYER_RADIUS);
-          if (penCurr > 0 && penNext < penCurr - 1e-5) {
-            player.posY = nextY;
-          }
-        }
-      }
+      const nextPos = resolvePosition(player.posX + stepX, player.posY + stepY, PLAYER_RADIUS);
+      player.posX = nextPos.x;
+      player.posY = nextPos.y;
     }
   }
 
@@ -2010,11 +2105,51 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  const TARGET_FPS = 60;
+  const FRAME_INTERVAL = 1000 / TARGET_FPS; // 16.666 ms
   let lastTime = performance.now();
+  let fpsFrameCount = 0;
+  let fpsLastSampleTime = performance.now();
+  let fpsFrameTimeSum = 0;
 
   function gameLoop(currentTime) {
-    const dt = Math.min((currentTime - lastTime) / 1000, 0.1); // delta time en segundos
-    lastTime = currentTime;
+    requestAnimationFrame(gameLoop);
+
+    const elapsed = currentTime - lastTime;
+    // Forzar límite estricto de 60 FPS: si el monitor tiene mayor tasa (75Hz, 120Hz, 144Hz), omitir ticks adicionales
+    if (elapsed < FRAME_INTERVAL - 1.0) {
+      return;
+    }
+
+    const dt = Math.min(elapsed / 1000, 0.1); // delta time en segundos
+    lastTime = currentTime - (elapsed % FRAME_INTERVAL);
+
+    // Medición de rendimiento FPS y tiempo de fotograma (muestra cada 250ms)
+    fpsFrameCount++;
+    fpsFrameTimeSum += elapsed;
+    if (currentTime - fpsLastSampleTime >= 250) {
+      const sampleElapsed = currentTime - fpsLastSampleTime;
+      const currentFps = Math.min(60, Math.round((fpsFrameCount * 1000) / sampleElapsed));
+      const avgMs = (fpsFrameTimeSum / fpsFrameCount).toFixed(1);
+
+      if (fpsVal) fpsVal.textContent = currentFps;
+      if (fpsMs) fpsMs.textContent = `${avgMs}ms`;
+
+      if (hudFpsPill) {
+        hudFpsPill.classList.remove('fps-good', 'fps-warn', 'fps-bad');
+        if (currentFps >= 55) {
+          hudFpsPill.classList.add('fps-good');
+        } else if (currentFps >= 35) {
+          hudFpsPill.classList.add('fps-warn');
+        } else {
+          hudFpsPill.classList.add('fps-bad');
+        }
+      }
+
+      fpsFrameCount = 0;
+      fpsFrameTimeSum = 0;
+      fpsLastSampleTime = currentTime;
+    }
 
     const speedMult = isRunning ? 1.8 : 1.0;
     const moveStep = player.moveSpeedBase * speedMult * dt;
@@ -2098,8 +2233,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Cara del personaje en barra inferior
     drawBarFace();
-
-    requestAnimationFrame(gameLoop);
   }
 
   // Iniciar bucle
