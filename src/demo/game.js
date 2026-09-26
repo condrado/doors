@@ -83,6 +83,8 @@ window.addEventListener('DOMContentLoaded', () => {
     // Velocidades
     rotSpeedBase: 2.2, // radianes por segundo (para giros con botones táctiles)
     moveSpeedBase: 3.0, // bloques por segundo (avance, retroceso y strafe)
+    velX: 0, // velocidad real actual X (bloques/segundo con inercia suave)
+    velY: 0, // velocidad real actual Y (bloques/segundo con inercia suave)
     // Pitch: desplazamiento vertical del horizonte en píxeles (0 = horizontal)
     pitchOffset: 0
   };
@@ -1292,6 +1294,9 @@ window.addEventListener('DOMContentLoaded', () => {
         spawnY = player.posY;
       }
 
+      player.velX = 0;
+      player.velY = 0;
+
       showDoorFeedback(`Has entrado en: ${targetMap.name || targetMapId}`, '#9b59b6');
 
       setTimeout(() => {
@@ -1641,13 +1646,22 @@ window.addEventListener('DOMContentLoaded', () => {
   // MATEMÁTICAS DE ROTACIÓN Y MOVIMIENTO
   // ==========================================
   function rotatePlayer(angle) {
-    const oldDirX = player.dirX;
-    player.dirX = player.dirX * Math.cos(angle) - player.dirY * Math.sin(angle);
-    player.dirY = oldDirX * Math.sin(angle) + player.dirY * Math.cos(angle);
+    const cosA = Math.cos(angle);
+    const sinA = Math.sin(angle);
 
-    const oldPlaneX = player.planeX;
-    player.planeX = player.planeX * Math.cos(angle) - player.planeY * Math.sin(angle);
-    player.planeY = oldPlaneX * Math.sin(angle) + player.planeY * Math.cos(angle);
+    const oldDirX = player.dirX;
+    const newDirX = player.dirX * cosA - player.dirY * sinA;
+    const newDirY = oldDirX * sinA + player.dirY * cosA;
+
+    // Re-normalizar vector de mirada a longitud unitaria exacta (evita deformación de cámara)
+    const dirLen = Math.hypot(newDirX, newDirY) || 1.0;
+    player.dirX = newDirX / dirLen;
+    player.dirY = newDirY / dirLen;
+
+    // Mantener plano de cámara rigurosamente ortogonal con su escala de FOV
+    const planeLen = Math.hypot(player.planeX, player.planeY) || 0.66;
+    player.planeX = -player.dirY * planeLen;
+    player.planeY = player.dirX * planeLen;
   }
 
   // ==========================================
@@ -2151,21 +2165,60 @@ window.addEventListener('DOMContentLoaded', () => {
       fpsLastSampleTime = currentTime;
     }
 
-    const speedMult = isRunning ? 1.8 : 1.0;
-    const moveStep = player.moveSpeedBase * speedMult * dt;
+    // Cálculo de movimiento fluido con aceleración, inercia y normalización diagonal
+    let wishX = 0;
+    let wishY = 0;
 
     if (!isMenuOpen) {
-      // Desplazamiento lateral (A / D)
-      if (keys.strafeLeft)  strafePlayer(-moveStep);
-      if (keys.strafeRight) strafePlayer(moveStep);
-      // Avanzar (W / ▲)
-      if (keys.moveForward)  movePlayer(moveStep);
-      // Retroceder (S / ▼)
-      if (keys.moveBackward) movePlayer(-moveStep);
+      if (keys.moveForward) {
+        wishX += player.dirX;
+        wishY += player.dirY;
+      }
+      if (keys.moveBackward) {
+        wishX -= player.dirX;
+        wishY -= player.dirY;
+      }
+      if (keys.strafeLeft) {
+        wishX += player.dirY;
+        wishY -= player.dirX;
+      }
+      if (keys.strafeRight) {
+        wishX -= player.dirY;
+        wishY += player.dirX;
+      }
     }
 
-    // Estado del sistema de brazos según movimiento
-    const isMoving = !!(keys.strafeLeft || keys.strafeRight || keys.moveForward || keys.moveBackward);
+    const wishLen = Math.hypot(wishX, wishY);
+    let targetVelX = 0;
+    let targetVelY = 0;
+
+    if (wishLen > 1e-5) {
+      const speedMult = isRunning ? 1.8 : 1.0;
+      const targetSpeed = player.moveSpeedBase * speedMult;
+      targetVelX = (wishX / wishLen) * targetSpeed;
+      targetVelY = (wishY / wishLen) * targetSpeed;
+    }
+
+    // Amortiguación progresiva (aceleración reactiva de ~70ms y frenada suave de ~80ms)
+    const accelRate = (wishLen > 1e-5) ? 14.0 : 12.0;
+    const lerpFactor = Math.min(1.0, dt * accelRate);
+    player.velX = (player.velX || 0) + (targetVelX - (player.velX || 0)) * lerpFactor;
+    player.velY = (player.velY || 0) + (targetVelY - (player.velY || 0)) * lerpFactor;
+
+    if (Math.hypot(player.velX, player.velY) < 1e-4) {
+      player.velX = 0;
+      player.velY = 0;
+    }
+
+    const moveDX = player.velX * dt;
+    const moveDY = player.velY * dt;
+    if (Math.hypot(moveDX, moveDY) > 1e-7) {
+      stepPlayer(moveDX, moveDY);
+    }
+
+    // Estado del sistema de brazos según velocidad real
+    const currentSpeed = Math.hypot(player.velX, player.velY);
+    const isMoving = currentSpeed > 0.15;
     armState.isMoving = isMoving;
     armState.isRunning = isRunning;
 
