@@ -672,8 +672,86 @@ function createCapFromWallImage(wallDataUrl, w = 64, h = 192) {
   return toPixels(ctx, w, h);
 }
 
+// ============================================================
+// TECHOS (textura cuadrada 64×64 px para floor-casting)
+// ============================================================
+
+/** Techo blanco: losa lisa con juntas sutiles */
+function createWhiteCeilingPixels(w = 64, h = 64) {
+  const ctx = createCanvasCtx(w, h);
+  if (!ctx) return toPixels(null, w, h);
+  ctx.fillStyle = '#e8eaed';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.10)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= w; x += 32) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+  for (let y = 0; y <= h; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+  addNoise(ctx, w, h, 5);
+  return toPixels(ctx, w, h);
+}
+
+/** Techo piedra: mismas losas que la pared castillo pero en plano */
+function createStoneCeilingPixels(w = 64, h = 64) {
+  const ctx = createCanvasCtx(w, h);
+  if (!ctx) return toPixels(null, w, h);
+  ctx.fillStyle = '#484b54';
+  ctx.fillRect(0, 0, w, h);
+  const brickW = 32, brickH = 16;
+  for (let row = 0; row < Math.ceil(h / brickH); row++) {
+    const oy = row * brickH;
+    const ox = (row % 2 === 0) ? 0 : brickW / 2;
+    for (let col = -1; col < Math.ceil(w / brickW) + 1; col++) {
+      const bx = col * brickW + ox;
+      const shade = 65 + Math.floor(Math.random() * 18);
+      ctx.fillStyle = `rgb(${shade},${shade+2},${shade+8})`;
+      ctx.fillRect(bx + 1, oy + 1, brickW - 2, brickH - 2);
+    }
+    ctx.fillStyle = '#26282e';
+    ctx.fillRect(0, oy, w, 1);
+  }
+  addNoise(ctx, w, h, 18);
+  return toPixels(ctx, w, h);
+}
+
+function createLightCeilingPixels(w = 64, h = 64) {
+  const ctx = createCanvasCtx(w, h);
+  if (!ctx) return toPixels(null, w, h);
+  // Base blanca con ligero tono cálido
+  ctx.fillStyle = '#e8e4d8';
+  ctx.fillRect(0, 0, w, h);
+  // Halo de luz central
+  const cx = w / 2, cy = h / 2;
+  const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, w * 0.48);
+  grad.addColorStop(0, 'rgba(255, 250, 200, 1)');
+  grad.addColorStop(0.35, 'rgba(255, 245, 180, 0.7)');
+  grad.addColorStop(1, 'rgba(200, 195, 170, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  // Carcasa de la lámpara (rectángulo central)
+  const lw = w * 0.38, lh = h * 0.22;
+  const lx = cx - lw / 2, ly = cy - lh / 2;
+  ctx.fillStyle = '#c8c0a0';
+  ctx.fillRect(lx, ly, lw, lh);
+  ctx.strokeStyle = '#a09070';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(lx, ly, lw, lh);
+  // Cristal interior brillante
+  ctx.fillStyle = 'rgba(255, 255, 210, 0.95)';
+  ctx.fillRect(lx + 3, ly + 3, lw - 6, lh - 6);
+  // Cable fino hacia el techo
+  ctx.strokeStyle = '#888070';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cx, 0);
+  ctx.lineTo(cx, ly);
+  ctx.stroke();
+  addNoise(ctx, w, h, 8);
+  return toPixels(ctx, w, h);
+}
+
 const WALL_STYLES = {};
 const DOOR_STYLES = {};
+const CEILING_STYLES = {};
 
 // Mapeo de generadores procedurales de respaldo (para visualización offline o generadores matemáticos)
 const PROCEDURAL_GENERATORS = {
@@ -688,8 +766,18 @@ const PROCEDURAL_GENERATORS = {
     blanca: { door: createWhiteDoorPixels, cap: createWhiteCapPixels },
     negra: { door: createBlackDoorPixels, cap: createBlackCapPixels },
     cristal: { door: createCrystalDoorPixels, cap: createCrystalCapPixels }
+  },
+  ceilings: {
+    blanca: { ceiling: createWhiteCeilingPixels },
+    castillo: { ceiling: createStoneCeilingPixels },
+    luz: { ceiling: createLightCeilingPixels }
   }
 };
+
+// Inicializar estilos de techo procedurales por defecto
+CEILING_STYLES['blanca'] = { label: 'Blanca', pixels: createWhiteCeilingPixels(), gen: createWhiteCeilingPixels };
+CEILING_STYLES['castillo'] = { label: 'Castillo', pixels: createStoneCeilingPixels(), gen: createStoneCeilingPixels };
+CEILING_STYLES['luz'] = { label: 'Con luz', pixels: createLightCeilingPixels(), gen: createLightCeilingPixels };
 
 /**
  * Carga e inicializa WALL_STYLES y DOOR_STYLES a partir de un objeto manifest (e.g. textures.json)
@@ -1232,6 +1320,10 @@ if (typeof Image !== 'undefined') {
 if (typeof window !== 'undefined') {
   window.WALL_STYLES = WALL_STYLES;
   window.DOOR_STYLES = DOOR_STYLES;
+  window.CEILING_STYLES = CEILING_STYLES;
+  window.createWhiteCeilingPixels = createWhiteCeilingPixels;
+  window.createStoneCeilingPixels = createStoneCeilingPixels;
+  window.createLightCeilingPixels = createLightCeilingPixels;
   window.loadStylesFromManifest = loadStylesFromManifest;
   window.registerWallStyle = registerWallStyle;
   window.registerDoorStyle = registerDoorStyle;

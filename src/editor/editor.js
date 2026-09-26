@@ -78,6 +78,12 @@ class LevelEditor {
     // Estilo por segmento: { "x,y": { N: 'blanca', DW: 'negra', ... } }
     this.wallStyleMap = {};
 
+    // Techos: conjunto de celdas con techo pintado  { "x,y" }
+    this.ceilings = new Map(); // key "x,y" → styleKey
+    this.ceilStyle = 'blanca';
+    this.ceilPaintMode = 'paint'; // 'paint' | 'erase' según Alt
+    this.ceilRectStart = null;    // inicio del arrastre rectangular
+
     // Herramientas y selección
     this.currentTool = 'brush'; // 'brush', 'room', 'eraser'
     this.selectedTile = 1; // 1 = pared, 0 = suelo, 'accessories' = accesorios, 'character' = personaje, 'player' = spawn
@@ -200,6 +206,8 @@ class LevelEditor {
           }
           this.customTextures = (data.customTextures && typeof data.customTextures === 'object') ? data.customTextures : {};
           this.wallStyleMap = (data.wallStyleMap && typeof data.wallStyleMap === 'object') ? data.wallStyleMap : {};
+          this.ceilings = new Map((Array.isArray(data.ceilings) ? data.ceilings : []).map(([x, y, s]) => [`${x},${y}`, s || 'blanca']));
+          this.ceilStyle = data.ceilStyle || 'blanca';
           // El pincel activo se recuerda tal cual quedó (último estilo usado), no afecta a lo ya colocado
           this.wallStyle = (data.activeWallStyle && WALL_STYLES[data.activeWallStyle]) ? data.activeWallStyle : 'castillo';
           this.doorStyle = (data.activeDoorStyle && DOOR_STYLES[data.activeDoorStyle]) ? data.activeDoorStyle : 'castillo';
@@ -435,7 +443,7 @@ class LevelEditor {
         document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
         e.target.closest('.palette-item').classList.add('active');
         const val = e.target.value;
-        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'character' || val === 'door' || val === 'window' || val === 'table') ? val : parseInt(val, 10);
+        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'character' || val === 'door' || val === 'window' || val === 'table' || val === 'ceiling') ? val : parseInt(val, 10);
         this.updateToolPanelsVisibility();
         this.render();
         this.saveUIState();
@@ -857,6 +865,11 @@ class LevelEditor {
 
     if (this.currentTool === 'room') {
       this.roomStart = cell;
+    } else if (this.selectedTile === 'ceiling' && this.currentTool !== 'eraser' && this.currentTool !== 'select') {
+      this.ceilPaintMode = e.altKey ? 'erase' : 'paint';
+      this.ceilRectStart = { x: cell.x, y: cell.y };
+      this.render();
+      return;
     } else if (this.currentTool === 'select') {
       this.selectStart = { x: cell.x, y: cell.y };
       this.preDragSelectedCells = Array.isArray(this.selectedCells) ? [...this.selectedCells] : [];
@@ -1027,6 +1040,8 @@ class LevelEditor {
           this.selectedCells = boxCells;
         }
         this.updateInspectorUI();
+      } else if (this.isMouseDown && this.selectedTile === 'ceiling' && this.ceilRectStart && this.currentTool !== 'eraser' && this.currentTool !== 'select') {
+        // Solo actualizar hover para preview del rectángulo
       } else if (this.isMouseDown && this.currentTool !== 'room' && this.currentTool !== 'select') {
         this.applyToolAt(cell.x, cell.y);
       }
@@ -1043,6 +1058,24 @@ class LevelEditor {
     if (this.currentTool === 'select') {
       this.selectStart = null;
       this.preDragSelectedCells = null;
+    }
+
+    if (this.selectedTile === 'ceiling' && this.ceilRectStart && this.currentTool !== 'eraser' && this.currentTool !== 'select') {
+      const cell = this.getCellFromEvent(e) || this.hoverCell;
+      const end = (cell && cell.x >= 0) ? cell : this.ceilRectStart;
+      const x1 = Math.min(this.ceilRectStart.x, end.x);
+      const x2 = Math.max(this.ceilRectStart.x, end.x);
+      const y1 = Math.min(this.ceilRectStart.y, end.y);
+      const y2 = Math.max(this.ceilRectStart.y, end.y);
+      for (let py = y1; py <= y2; py++) {
+        for (let px = x1; px <= x2; px++) {
+          this.applyCeilingAt(px, py);
+        }
+      }
+      this.ceilRectStart = null;
+      this.render();
+      this.updateJSON();
+      return;
     }
 
     if (this.currentTool === 'room' && this.roomStart) {
@@ -1096,6 +1129,17 @@ class LevelEditor {
       ['DN', 'DS', 'DE', 'DW'].forEach(d => delete this.doorLinks[`${x},${y},${d}`]);
       delete this.doorLinks[`${x},${y}`];
     }
+  }
+
+  applyCeilingAt(x, y) {
+    if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) return;
+    const key = `${x},${y}`;
+    if (this.ceilPaintMode === 'erase') {
+      this.ceilings.delete(key);
+    } else {
+      this.ceilings.set(key, this.ceilStyle);
+    }
+    this.updateJSON();
   }
 
   applyToolAt(x, y) {
@@ -2181,7 +2225,30 @@ class LevelEditor {
       ctx.lineWidth = 1;
       ctx.strokeRect(hpx, hpy, cs, cs);
 
-      if (this.currentTool === 'brush') {
+      if (this.currentTool === 'brush' && this.selectedTile === 'ceiling') {
+        // Previsualización de techo: contorno de celda completa (igual que herramienta habitación)
+        const isPainting = this.isMouseDown && this.ceilRectStart;
+        if (isPainting) {
+          const x1 = Math.min(this.ceilRectStart.x, this.hoverCell.x);
+          const x2 = Math.max(this.ceilRectStart.x, this.hoverCell.x);
+          const y1 = Math.min(this.ceilRectStart.y, this.hoverCell.y);
+          const y2 = Math.max(this.ceilRectStart.y, this.hoverCell.y);
+          const erasing = this.ceilPaintMode === 'erase';
+          ctx.fillStyle = erasing ? 'rgba(231, 76, 60, 0.15)' : 'rgba(200, 210, 230, 0.25)';
+          ctx.fillRect(x1 * cs, y1 * cs, (x2 - x1 + 1) * cs, (y2 - y1 + 1) * cs);
+          ctx.strokeStyle = erasing ? 'rgba(231, 76, 60, 0.7)' : 'rgba(160, 175, 205, 0.9)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          ctx.strokeRect(x1 * cs, y1 * cs, (x2 - x1 + 1) * cs, (y2 - y1 + 1) * cs);
+          ctx.setLineDash([]);
+        } else {
+          ctx.fillStyle = 'rgba(200, 210, 230, 0.2)';
+          ctx.fillRect(hpx, hpy, cs, cs);
+          ctx.strokeStyle = 'rgba(160, 175, 205, 0.85)';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(hpx + 1, hpy + 1, cs - 2, cs - 2);
+        }
+      } else if (this.currentTool === 'brush') {
         if (this.selectedTile === 'player') {
           // Previsualización interactiva del jugador con su orientación según la posición del cursor en la celda
           const hoverAngle = (typeof this.lastLocalX === 'number' && typeof this.lastLocalY === 'number')
@@ -2392,6 +2459,30 @@ class LevelEditor {
       }
     }
 
+    // Overlay de celdas con techo pintado (solo visible en modo techo)
+    const isCeilMode = this.selectedTile === 'ceiling';
+    if (isCeilMode && this.ceilings && this.ceilings.size > 0) {
+      ctx.save();
+
+      // Celdas ya pintadas (color de fondo y borde iguales para todos, icono diferenciado por estilo)
+      const styleColors = { luz: 'rgba(255, 240, 160, 0.55)', castillo: 'rgba(180, 175, 165, 0.55)' };
+      ctx.lineWidth = 1;
+      ctx.font = `${Math.max(10, Math.floor(cs * 0.45))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      this.ceilings.forEach((styleKey, key) => {
+        const [cx, cy] = key.split(',').map(Number);
+        ctx.fillStyle = styleColors[styleKey] || 'rgba(200, 210, 230, 0.55)';
+        ctx.fillRect(cx * cs, cy * cs, cs, cs);
+        ctx.strokeStyle = 'rgba(160, 175, 205, 0.80)';
+        ctx.strokeRect(cx * cs + 0.5, cy * cs + 0.5, cs - 1, cs - 1);
+        ctx.fillStyle = 'rgba(180, 190, 215, 0.90)';
+        ctx.fillText(styleKey === 'luz' ? '💡' : '▤', cx * cs + cs / 2, cy * cs + cs / 2);
+      });
+
+      ctx.restore();
+    }
+
     // Dibujar resaltado de las celdas seleccionadas actualmente
     if (Array.isArray(this.selectedCells) && this.selectedCells.length > 0) {
       ctx.save();
@@ -2553,6 +2644,9 @@ class LevelEditor {
     if (this.doorLinks && Object.keys(this.doorLinks).length > 0) {
       level.doorLinks = this.doorLinks;
     }
+    if (this.ceilings && this.ceilings.size > 0) {
+      level.ceilings = Array.from(this.ceilings.entries()).map(([k, s]) => [...k.split(',').map(Number), s]);
+    }
     // Texturas personalizadas definidas en el proyecto para esta sala / juego
     if (this.currentProject && this.currentProject.customStyles) {
       const hasWalls = Object.keys(this.currentProject.customStyles.walls || {}).length > 0;
@@ -2611,6 +2705,7 @@ class LevelEditor {
     const sectionCellInspector = document.getElementById('sectionCellInspector');
     const monitorOrientPanel = document.getElementById('monitorOrientationPanel');
     const sectionCharacterPlacement = document.getElementById('sectionCharacterPlacement');
+    const sectionCeilingPlacement = document.getElementById('sectionCeilingPlacement');
 
     if (this.currentTool === 'eraser') {
       if (sectionElementPalette) sectionElementPalette.style.display = 'none';
@@ -2618,16 +2713,21 @@ class LevelEditor {
       if (sectionAccessoryPlacement) sectionAccessoryPlacement.style.display = 'none';
       if (sectionMesaPlacement) sectionMesaPlacement.style.display = 'none';
       if (sectionCharacterPlacement) sectionCharacterPlacement.style.display = 'none';
+      if (sectionCeilingPlacement) sectionCeilingPlacement.style.display = 'none';
       if (sectionEraserInfo) sectionEraserInfo.style.display = '';
       if (sectionCellInspector) sectionCellInspector.style.display = 'none';
       if (monitorOrientPanel) monitorOrientPanel.style.display = 'none';
+      this.canvas.style.opacity = '';
+      this.canvas.style.cursor = '';
     } else if (this.currentTool === 'select') {
       if (sectionElementPalette) sectionElementPalette.style.display = 'none';
       if (sectionWallPlacement) sectionWallPlacement.style.display = 'none';
       if (sectionAccessoryPlacement) sectionAccessoryPlacement.style.display = 'none';
       if (sectionMesaPlacement) sectionMesaPlacement.style.display = 'none';
       if (sectionCharacterPlacement) sectionCharacterPlacement.style.display = 'none';
+      if (sectionCeilingPlacement) sectionCeilingPlacement.style.display = 'none';
       if (sectionEraserInfo) sectionEraserInfo.style.display = 'none';
+      this.canvas.style.opacity = '';
       if (sectionCellInspector) {
         sectionCellInspector.style.display = '';
         sectionCellInspector.classList.remove('collapsed');
@@ -2643,6 +2743,15 @@ class LevelEditor {
       const isAccessory = (this.selectedTile === 'accessories');
       const isCharacter = (this.selectedTile === 'character');
       const isMesa = (this.selectedTile === 'table');
+      const isCeiling = (this.selectedTile === 'ceiling');
+
+      if (sectionCeilingPlacement) {
+        sectionCeilingPlacement.style.display = isCeiling ? '' : 'none';
+        if (isCeiling) sectionCeilingPlacement.classList.remove('collapsed');
+      }
+      // Reducir opacidad del canvas al pintar techos
+      this.canvas.style.opacity = isCeiling ? '0.5' : '';
+      this.canvas.style.cursor = isCeiling ? 'cell' : '';
 
       if (sectionWallPlacement) {
         sectionWallPlacement.style.display = isWall ? '' : 'none';
@@ -3154,7 +3263,7 @@ class LevelEditor {
           radio.checked = true;
           document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
           radio.closest('.palette-item')?.classList.add('active');
-          this.selectedTile = (state.selectedTile === 'player' || state.selectedTile === 'accessories' || state.selectedTile === 'character' || state.selectedTile === 'table')
+          this.selectedTile = (state.selectedTile === 'player' || state.selectedTile === 'accessories' || state.selectedTile === 'character' || state.selectedTile === 'table' || state.selectedTile === 'ceiling')
             ? state.selectedTile
             : parseInt(state.selectedTile, 10);
         }
@@ -3385,6 +3494,8 @@ class LevelEditor {
     this.doorStyle = (data.activeDoorStyle && DOOR_STYLES[data.activeDoorStyle]) ? data.activeDoorStyle : 'castillo';
     this.lintelStyle = (data.activeLintelStyle && WALL_STYLES[data.activeLintelStyle]) ? data.activeLintelStyle : 'castillo';
     this.doorLinks = (data.doorLinks && typeof data.doorLinks === 'object') ? data.doorLinks : {};
+    this.ceilings = new Map((Array.isArray(data.ceilings) ? data.ceilings : []).map(([x, y, s]) => [`${x},${y}`, s || 'blanca']));
+    this.ceilStyle = data.ceilStyle || 'blanca';
     this.updateStyleLabels();
 
     // Actualizar botones de chips de dimensiones rápidas
@@ -4077,13 +4188,14 @@ class LevelEditor {
   _styleKindInfo(kind) {
     if (kind === 'wall') return { styles: WALL_STYLES, prop: 'wallStyle', label: 'Pared', isDoorKind: false };
     if (kind === 'lintel') return { styles: WALL_STYLES, prop: 'lintelStyle', label: 'Dintel', isDoorKind: false };
+    if (kind === 'ceiling') return { styles: (typeof CEILING_STYLES !== 'undefined' ? CEILING_STYLES : {}), prop: 'ceilStyle', label: 'Techo', isDoorKind: false, isCeilingKind: true };
     return { styles: DOOR_STYLES, prop: 'doorStyle', label: 'Puerta', isDoorKind: true };
   }
 
   openStyleModal(kind) {
     this.styleModalKind = kind;
     this.syncCustomStylesFromProject();
-    const { styles, prop, label, isDoorKind } = this._styleKindInfo(kind);
+    const { styles, prop, label, isDoorKind, isCeilingKind } = this._styleKindInfo(kind);
     const current = this[prop];
 
     this.styleModalTitle.innerHTML = `<i class="ri-palette-line"></i> Estilo de ${label}`;
@@ -4092,7 +4204,10 @@ class LevelEditor {
     const lblDimFrontalTitle = document.getElementById('lblDimFrontalTitle');
     const valDimFrontal = document.getElementById('valDimFrontal');
     if (lblDimFrontalTitle && valDimFrontal) {
-      if (isDoorKind) {
+      if (isCeilingKind) {
+        lblDimFrontalTitle.textContent = 'Textura Techo:';
+        valDimFrontal.innerHTML = '64 × 64 px <small>(Cuadrada)</small>';
+      } else if (isDoorKind) {
         lblDimFrontalTitle.textContent = 'Hoja de Puerta:';
         valDimFrontal.innerHTML = '64 × 128 px <small>(Proporción 1:2)</small>';
       } else {
@@ -4100,13 +4215,13 @@ class LevelEditor {
         valDimFrontal.innerHTML = '64 × 192 px <small>(Proporción 1:3)</small>';
       }
     }
-    
+
     // Ocultar panel de nuevo estilo al abrir el modal
-    if (this.newStylePanel) this.newStylePanel.style.display = 'none';
+    if (this.newStylePanel) this.newStylePanel.style.display = isCeilingKind ? 'none' : 'none';
 
     this.styleModalGrid.innerHTML = Object.entries(styles).map(([key, def]) => {
       const isCustom = !!def.isCustom;
-      const previewImg = def.dataUrl || def.pngUrl || this.renderStylePreview(isDoorKind, def);
+      const previewImg = def.dataUrl || def.pngUrl || this.renderStylePreview(isDoorKind, def, isCeilingKind);
       return `
         <div class="style-card ${key === current ? 'active' : ''}" data-style="${key}" title="${def.label}">
           ${isCustom ? '<span class="style-card-badge">PNG</span>' : ''}
@@ -4136,11 +4251,18 @@ class LevelEditor {
    * Dibuja una miniatura con la misma función procedural que usará el motor 3D
    * Puertas: 64x128 px (proporción 5:10). Paredes y dinteles: 64x192 px (proporción 5:15).
    */
-  renderStylePreview(isDoorKind, styleDef) {
+  renderStylePreview(isDoorKind, styleDef, isCeilingKind = false) {
     if (styleDef.dataUrl) return styleDef.dataUrl;
     const w = 64;
-    const h = isDoorKind ? 128 : 192;
-    const pixels = isDoorKind ? styleDef.door(w, h) : styleDef.wall(w, h);
+    let pixels, h;
+    if (isCeilingKind) {
+      h = 64;
+      pixels = styleDef.gen ? styleDef.gen(w, h) : (styleDef.pixels || null);
+    } else {
+      h = isDoorKind ? 128 : 192;
+      pixels = isDoorKind ? styleDef.door(w, h) : styleDef.wall(w, h);
+    }
+    if (!pixels) return '';
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
@@ -4179,9 +4301,13 @@ class LevelEditor {
     const wallLabelEl = document.getElementById('wallStyleLabel');
     const doorLabelEl = document.getElementById('doorStyleLabel');
     const lintelLabelEl = document.getElementById('lintelStyleLabel');
+    const ceilLabelEl = document.getElementById('ceilStyleLabel');
     if (wallLabelEl) wallLabelEl.textContent = WALL_STYLES[this.wallStyle].label;
     if (doorLabelEl) doorLabelEl.textContent = DOOR_STYLES[this.doorStyle].label;
     if (lintelLabelEl) lintelLabelEl.textContent = WALL_STYLES[this.lintelStyle].label;
+    if (ceilLabelEl && typeof CEILING_STYLES !== 'undefined') {
+      ceilLabelEl.textContent = (CEILING_STYLES[this.ceilStyle] && CEILING_STYLES[this.ceilStyle].label) || this.ceilStyle;
+    }
   }
 
   setupMesaModal() {
@@ -4199,6 +4325,18 @@ class LevelEditor {
     this.mesaModalOverlay = document.getElementById('mesaModalOverlay');
     const mesaModalGrid = document.getElementById('mesaModalGrid');
     const mesaModalClose = document.getElementById('mesaModalClose');
+    // Botones de techo
+    const btnCeilStyle = document.getElementById('btnCeilStyle');
+    const ceilStyleLabel = document.getElementById('ceilStyleLabel');
+    const btnClearCeilings = document.getElementById('btnClearCeilings');
+    if (btnCeilStyle) btnCeilStyle.addEventListener('click', () => this.openStyleModal('ceiling'));
+    if (btnClearCeilings) btnClearCeilings.addEventListener('click', () => {
+      this.ceilings = new Map();
+      this.updateJSON();
+      this.render();
+      this.showToast('Techos borrados');
+    });
+
     const btnMesaType = document.getElementById('btnMesaType');
     const mesaTypeLabel = document.getElementById('mesaTypeLabel');
 

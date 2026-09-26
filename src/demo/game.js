@@ -460,6 +460,8 @@ window.addEventListener('DOMContentLoaded', () => {
     engine.mapWidth = mapData.map[0].length;
     engine.mapHeight = mapData.map.length;
     engine.wallStyleMap = mapData.wallStyleMap || {};
+    // Ceilings: Set de "x,y" para lookup O(1)
+    engine.ceilingsMap = new Map((mapData.ceilings || []).map(([x, y, s]) => [`${x},${y}`, s || 'blanca']));
     engine.clearSegmentsCache?.();
 
     if (mapData.playerStart) {
@@ -1647,58 +1649,171 @@ window.addEventListener('DOMContentLoaded', () => {
     player.planeY = oldPlaneX * Math.sin(angle) + player.planeY * Math.cos(angle);
   }
 
+  // ==========================================
+  // FÍSICAS DE COLISIÓN Y BODY BLOCK (MESAS Y MUROS)
+  // ==========================================
+  const PLAYER_RADIUS = 0.22;
+  const MAX_SUB_STEP = 0.04;
+
   /**
-   * Comprobación de colisiones con muros y puertas sólidas
+   * Determina si una celda contiene una mesa (todas las variantes)
    */
-  function canStepTo(targetX, targetY) {
-    const mX = Math.floor(targetX);
-    const mY = Math.floor(targetY);
-    if (mY < 0 || mY >= engine.mapHeight || mX < 0 || mX >= engine.mapWidth) return false;
+  function isCellTable(cx, cy) {
+    if (cy < 0 || cy >= engine.mapHeight || cx < 0 || cx >= engine.mapWidth) return false;
+    const cell = engine.map && engine.map[cy] && engine.map[cy][cx];
+    if (typeof cell === 'number' && (cell === 9 || (cell >= 15 && cell <= 21))) return true;
+    if (typeof cell === 'string' && (cell === '9' || cell.startsWith('T'))) return true;
+    if (Array.isArray(cell) && cell.some(c => (typeof c === 'string' && c.startsWith('T')) || (typeof c === 'number' && (c === 9 || (c >= 15 && c <= 21))))) return true;
+    const segs = engine.getCellSegments(cx, cy);
+    if (segs && segs.some(s => s.isTable)) return true;
+    return false;
+  }
 
-    const segments = engine.getCellSegments(mX, mY);
-    if (!segments || segments.length === 0) return true;
+  /**
+   * Determina si una celda es un bloque sólido completo 1x1
+   */
+  function isCellSolidBlock(cx, cy) {
+    if (cy < 0 || cy >= engine.mapHeight || cx < 0 || cx >= engine.mapWidth) return true;
+    const cell = engine.map && engine.map[cy] && engine.map[cy][cx];
+    if (cell === 1 || cell === 'corner_FULL_BOX') return true;
+    if (Array.isArray(cell) && ['N', 'S', 'E', 'W'].every(k => cell.includes(k))) return true;
+    return false;
+  }
 
-    // Comprobar colisión con cada cara sólida (margen fino de 0.10 unidades)
-    for (let s = 0; s < segments.length; s++) {
-      const seg = segments[s];
-      // El dintel está en lo alto (por encima de la cabeza): no genera colisión física en el suelo
-      if (seg.isLintelOnly) continue;
+  /**
+   * Calcula la profundidad máxima de penetración (>0 si hay colisión, 0 si la posición es válida)
+   */
+  function getPenetration(px, py, radius = PLAYER_RADIUS) {
+    let maxPen = 0;
 
-      if (seg.axis === 'y') {
-        const minX = seg.minX !== undefined ? seg.minX : mX;
-        const maxX = seg.maxX !== undefined ? seg.maxX : (mX + 1.0);
-        if (Math.abs(targetY - seg.pos) < 0.10 && targetX >= minX - 0.08 && targetX <= maxX + 0.08) {
-          return false;
+    // 1. Límites del mapa
+    if (px - radius < 0) maxPen = Math.max(maxPen, radius - px);
+    if (px + radius > engine.mapWidth) maxPen = Math.max(maxPen, (px + radius) - engine.mapWidth);
+    if (py - radius < 0) maxPen = Math.max(maxPen, radius - py);
+    if (py + radius > engine.mapHeight) maxPen = Math.max(maxPen, (py + radius) - engine.mapHeight);
+
+    // Celdas circundantes que el círculo de colisión del jugador puede solapar
+    const minCX = Math.max(0, Math.floor(px - radius));
+    const maxCX = Math.min(engine.mapWidth - 1, Math.floor(px + radius));
+    const minCY = Math.max(0, Math.floor(py - radius));
+    const maxCY = Math.min(engine.mapHeight - 1, Math.floor(py + radius));
+
+    for (let cy = minCY; cy <= maxCY; cy++) {
+      for (let cx = minCX; cx <= maxCX; cx++) {
+        // Bloque completo sólido: Mesa o Pared Bloque 1x1 (BODY BLOCK TOTAL)
+        if (isCellTable(cx, cy) || isCellSolidBlock(cx, cy)) {
+          const clX = Math.max(cx, Math.min(px, cx + 1.0));
+          const clY = Math.max(cy, Math.min(py, cy + 1.0));
+          const dist = Math.hypot(px - clX, py - clY);
+          if (dist < radius) {
+            maxPen = Math.max(maxPen, radius - dist);
+          }
+          continue;
         }
-      } else if (seg.axis === 'x') {
-        const minY = seg.minY !== undefined ? seg.minY : mY;
-        const maxY = seg.maxY !== undefined ? seg.maxY : (mY + 1.0);
-        if (Math.abs(targetX - seg.pos) < 0.10 && targetY >= minY - 0.08 && targetY <= maxY + 0.08) {
-          return false;
+
+        // Segmentos finos de pared o puertas en esta celda
+        const segments = engine.getCellSegments(cx, cy);
+        if (!segments || segments.length === 0) continue;
+
+        for (let s = 0; s < segments.length; s++) {
+          const seg = segments[s];
+          // Dintel superior y hojas abatidas de puertas abiertas permiten el paso
+          if (seg.isLintelOnly || seg.isOpenDoor) continue;
+
+          // Por si la celda contenía mesa y no fue capturada antes
+          if (seg.isTable) {
+            const clX = Math.max(cx, Math.min(px, cx + 1.0));
+            const clY = Math.max(cy, Math.min(py, cy + 1.0));
+            const dist = Math.hypot(px - clX, py - clY);
+            if (dist < radius) {
+              maxPen = Math.max(maxPen, radius - dist);
+            }
+            continue;
+          }
+
+          if (seg.axis === 'y') {
+            const minX = seg.minX !== undefined ? seg.minX : cx;
+            const maxX = seg.maxX !== undefined ? seg.maxX : (cx + 1.0);
+            const clX = Math.max(minX, Math.min(px, maxX));
+            const clY = seg.pos;
+            const dist = Math.hypot(px - clX, py - clY);
+            if (dist < radius) {
+              maxPen = Math.max(maxPen, radius - dist);
+            }
+          } else if (seg.axis === 'x') {
+            const minY = seg.minY !== undefined ? seg.minY : cy;
+            const maxY = seg.maxY !== undefined ? seg.maxY : (cy + 1.0);
+            const clX = seg.pos;
+            const clY = Math.max(minY, Math.min(py, maxY));
+            const dist = Math.hypot(px - clX, py - clY);
+            if (dist < radius) {
+              maxPen = Math.max(maxPen, radius - dist);
+            }
+          }
         }
       }
     }
 
-    return true;
+    return maxPen;
+  }
+
+  /**
+   * Comprobación booleana de transitabilidad
+   */
+  function canStepTo(targetX, targetY) {
+    return getPenetration(targetX, targetY, PLAYER_RADIUS) <= 0;
+  }
+
+  /**
+   * Desplaza al jugador aplicando subdivisión de pasos (sub-stepping) y deslizamiento (wall/body sliding).
+   * Garantiza que, incluso corriendo a máxima velocidad con Shift, jamás se atraviese una mesa o pared.
+   */
+  function stepPlayer(dx, dy) {
+    const totalDist = Math.hypot(dx, dy);
+    if (totalDist < 1e-7) return;
+
+    // Subdividir el paso si la velocidad o el delta time son elevados (evita tunneling)
+    const numSteps = Math.max(1, Math.ceil(totalDist / MAX_SUB_STEP));
+    const stepX = dx / numSteps;
+    const stepY = dy / numSteps;
+
+    for (let i = 0; i < numSteps; i++) {
+      // 1. Intentar avance en eje X (permite deslizamiento si Y está bloqueado)
+      if (stepX !== 0) {
+        const nextX = player.posX + stepX;
+        const penNext = getPenetration(nextX, player.posY, PLAYER_RADIUS);
+        if (penNext <= 0) {
+          player.posX = nextX;
+        } else {
+          // Si ya estábamos en penetración, permitir salir si la reduce
+          const penCurr = getPenetration(player.posX, player.posY, PLAYER_RADIUS);
+          if (penCurr > 0 && penNext < penCurr - 1e-5) {
+            player.posX = nextX;
+          }
+        }
+      }
+
+      // 2. Intentar avance en eje Y (permite deslizamiento si X está bloqueado)
+      if (stepY !== 0) {
+        const nextY = player.posY + stepY;
+        const penNext = getPenetration(player.posX, nextY, PLAYER_RADIUS);
+        if (penNext <= 0) {
+          player.posY = nextY;
+        } else {
+          const penCurr = getPenetration(player.posX, player.posY, PLAYER_RADIUS);
+          if (penCurr > 0 && penNext < penCurr - 1e-5) {
+            player.posY = nextY;
+          }
+        }
+      }
+    }
   }
 
   /**
    * Movimiento de avance / retroceso en la dirección de la mirada (dirX, dirY)
    */
   function movePlayer(dist) {
-    const nextX = player.posX + player.dirX * dist;
-    const nextY = player.posY + player.dirY * dist;
-
-    const padding = 0.18;
-    const checkX = dist > 0 ? (player.dirX > 0 ? nextX + padding : nextX - padding) : (player.dirX > 0 ? nextX - padding : nextX + padding);
-    const checkY = dist > 0 ? (player.dirY > 0 ? nextY + padding : nextY - padding) : (player.dirY > 0 ? nextY - padding : nextY + padding);
-
-    if (canStepTo(checkX, player.posY)) {
-      player.posX = nextX;
-    }
-    if (canStepTo(player.posX, checkY)) {
-      player.posY = nextY;
-    }
+    stepPlayer(player.dirX * dist, player.dirY * dist);
   }
 
   /**
@@ -1708,20 +1823,7 @@ window.addEventListener('DOMContentLoaded', () => {
   function strafePlayer(dist) {
     const strafeDirX = -player.dirY;
     const strafeDirY = player.dirX;
-
-    const nextX = player.posX + strafeDirX * dist;
-    const nextY = player.posY + strafeDirY * dist;
-
-    const padding = 0.18;
-    const checkX = dist > 0 ? (strafeDirX > 0 ? nextX + padding : nextX - padding) : (strafeDirX > 0 ? nextX - padding : nextX + padding);
-    const checkY = dist > 0 ? (strafeDirY > 0 ? nextY + padding : nextY - padding) : (strafeDirY > 0 ? nextY - padding : nextY + padding);
-
-    if (canStepTo(checkX, player.posY)) {
-      player.posX = nextX;
-    }
-    if (canStepTo(player.posX, checkY)) {
-      player.posY = nextY;
-    }
+    stepPlayer(strafeDirX * dist, strafeDirY * dist);
   }
 
   // ==========================================

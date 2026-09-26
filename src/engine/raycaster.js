@@ -1523,29 +1523,87 @@ class RaycasterEngine {
     }
     this.pixelDepthBuffer.fill(Infinity);
 
-    // 1. Dibujar Techo con degradado de iluminación ambiental
+    // 1. Dibujar Techo (degradado de fondo + textura por celda donde haya techo definido)
     // Formato de píxel en Little Endian Uint32: 0xAABBGGRR
-    for (let y = 0; y < Math.max(0, Math.min(h, horizon)); y++) {
-      // Techo: de azul noche a oscuridad en el horizonte
-      const ceilRatio = y / halfH;
-      const cR = Math.floor(10 + ceilRatio * 8);
-      const cG = Math.floor(12 + ceilRatio * 10);
-      const cB = Math.floor(22 + ceilRatio * 16);
-      const ceilColor = (255 << 24) | (cB << 16) | (cG << 8) | cR;
+    const eyeHeight = this.wallHeightScale / 2; // 1.5m — compartido con suelo
+    const rayDirX0 = dirX - planeX;
+    const rayDirY0 = dirY - planeY;
+    const rayDirX1 = dirX + planeX;
+    const rayDirY1 = dirY + planeY;
 
+    // Mapa de techo: key "x,y" → styleKey (o Set legacy convertido)
+    const ceilingsMap = this.ceilingsMap;
+    const hasCeilings = ceilingsMap && ceilingsMap.size > 0;
+    // Cache de texturas por styleKey para no buscar en cada píxel
+    const ceilTexCache = {};
+    const getCeilTex = (styleKey) => {
+      if (ceilTexCache[styleKey] !== undefined) return ceilTexCache[styleKey];
+      const t = (typeof CEILING_STYLES !== 'undefined') ? (CEILING_STYLES[styleKey] || CEILING_STYLES['blanca'] || null) : null;
+      ceilTexCache[styleKey] = t ? t.pixels : null;
+      return ceilTexCache[styleKey];
+    };
+
+    for (let y = 0; y < Math.max(0, Math.min(h, horizon)); y++) {
+      const rowAbove = horizon - y; // distancia vertical al horizonte (simétrico al suelo)
       const ceilOffset = y * w;
-      for (let x = 0; x < w; x++) {
-        pixels[ceilOffset + x] = ceilColor;
+
+      if (rowAbove === 0) {
+        // Línea de horizonte: color neutro
+        const horizColor = (255 << 24) | (24 << 16) | (20 << 8) | 18;
+        for (let x = 0; x < w; x++) pixels[ceilOffset + x] = horizColor;
+        continue;
+      }
+
+      // Degradado de fondo (azul noche)
+      const ceilRatio = y / halfH;
+      const cR0 = Math.floor(10 + ceilRatio * 8);
+      const cG0 = Math.floor(12 + ceilRatio * 10);
+      const cB0 = Math.floor(22 + ceilRatio * 16);
+      const bgCeilColor = (255 << 24) | (cB0 << 16) | (cG0 << 8) | cR0;
+
+      if (!hasCeilings) {
+        // Sin techos definidos: solo degradado
+        for (let x = 0; x < w; x++) pixels[ceilOffset + x] = bgCeilColor;
+        continue;
+      }
+
+      // Floor-cast espejado para el techo
+      const rowDist = (eyeHeight * h) / rowAbove;
+      const ceilStepX = rowDist * (rayDirX1 - rayDirX0) / w;
+      const ceilStepY = rowDist * (rayDirY1 - rayDirY0) / w;
+      let ceilFloorX = posX + rowDist * rayDirX0;
+      let ceilFloorY = posY + rowDist * rayDirY0;
+
+      const shade = Math.min(1, 1 / (1 + rowDist * 0.18));
+      const fogRatio = Math.min(1, Math.max(0, (rowDist - 1.2) / 18.0));
+      const invFog = 1 - fogRatio;
+
+      for (let x = 0; x < w; x++, ceilFloorX += ceilStepX, ceilFloorY += ceilStepY) {
+        const cellX = Math.floor(ceilFloorX);
+        const cellY = Math.floor(ceilFloorY);
+        const cellKey = `${cellX},${cellY}`;
+        const styleKey = ceilingsMap.get(cellKey);
+
+        if (styleKey !== undefined) {
+          const ceilTexPx = getCeilTex(styleKey);
+          if (!ceilTexPx) { pixels[ceilOffset + x] = bgCeilColor; continue; }
+          const ceilTexW = ceilTexPx.width || 64;
+          const ceilTexH = ceilTexPx.height || 64;
+          const ftx = Math.floor((ceilFloorX - cellX) * ceilTexW) & (ceilTexW - 1);
+          const fty = Math.floor((ceilFloorY - cellY) * ceilTexH) & (ceilTexH - 1);
+          const raw = ceilTexPx[fty * ceilTexW + ftx];
+          const r = Math.min(255, Math.floor(((raw) & 0xFF) * shade * invFog + 10 * fogRatio));
+          const g = Math.min(255, Math.floor(((raw >> 8) & 0xFF) * shade * invFog + 12 * fogRatio));
+          const b = Math.min(255, Math.floor(((raw >> 16) & 0xFF) * shade * invFog + 22 * fogRatio));
+          pixels[ceilOffset + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+        } else {
+          pixels[ceilOffset + x] = bgCeilColor;
+        }
       }
     }
 
     // 1.1. Dibujar Suelo con perspectiva 3D tipo Tablero de Ajedrez (1 casilla = 1 celda del editor de 1.0m x 1.0m)
     // Permite visualizar con total claridad la posición exacta de cada elemento y del personaje sentado
-    const eyeHeight = this.wallHeightScale / 2; // 1.5m
-    const rayDirX0 = dirX - planeX;
-    const rayDirY0 = dirY - planeY;
-    const rayDirX1 = dirX + planeX;
-    const rayDirY1 = dirY + planeY;
 
     for (let y = Math.max(0, horizon); y < h; y++) {
       const rowOffset = y - horizon;
@@ -1899,7 +1957,7 @@ class RaycasterEngine {
       // Factor de sombra por distancia y orientación (eje Y más sombreado para profundidad)
       const shadeOf = (dist, side) => {
         let s = 1 / (1 + dist * 0.22);
-        if (side === 1) s *= 0.72; // Sombreado clásico Wolfenstein 3D
+        if (side === 1) s *= 0.72;
         return s;
       };
       // Coordenada horizontal de la textura para PAREDES (flip según dirección del rayo)

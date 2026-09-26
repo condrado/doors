@@ -201,6 +201,14 @@
                   <strong>Jugador</strong>
                 </div>
               </label>
+
+              <label class="palette-item" title="Techo: pinta las celdas que tendrán techo visible en 3D">
+                <input type="radio" name="tileSelect" value="ceiling">
+                <span class="tile-sample ceiling-sample"><i class="ri-layout-top-line"></i></span>
+                <div class="tile-info">
+                  <strong>Techo</strong>
+                </div>
+              </label>
             </div>
           </div>
         </section>
@@ -531,7 +539,28 @@
           </div>
         </section>
 
-        <!-- 7. Inspector de Celda (Solo visible con herramienta Selector) -->
+        <!-- 7. Panel de Techo (Solo visible al seleccionar "Techo" en la paleta) -->
+        <section class="tool-section" id="sectionCeilingPlacement" style="display: none;">
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-layout-top-line"></i> Colocación de Techo</span>
+              <span class="collapse-icon">▾</span>
+            </h2>
+          </div>
+          <div class="dimension-controls">
+            <p class="section-desc" style="margin-bottom:8px;">El mapa se muestra al 50% de opacidad. Haz clic o arrastra para <strong>pintar</strong> celdas con techo; mantén <kbd>Alt</kbd> para <strong>borrar</strong>.</p>
+            <button class="style-picker-btn" id="btnCeilStyle" title="Elegir el estilo de techo">
+              <span class="aux-icon"><i class="ri-layout-top-line"></i></span>
+              <span>Estilo: <strong id="ceilStyleLabel">Blanca</strong></span>
+              <i class="ri-arrow-right-s-line style-picker-chevron"></i>
+            </button>
+            <button class="wall-aux-btn clear-btn" id="btnClearCeilings" style="margin-top:6px;" title="Eliminar todos los techos del mapa">
+              <i class="ri-delete-bin-line"></i> Borrar todos los techos
+            </button>
+          </div>
+        </section>
+
+        <!-- 8. Inspector de Celda (Solo visible con herramienta Selector) -->
         <section class="tool-section" id="sectionCellInspector" style="display: none;">
           <div class="section-title-row">
             <h2>
