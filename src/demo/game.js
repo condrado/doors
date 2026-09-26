@@ -1223,7 +1223,17 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   function executeDoorTouchInteraction() {
-    const res = engine.interactDoor(player, 1.5);
+    let res = null;
+    const target = armState.reachAnim.targetDoor;
+    if (target && target.mapX !== undefined && target.mapY !== undefined) {
+      if (target.action === 'close') {
+        res = engine.closeDoor(target.mapX, target.mapY, player);
+      } else {
+        res = engine.openDoor(target.mapX, target.mapY);
+      }
+    } else {
+      res = engine.interactDoor(player, 1.5);
+    }
     if (!res) return;
 
     if (res.blocked) {
