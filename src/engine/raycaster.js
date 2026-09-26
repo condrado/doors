@@ -1525,7 +1525,7 @@ class RaycasterEngine {
 
     // 1. Dibujar Techo (degradado de fondo + textura por celda donde haya techo definido)
     // Formato de píxel en Little Endian Uint32: 0xAABBGGRR
-    const eyeHeight = this.wallHeightScale / 2; // 1.5m — compartido con suelo
+    const eyeHeight = this.wallHeightScale / 2 + (player.elevation || 0); // 1.5m (+ elevación de escalera) — compartido con suelo
     const rayDirX0 = dirX - planeX;
     const rayDirY0 = dirY - planeY;
     const rayDirX1 = dirX + planeX;
@@ -1596,8 +1596,10 @@ class RaycasterEngine {
           const g = Math.min(255, Math.floor(((raw >> 8) & 0xFF) * shade * invFog + 12 * fogRatio));
           const b = Math.min(255, Math.floor(((raw >> 16) & 0xFF) * shade * invFog + 22 * fogRatio));
           pixels[ceilOffset + x] = (255 << 24) | (b << 16) | (g << 8) | r;
+          this.pixelDepthBuffer[ceilOffset + x] = rowDist;
         } else {
           pixels[ceilOffset + x] = bgCeilColor;
+          this.pixelDepthBuffer[ceilOffset + x] = Infinity;
         }
       }
     }
@@ -1632,6 +1634,24 @@ class RaycasterEngine {
       for (let x = 0; x < w; x++, floorX += floorStepX, floorY_w += floorStepY) {
         const cellX = Math.floor(floorX);
         const cellY = Math.floor(floorY_w);
+
+        // Omitir suelo plano a nivel 0 si la celda es una escalera que baja hacia el sótano (para ver el hueco en 3D)
+        const cellVal = (this.map && this.map[cellY]) ? this.map[cellY][cellX] : null;
+        let isDownStair = false;
+        if (typeof cellVal === 'string' && cellVal.startsWith('STAIRS_DOWN')) isDownStair = true;
+        else if (Array.isArray(cellVal)) isDownStair = cellVal.some(c => typeof c === 'string' && c.startsWith('STAIRS_DOWN'));
+        if (isDownStair) {
+          // El suelo a cota 0 desaparece completamente dejando el foso abierto al sótano
+          // Fondo del sótano limpio y arquitectónico (no negro abisal)
+          const pitShade = Math.min(1, 1 / (1 + rowDist * 0.16));
+          const pitR = Math.floor(185 * pitShade);
+          const pitG = Math.floor(190 * pitShade);
+          const pitB = Math.floor(200 * pitShade);
+          pixels[rowPixelBase + x] = (255 << 24) | (pitB << 16) | (pitG << 8) | pitR;
+          this.pixelDepthBuffer[rowPixelBase + x] = Infinity;
+          continue;
+        }
+
         const tx = floorX - cellX;
         const ty = floorY_w - cellY;
 
@@ -1675,6 +1695,7 @@ class RaycasterEngine {
         const finalB = Math.floor(litB * invFog + 24 * fogRatio);
 
         pixels[rowPixelBase + x] = (255 << 24) | (finalB << 16) | (finalG << 8) | finalR;
+        this.pixelDepthBuffer[rowPixelBase + x] = rowDist;
       }
     }
 
@@ -1947,7 +1968,7 @@ class RaycasterEngine {
         }
       }
 
-      const eyeHeight = this.wallHeightScale / 2; // 1.5
+      const eyeHeight = this.wallHeightScale / 2 + (player.elevation || 0); // 1.5 (+ elevación escalera)
 
       // Si solo hay mesa y no hay otro opaco, usar mesa como hitBottom
       if (!hitBottom && hitTable) {
@@ -2251,7 +2272,7 @@ class RaycasterEngine {
     })();
 
     if (tableTopTex) {
-      const eyeHeight = this.wallHeightScale / 2;
+      const eyeHeight = this.wallHeightScale / 2 + (player.elevation || 0);
       const surfaceH = this.tableHeightScale;
       const eyeAbove = eyeHeight - surfaceH;
 
@@ -2307,6 +2328,9 @@ class RaycasterEngine {
         }
       }
     }
+
+    // 2.4. Renderizar Escaleras 3D (peldaños, caras verticales y huellas)
+    this.renderStairs(player);
 
     // 2.5. Renderizar Sprites Billboards (Monitores, etc.) que siempre miran al jugador
     this.renderSprites(player);
@@ -2506,6 +2530,732 @@ class RaycasterEngine {
   }
 
   /**
+   * Renderiza las escaleras en 3D en el mundo (peldaños, caras verticales y huellas horizontales)
+   */
+  renderStairs(player) {
+    if (!this.map || !Array.isArray(this.map)) return;
+    const { posX, posY, dirX, dirY, planeX, planeY } = player;
+    const w = this.width;
+    const h = this.height;
+    const halfH = this.halfHeight;
+    const pitchOffset = Math.round(player.pitchOffset || 0);
+    const horizon = halfH + pitchOffset;
+    const eyeHeight = this.wallHeightScale / 2 + (player.elevation || 0);
+
+    // 1. Recolectar celdas con escalera
+    const stairsList = [];
+    for (let my = 0; my < this.mapHeight; my++) {
+      const row = this.map[my];
+      if (!Array.isArray(row)) continue;
+      for (let mx = 0; mx < this.mapWidth; mx++) {
+        const cell = row[mx];
+        let stairToken = null;
+        if (typeof cell === 'string' && cell.startsWith('STAIRS_')) stairToken = cell;
+        else if (Array.isArray(cell)) stairToken = cell.find(c => typeof c === 'string' && c.startsWith('STAIRS_'));
+        if (stairToken) {
+          const parts = stairToken.split('_');
+          const dir = parts[1] || 'UP';
+          const orient = parts[2] || 'N';
+          const level = parseInt(parts[3], 10) || 1;
+          const distSq = (posX - (mx + 0.5)) ** 2 + (posY - (my + 0.5)) ** 2;
+          stairsList.push({ mx, my, dir, orient, level, distSq });
+        }
+      }
+    }
+
+    if (stairsList.length === 0) return;
+
+    // Ordenar de más lejos a más cerca
+    stairsList.sort((a, b) => b.distSq - a.distSq);
+
+    for (let st = 0; st < stairsList.length; st++) {
+      const stair = stairsList[st];
+      const { mx, my, dir, orient, level } = stair;
+      const isUp = (dir === 'UP');
+
+      // Comprobar si hay celdas vecinas con escalera del mismo sentido y nivel
+      // para no levantar paredes divisorias entre columnas dobles o tramos continuos
+      const hasStairNeighbor = (nmx, nmy, checkLevel = true) => {
+        if (nmy < 0 || nmy >= this.mapHeight || nmx < 0 || nmx >= this.mapWidth) return false;
+        const nRow = this.map[nmy];
+        if (!nRow) return false;
+        const nCell = nRow[nmx];
+        let nToken = null;
+        if (typeof nCell === 'string' && nCell.startsWith('STAIRS_')) nToken = nCell;
+        else if (Array.isArray(nCell)) nToken = nCell.find(c => typeof c === 'string' && c.startsWith('STAIRS_'));
+        if (!nToken) return false;
+        const np = nToken.split('_');
+        const nDir = np[1] || 'UP';
+        const nOrient = np[2] || 'N';
+        const nLvl = parseInt(np[3], 10) || 1;
+        if (checkLevel) {
+          return (nDir === dir && nOrient === orient && nLvl === level);
+        } else {
+          return (nDir === dir && nOrient === orient);
+        }
+      };
+
+      const hasWestStair = hasStairNeighbor(mx - 1, my, true);
+      const hasEastStair = hasStairNeighbor(mx + 1, my, true);
+      const hasNorthStair = hasStairNeighbor(mx, my - 1, false);
+      const hasSouthStair = hasStairNeighbor(mx, my + 1, false);
+
+      const steps = [];
+
+      if (isUp) {
+        // SUBIR: De 0m a +3m (N1: 0 a 1m, N2: 1 a 2m, N3: 2 a 3m)
+        const baseH = (level - 1) * 1.0;
+        if (baseH > 0) {
+          steps.push({
+            minX: mx, maxX: mx + 1.0,
+            minY: my, maxY: my + 1.0,
+            minZ: 0, maxZ: baseH,
+            isBase: true
+          });
+        }
+
+        const numSteps = 3;
+        for (let i = 0; i < numSteps; i++) {
+          const stepH = baseH + ((i + 1) / numSteps) * 1.0;
+          let sMinX = mx, sMaxX = mx + 1.0;
+          let sMinY = my, sMaxY = my + 1.0;
+
+          if (orient === 'N') {
+            sMinY = my + ((numSteps - 1 - i) / numSteps);
+            sMaxY = sMinY + (1.0 / numSteps);
+          } else if (orient === 'S') {
+            sMinY = my + (i / numSteps);
+            sMaxY = sMinY + (1.0 / numSteps);
+          } else if (orient === 'E') {
+            sMinX = mx + (i / numSteps);
+            sMaxX = sMinX + (1.0 / numSteps);
+          } else {
+            sMinX = mx + ((numSteps - 1 - i) / numSteps);
+            sMaxX = sMinX + (1.0 / numSteps);
+          }
+
+          steps.push({
+            minX: sMinX, maxX: sMaxX,
+            minY: sMinY, maxY: sMaxY,
+            minZ: 0, maxZ: stepH,
+            stepIdx: i
+          });
+        }
+      } else {
+        // BAJAR: Escaleras bajo el suelo (de 0m a -3m)
+        // Nivel 3: 0m a -1m (Entrada al ras de suelo)
+        // Nivel 2: -1m a -2m (Tramo intermedio)
+        // Nivel 1: -2m a -3m (Llegada a cota de sótano -3m)
+        const startZ = - (3 - level) * 1.0;
+        const numSteps = 3;
+
+        for (let i = 0; i < numSteps; i++) {
+          const stepH = startZ - ((i + 1) / numSteps) * 1.0;
+          const topRiserZ = startZ - (i / numSteps) * 1.0;
+          let sMinX = mx, sMaxX = mx + 1.0;
+          let sMinY = my, sMaxY = my + 1.0;
+
+          if (orient === 'N') {
+            sMinY = my + ((numSteps - 1 - i) / numSteps);
+            sMaxY = sMinY + (1.0 / numSteps);
+          } else if (orient === 'S') {
+            sMinY = my + (i / numSteps);
+            sMaxY = sMinY + (1.0 / numSteps);
+          } else if (orient === 'E') {
+            sMinX = mx + (i / numSteps);
+            sMaxX = sMinX + (1.0 / numSteps);
+          } else {
+            sMinX = mx + ((numSteps - 1 - i) / numSteps);
+            sMaxX = sMinX + (1.0 / numSteps);
+          }
+
+          steps.push({
+            minX: sMinX, maxX: sMaxX,
+            minY: sMinY, maxY: sMaxY,
+            minZ: stepH, maxZ: stepH,
+            topRiserZ,
+            isDown: true,
+            stepIdx: i
+          });
+        }
+      }
+
+      // Detección de paredes finas en la propia celda para alinear la pared del pozo exactamente con la pared superior
+      const cellCodes = this.getCellCodes(mx, my) || [];
+      const hasWestWall = Array.isArray(cellCodes) && (cellCodes.includes('W') || cellCodes.includes('WN') || cellCodes.includes('WS') || cellCodes.includes('WW') || cellCodes.includes('DW'));
+      const hasEastWall = Array.isArray(cellCodes) && (cellCodes.includes('E') || cellCodes.includes('EN') || cellCodes.includes('ES') || cellCodes.includes('WE') || cellCodes.includes('DE'));
+      const hasNorthWall = Array.isArray(cellCodes) && (cellCodes.includes('N') || cellCodes.includes('WN') || cellCodes.includes('EN') || cellCodes.includes('DN'));
+      const hasSouthWall = Array.isArray(cellCodes) && (cellCodes.includes('S') || cellCodes.includes('WS') || cellCodes.includes('ES') || cellCodes.includes('DS'));
+
+      const wallPosWest = hasWestWall ? (mx + 0.10) : mx;
+      const wallPosEast = hasEastWall ? (mx + 0.90) : (mx + 1.0);
+      const wallPosNorth = hasNorthWall ? (my + 0.10) : my;
+      const wallPosSouth = hasSouthWall ? (my + 0.90) : (my + 1.0);
+
+      // Renderizar cada caja/escalón
+      for (let b = 0; b < steps.length; b++) {
+        const box = steps[b];
+        const { minX, maxX, minY, maxY, minZ, maxZ, isDown, topRiserZ } = box;
+
+        if (isDown) {
+          // Escalera hacia abajo (bajo el suelo):
+          // 1. Contrahuella vertical entre peldaños (en blanco luminoso)
+          if (orient === 'N') {
+            if (posY > maxY) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', maxY, minX, maxX, minZ, topRiserZ, 0xffffff, 0.96);
+            else if (posY < minY) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', minY, minX, maxX, minZ, topRiserZ, 0xffffff, 0.96);
+          } else if (orient === 'S') {
+            if (posY < minY) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', minY, minX, maxX, minZ, topRiserZ, 0xffffff, 0.96);
+            else if (posY > maxY) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', maxY, minX, maxX, minZ, topRiserZ, 0xffffff, 0.96);
+          } else if (orient === 'E') {
+            if (posX < minX) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', minX, minY, maxY, minZ, topRiserZ, 0xffffff, 0.96);
+            else if (posX > maxX) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', maxX, minY, maxY, minZ, topRiserZ, 0xffffff, 0.96);
+          } else if (orient === 'O' || orient === 'W') {
+            if (posX > maxX) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', maxX, minY, maxY, minZ, topRiserZ, 0xffffff, 0.96);
+            else if (posX < minX) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', minX, minY, maxY, minZ, topRiserZ, 0xffffff, 0.96);
+          }
+
+          // 2. Paredes laterales y de cierre del foso en BLANCO PURO LUMINOSO alineadas con el tabique superior si existe
+          const groundZ = 0.0;
+          if (orient === 'N' || orient === 'S') {
+            if (!hasWestStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosWest, minY, maxY, minZ, groundZ, 0xfafcff, 0.96);
+            if (!hasEastStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosEast, minY, maxY, minZ, groundZ, 0xf0f4fa, 0.92);
+
+            // Muro de cierre al fondo del tramo inferior si no continúa otra escalera
+            if (box.stepIdx === 2) {
+              if (orient === 'N' && !hasNorthStair) {
+                this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosNorth, minX, maxX, minZ, groundZ, 0xf8faff, 0.94);
+              } else if (orient === 'S' && !hasSouthStair) {
+                this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosSouth, minX, maxX, minZ, groundZ, 0xf8faff, 0.94);
+              }
+            }
+          } else {
+            if (!hasNorthStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosNorth, minX, maxX, minZ, groundZ, 0xfafcff, 0.96);
+            if (!hasSouthStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosSouth, minX, maxX, minZ, groundZ, 0xf0f4fa, 0.92);
+
+            // Muro de cierre al fondo si no continúa
+            if (box.stepIdx === 2) {
+              if (orient === 'E' && !hasEastStair) {
+                this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosEast, minY, maxY, minZ, groundZ, 0xf8faff, 0.94);
+              } else if ((orient === 'O' || orient === 'W') && !hasWestStair) {
+                this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosWest, minY, maxY, minZ, groundZ, 0xf8faff, 0.94);
+              }
+            }
+          }
+
+          // 3. Huella horizontal (tread) a la altura negativa stepH
+          if (eyeHeight > maxZ) {
+            this._renderStairHorizontalTread(player, horizon, eyeHeight, minX, maxX, minY, maxY, maxZ, orient);
+          }
+        } else {
+          // Escalera hacia arriba:
+          // 1. Contrahuella frontal de cada peldaño
+          if (orient === 'N') {
+            if (posY < minY) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', minY, minX, maxX, minZ, maxZ, 0xffffff, 0.96);
+            else if (posY > maxY) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', maxY, minX, maxX, minZ, maxZ, 0xffffff, 0.96);
+          } else if (orient === 'S') {
+            if (posY > maxY) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', maxY, minX, maxX, minZ, maxZ, 0xffffff, 0.96);
+            else if (posY < minY) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', minY, minX, maxX, minZ, maxZ, 0xffffff, 0.96);
+          } else if (orient === 'E') {
+            if (posX > maxX) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', maxX, minY, maxY, minZ, maxZ, 0xffffff, 0.96);
+            else if (posX < minX) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', minX, minY, maxY, minZ, maxZ, 0xffffff, 0.96);
+          } else if (orient === 'O' || orient === 'W') {
+            if (posX < minX) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', minX, minY, maxY, minZ, maxZ, 0xffffff, 0.96);
+            else if (posX > maxX) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', maxX, minY, maxY, minZ, maxZ, 0xffffff, 0.96);
+          }
+
+          // 2. Laterales de los escalones tapados (desde el suelo minZ hasta la altura de cada peldaño maxZ)
+          if (orient === 'N' || orient === 'S') {
+            if (!hasWestStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', minX, minY, maxY, minZ, maxZ, 0xfafcff, 0.96);
+            if (!hasEastStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', maxX, minY, maxY, minZ, maxZ, 0xf0f4fa, 0.92);
+          } else {
+            if (!hasNorthStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', minY, minX, maxX, minZ, maxZ, 0xfafcff, 0.96);
+            if (!hasSouthStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', maxY, minX, maxX, minZ, maxZ, 0xf0f4fa, 0.92);
+          }
+
+          // 3. Huella horizontal (tread) superior de cada peldaño
+          if (eyeHeight > maxZ) {
+            this._renderStairHorizontalTread(player, horizon, eyeHeight, minX, maxX, minY, maxY, maxZ, orient);
+          }
+        }
+      }
+
+      // Techo inclinado LISO continuo de la escalera hacia abajo (rampa lisa a +3m de altura libre sobre peldaños)
+      if (!isUp) {
+        const startZ = - (3 - level) * 1.0;
+        const ceilingRoomZ = this.wallHeightScale; // 3.0m
+
+        // 1. Intradós LISO continuo (plano inclinado diagonal a cota startZ + 3.0 bajando 1.0m)
+        this._renderSmoothSlantedCeiling(
+          player, horizon, eyeHeight,
+          wallPosWest, wallPosEast, wallPosNorth, wallPosSouth,
+          startZ, orient
+        );
+
+        // 2. Paredes laterales triangulares de la cuña (desde la rampa inclinada hasta el techo plano de la sala a 3m)
+        if (orient === 'N' || orient === 'S') {
+          if (!hasWestStair) this._renderSmoothWedgeSide(player, horizon, eyeHeight, 'x', wallPosWest, wallPosNorth, wallPosSouth, startZ, orient, 0xfafcff, 0.96);
+          if (!hasEastStair) this._renderSmoothWedgeSide(player, horizon, eyeHeight, 'x', wallPosEast, wallPosNorth, wallPosSouth, startZ, orient, 0xf0f4fa, 0.92);
+
+          // Cierre frontal superior al fondo si no continúa
+          if (orient === 'N' && !hasNorthStair) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosNorth, wallPosWest, wallPosEast, startZ + 2.0, ceilingRoomZ, 0xf8faff, 0.94);
+          } else if (orient === 'S' && !hasSouthStair) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosSouth, wallPosWest, wallPosEast, startZ + 2.0, ceilingRoomZ, 0xf8faff, 0.94);
+          }
+        } else {
+          if (!hasNorthStair) this._renderSmoothWedgeSide(player, horizon, eyeHeight, 'y', wallPosNorth, wallPosWest, wallPosEast, startZ, orient, 0xfafcff, 0.96);
+          if (!hasSouthStair) this._renderSmoothWedgeSide(player, horizon, eyeHeight, 'y', wallPosSouth, wallPosWest, wallPosEast, startZ, orient, 0xf0f4fa, 0.92);
+
+          // Cierre frontal superior al fondo si no continúa
+          if (orient === 'E' && !hasEastStair) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosEast, wallPosNorth, wallPosSouth, startZ + 2.0, ceilingRoomZ, 0xf8faff, 0.94);
+          } else if ((orient === 'O' || orient === 'W') && !hasWestStair) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosWest, wallPosNorth, wallPosSouth, startZ + 2.0, ceilingRoomZ, 0xf8faff, 0.94);
+          }
+        }
+      }
+
+      // Hueco de escalera hacia arriba: apertura en el techo a 3m y paredes blancas en el tiro superior (3m a 6m)
+      if (isUp) {
+        const upperShaftZ = 6.0; // Altura del remate superior del hueco
+
+        // 1. Paredes blancas del tiro superior (solo desde el techo de la sala a 3m hasta 6m)
+        if (orient === 'N' || orient === 'S') {
+          if (!hasWestStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosWest, wallPosNorth, wallPosSouth, 3.0, upperShaftZ, 0xfafcff, 0.96);
+          if (!hasEastStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosEast, wallPosNorth, wallPosSouth, 3.0, upperShaftZ, 0xf0f4fa, 0.92);
+
+          // Pared sobre la entrada (de 3m a 6m en el extremo bajo)
+          if (orient === 'N' && (!hasSouthStair || level === 1)) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosSouth, wallPosWest, wallPosEast, 3.0, upperShaftZ, 0xf8faff, 0.94);
+          } else if (orient === 'S' && (!hasNorthStair || level === 1)) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosNorth, wallPosWest, wallPosEast, 3.0, upperShaftZ, 0xf8faff, 0.94);
+          }
+
+          // Pared de cierre superior al fondo (de 3m a 6m en el extremo alto si no continúa)
+          if (orient === 'N' && !hasNorthStair) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosNorth, wallPosWest, wallPosEast, 3.0, upperShaftZ, 0xf8faff, 0.94);
+          } else if (orient === 'S' && !hasSouthStair) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosSouth, wallPosWest, wallPosEast, 3.0, upperShaftZ, 0xf8faff, 0.94);
+          }
+        } else {
+          if (!hasNorthStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosNorth, wallPosWest, wallPosEast, 3.0, upperShaftZ, 0xfafcff, 0.96);
+          if (!hasSouthStair) this._renderStairVerticalFace(player, horizon, eyeHeight, 'y', wallPosSouth, wallPosWest, wallPosEast, 3.0, upperShaftZ, 0xf0f4fa, 0.92);
+
+          // Pared sobre la entrada (de 3m a 6m)
+          if (orient === 'E' && (!hasWestStair || level === 1)) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosWest, wallPosNorth, wallPosSouth, 3.0, upperShaftZ, 0xf8faff, 0.94);
+          } else if ((orient === 'O' || orient === 'W') && (!hasEastStair || level === 1)) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosEast, wallPosNorth, wallPosSouth, 3.0, upperShaftZ, 0xf8faff, 0.94);
+          }
+
+          // Pared de cierre superior al fondo si no continúa
+          if (orient === 'E' && !hasEastStair) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosEast, wallPosNorth, wallPosSouth, 3.0, upperShaftZ, 0xf8faff, 0.94);
+          } else if ((orient === 'O' || orient === 'W') && !hasWestStair) {
+            this._renderStairVerticalFace(player, horizon, eyeHeight, 'x', wallPosWest, wallPosNorth, wallPosSouth, 3.0, upperShaftZ, 0xf8faff, 0.94);
+          }
+        }
+
+        // 2. Techo horizontal superior al fondo del tiro a cota 6m (cierra el tiro para no ver cielo azul)
+        this._renderStairHorizontalCeiling(player, horizon, eyeHeight, wallPosWest, wallPosEast, wallPosNorth, wallPosSouth, upperShaftZ);
+      }
+    }
+  }
+
+  /**
+   * Renderiza una cara vertical de un escalón en 3D
+   */
+  _renderStairVerticalFace(player, horizon, eyeHeight, axis, pos, minCoord, maxCoord, minZ, maxZ, baseColor, shadeFactor) {
+    const w = this.width;
+    const h = this.height;
+    const pixels = this.pixels;
+    const invDet = 1.0 / (player.planeX * player.dirY - player.dirX * player.planeY);
+
+    for (let col = 0; col < w; col++) {
+      const cameraX = (2 * col / w) - 1;
+      const rayDirX = player.dirX + player.planeX * cameraX;
+      const rayDirY = player.dirY + player.planeY * cameraX;
+
+      let hitDist = Infinity;
+      let hitCoord = 0;
+
+      if (axis === 'y') {
+        if (Math.abs(rayDirY) < 1e-6) continue;
+        const t = (pos - player.posY) / rayDirY;
+        if (t <= 0.05) continue;
+        hitCoord = player.posX + t * rayDirX;
+        if (hitCoord < minCoord || hitCoord > maxCoord) continue;
+        const dx = hitCoord - player.posX;
+        const dy = pos - player.posY;
+        hitDist = invDet * (-player.planeY * dx + player.planeX * dy);
+      } else {
+        if (Math.abs(rayDirX) < 1e-6) continue;
+        const t = (pos - player.posX) / rayDirX;
+        if (t <= 0.05) continue;
+        hitCoord = player.posY + t * rayDirY;
+        if (hitCoord < minCoord || hitCoord > maxCoord) continue;
+        const dx = pos - player.posX;
+        const dy = hitCoord - player.posY;
+        hitDist = invDet * (-player.planeY * dx + player.planeX * dy);
+      }
+
+      if (hitDist <= 0.05) continue;
+
+      const proj = h / hitDist;
+      const topY = Math.max(0, Math.floor(horizon - (maxZ - eyeHeight) * proj));
+      const bottomY = Math.min(h - 1, Math.floor(horizon - (minZ - eyeHeight) * proj));
+      if (bottomY < topY) continue;
+
+      const distShade = Math.max(0.48, Math.min(1.0, 1.0 / (1.0 + hitDist * 0.12))) * shadeFactor;
+      const r = Math.floor(((baseColor >> 16) & 0xFF) * distShade);
+      const g = Math.floor(((baseColor >> 8) & 0xFF) * distShade);
+      const b = Math.floor((baseColor & 0xFF) * distShade);
+      const shadedPixel = (255 << 24) | (b << 16) | (g << 8) | r;
+
+      for (let y = topY; y <= bottomY; y++) {
+        const pIdx = y * w + col;
+        if (this.pixelDepthBuffer && hitDist >= this.pixelDepthBuffer[pIdx] + 0.001) continue;
+        pixels[pIdx] = shadedPixel;
+        this.pixelDepthBuffer[pIdx] = hitDist;
+      }
+    }
+  }
+
+  /**
+   * Renderiza la huella horizontal superior (tapa) de un escalón en 3D
+   */
+  _renderStairHorizontalTread(player, horizon, eyeHeight, minX, maxX, minY, maxY, maxZ, orient = 'N') {
+    const eyeAbove = eyeHeight - maxZ;
+    if (eyeAbove <= 0.001) return;
+
+    const w = this.width;
+    const h = this.height;
+    const pixels = this.pixels;
+    const { posX, posY, dirX, dirY, planeX, planeY } = player;
+
+    const rayDirX0 = dirX - planeX;
+    const rayDirY0 = dirY - planeY;
+    const rayDirX1 = dirX + planeX;
+    const rayDirY1 = dirY + planeY;
+
+    const corners = [
+      [minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]
+    ];
+    let minYScreen = Infinity;
+    let maxYScreen = -Infinity;
+
+    for (let c = 0; c < 4; c++) {
+      const dx = corners[c][0] - posX;
+      const dy = corners[c][1] - posY;
+      const invDet = 1.0 / (planeX * dirY - dirX * planeY);
+      const camY = invDet * (-planeY * dx + planeX * dy);
+      if (camY > 0.05) {
+        const sy = horizon - (maxZ - eyeHeight) * (h / camY);
+        if (sy < minYScreen) minYScreen = sy;
+        if (sy > maxYScreen) maxYScreen = sy;
+      }
+    }
+
+    const startY = Math.max(Math.ceil(horizon) + 1, Math.floor(minYScreen) - 2);
+    const endY = Math.min(h - 1, Math.ceil(maxYScreen) + 2);
+    if (endY < startY) return;
+
+    for (let y = startY; y <= endY; y++) {
+      const rowOffset = y - horizon;
+      if (rowOffset <= 0) continue;
+      const rowDist = eyeAbove * h / rowOffset;
+      if (rowDist <= 0.05) continue;
+
+      const floorStepX = rowDist * (rayDirX1 - rayDirX0) / w;
+      const floorStepY = rowDist * (rayDirY1 - rayDirY0) / w;
+
+      let floorX = posX + rowDist * rayDirX0;
+      let floorY = posY + rowDist * rayDirY0;
+      const rowPixelBase = y * w;
+
+      for (let x = 0; x < w; x++, floorX += floorStepX, floorY += floorStepY) {
+        if (floorX < minX || floorX > maxX || floorY < minY || floorY > maxY) continue;
+
+        const pIdx = rowPixelBase + x;
+        if (this.pixelDepthBuffer && rowDist >= this.pixelDepthBuffer[pIdx] + 0.001) continue;
+
+        const shade = Math.max(0.48, Math.min(1.0, 1.0 / (1.0 + rowDist * 0.12)));
+        let stepEdgeShade = 1.0;
+        if (orient === 'N' && Math.abs(floorY - maxY) < 0.035) stepEdgeShade = 0.88;
+        else if (orient === 'S' && Math.abs(floorY - minY) < 0.035) stepEdgeShade = 0.88;
+        else if (orient === 'E' && Math.abs(floorX - minX) < 0.035) stepEdgeShade = 0.88;
+        else if ((orient === 'O' || orient === 'W') && Math.abs(floorX - maxX) < 0.035) stepEdgeShade = 0.88;
+
+        const r = Math.floor(250 * shade * stepEdgeShade);
+        const g = Math.floor(252 * shade * stepEdgeShade);
+        const b = Math.floor(255 * shade * stepEdgeShade);
+
+        pixels[pIdx] = (255 << 24) | (b << 16) | (g << 8) | r;
+        this.pixelDepthBuffer[pIdx] = rowDist;
+      }
+    }
+  }
+
+  /**
+   * Renderiza el intradós completamente LISO (rampa continua diagonal) del techo de la escalera en 3D
+   */
+  _renderSmoothSlantedCeiling(player, horizon, eyeHeight, minX, maxX, minY, maxY, startZ, orient) {
+    const w = this.width;
+    const h = this.height;
+    const pixels = this.pixels;
+    const { posX, posY, dirX, dirY, planeX, planeY } = player;
+
+    const Z_base = startZ + 3.0; // Altura del techo en la entrada de la celda
+
+    let prog0, dProgDirX, dProgDirY;
+    if (orient === 'N') {
+      const lenY = maxY - minY;
+      if (lenY <= 1e-6) return;
+      prog0 = (maxY - posY) / lenY;
+      dProgDirX = 0;
+      dProgDirY = -1 / lenY;
+    } else if (orient === 'S') {
+      const lenY = maxY - minY;
+      if (lenY <= 1e-6) return;
+      prog0 = (posY - minY) / lenY;
+      dProgDirX = 0;
+      dProgDirY = 1 / lenY;
+    } else if (orient === 'E') {
+      const lenX = maxX - minX;
+      if (lenX <= 1e-6) return;
+      prog0 = (posX - minX) / lenX;
+      dProgDirX = 1 / lenX;
+      dProgDirY = 0;
+    } else { // 'O' o 'W'
+      const lenX = maxX - minX;
+      if (lenX <= 1e-6) return;
+      prog0 = (maxX - posX) / lenX;
+      dProgDirX = -1 / lenX;
+      dProgDirY = 0;
+    }
+
+    const numerBase = (Z_base - prog0) - eyeHeight;
+
+    for (let col = 0; col < w; col++) {
+      const cameraX = (2 * col / w) - 1;
+      const rayDirX = dirX + planeX * cameraX;
+      const rayDirY = dirY + planeY * cameraX;
+
+      // Intersección 2D de rayo contra caja AABB [minX, maxX] x [minY, maxY]
+      let tNear = -Infinity;
+      let tFar = Infinity;
+
+      if (Math.abs(rayDirX) > 1e-6) {
+        const invX = 1.0 / rayDirX;
+        let t1 = (minX - posX) * invX;
+        let t2 = (maxX - posX) * invX;
+        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+        if (t1 > tNear) tNear = t1;
+        if (t2 < tFar) tFar = t2;
+      } else {
+        if (posX < minX || posX > maxX) continue;
+      }
+
+      if (Math.abs(rayDirY) > 1e-6) {
+        const invY = 1.0 / rayDirY;
+        let t1 = (minY - posY) * invY;
+        let t2 = (maxY - posY) * invY;
+        if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+        if (t1 > tNear) tNear = t1;
+        if (t2 < tFar) tFar = t2;
+      } else {
+        if (posY < minY || posY > maxY) continue;
+      }
+
+      if (tNear > tFar || tFar <= 0.05) continue;
+      tNear = Math.max(0.05, tNear);
+
+      const dProg = dProgDirX * rayDirX + dProgDirY * rayDirY;
+
+      // Proyección vertical estimada de los extremos del segmento
+      const progNear = prog0 + tNear * dProg;
+      const zNear = Z_base - progNear;
+      const yNear = horizon - (zNear - eyeHeight) * (h / tNear);
+
+      const progFar = prog0 + tFar * dProg;
+      const zFar = Z_base - progFar;
+      const yFar = horizon - (zFar - eyeHeight) * (h / tFar);
+
+      const startY = Math.max(0, Math.floor(Math.min(yNear, yFar)) - 2);
+      const endY = Math.min(h - 1, Math.ceil(Math.max(yNear, yFar)) + 2);
+      if (endY < startY) continue;
+
+      for (let y = startY; y <= endY; y++) {
+        const slopeZ = (horizon - y) / h;
+        const denom = slopeZ + dProg;
+        if (Math.abs(denom) < 1e-6) continue;
+
+        const dist = numerBase / denom;
+        if (dist < tNear - 0.005 || dist > tFar + 0.005) continue;
+
+        const pIdx = y * w + col;
+        if (this.pixelDepthBuffer && dist >= this.pixelDepthBuffer[pIdx] - 0.001) continue;
+
+        // Tonalidad blanca arquitectónica y sombreado por distancia suave
+        const distShade = Math.max(0.50, Math.min(1.0, 1.0 / (1.0 + dist * 0.12))) * 0.94;
+        const r = Math.floor(248 * distShade);
+        const g = Math.floor(250 * distShade);
+        const b = Math.floor(255 * distShade);
+
+        pixels[pIdx] = (255 << 24) | (b << 16) | (g << 8) | r;
+        this.pixelDepthBuffer[pIdx] = dist;
+      }
+    }
+  }
+
+  /**
+   * Renderiza una pared lateral triangular/trapezoidal que cierra la cuña superior del techo inclinado
+   */
+  _renderSmoothWedgeSide(player, horizon, eyeHeight, axis, pos, minCoord, maxCoord, startZ, orient, baseColor, shadeFactor) {
+    const w = this.width;
+    const h = this.height;
+    const pixels = this.pixels;
+    const invDet = 1.0 / (player.planeX * player.dirY - player.dirX * player.planeY);
+    const ceilingRoomZ = this.wallHeightScale; // 3.0m
+    const len = maxCoord - minCoord;
+    if (len <= 1e-6) return;
+
+    for (let col = 0; col < w; col++) {
+      const cameraX = (2 * col / w) - 1;
+      const rayDirX = player.dirX + player.planeX * cameraX;
+      const rayDirY = player.dirY + player.planeY * cameraX;
+
+      let hitDist = Infinity;
+      let hitCoord = 0;
+
+      if (axis === 'y') {
+        if (Math.abs(rayDirY) < 1e-6) continue;
+        const t = (pos - player.posY) / rayDirY;
+        if (t <= 0.05) continue;
+        hitCoord = player.posX + t * rayDirX;
+        if (hitCoord < minCoord || hitCoord > maxCoord) continue;
+        const dx = hitCoord - player.posX;
+        const dy = pos - player.posY;
+        hitDist = invDet * (-player.planeY * dx + player.planeX * dy);
+      } else {
+        if (Math.abs(rayDirX) < 1e-6) continue;
+        const t = (pos - player.posX) / rayDirX;
+        if (t <= 0.05) continue;
+        hitCoord = player.posY + t * rayDirY;
+        if (hitCoord < minCoord || hitCoord > maxCoord) continue;
+        const dx = pos - player.posX;
+        const dy = hitCoord - player.posY;
+        hitDist = invDet * (-player.planeY * dx + player.planeX * dy);
+      }
+
+      if (hitDist <= 0.05) continue;
+
+      let prog = 0;
+      if (orient === 'N') {
+        prog = (maxCoord - hitCoord) / len;
+      } else if (orient === 'S') {
+        prog = (hitCoord - minCoord) / len;
+      } else if (orient === 'E') {
+        prog = (hitCoord - minCoord) / len;
+      } else {
+        prog = (maxCoord - hitCoord) / len;
+      }
+      prog = Math.max(0.0, Math.min(1.0, prog));
+
+      const minZ = (startZ + 3.0) - prog * 1.0;
+      const maxZ = ceilingRoomZ;
+      if (minZ >= maxZ - 0.001) continue;
+
+      const proj = h / hitDist;
+      const topY = Math.max(0, Math.floor(horizon - (maxZ - eyeHeight) * proj));
+      const bottomY = Math.min(h - 1, Math.floor(horizon - (minZ - eyeHeight) * proj));
+      if (bottomY < topY) continue;
+
+      const distShade = Math.max(0.48, Math.min(1.0, 1.0 / (1.0 + hitDist * 0.12))) * shadeFactor;
+      const r = Math.floor(((baseColor >> 16) & 0xFF) * distShade);
+      const g = Math.floor(((baseColor >> 8) & 0xFF) * distShade);
+      const b = Math.floor((baseColor & 0xFF) * distShade);
+      const shadedPixel = (255 << 24) | (b << 16) | (g << 8) | r;
+
+      for (let y = topY; y <= bottomY; y++) {
+        const pIdx = y * w + col;
+        if (this.pixelDepthBuffer && hitDist >= this.pixelDepthBuffer[pIdx] + 0.001) continue;
+        pixels[pIdx] = shadedPixel;
+        this.pixelDepthBuffer[pIdx] = hitDist;
+      }
+    }
+  }
+
+  /**
+   * Renderiza un techo horizontal plano para cerrar huecos en 3D (ej. caja de escalera alta)
+   */
+  _renderStairHorizontalCeiling(player, horizon, eyeHeight, minX, maxX, minY, maxY, ceilZ) {
+    const eyeBelow = ceilZ - eyeHeight;
+    if (eyeBelow <= 0.001) return;
+
+    const w = this.width;
+    const h = this.height;
+    const pixels = this.pixels;
+    const { posX, posY, dirX, dirY, planeX, planeY } = player;
+
+    const rayDirX0 = dirX - planeX;
+    const rayDirY0 = dirY - planeY;
+    const rayDirX1 = dirX + planeX;
+    const rayDirY1 = dirY + planeY;
+
+    const corners = [
+      [minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY]
+    ];
+    let minYScreen = Infinity;
+    let maxYScreen = -Infinity;
+
+    for (let c = 0; c < 4; c++) {
+      const dx = corners[c][0] - posX;
+      const dy = corners[c][1] - posY;
+      const invDet = 1.0 / (planeX * dirY - dirX * planeY);
+      const camY = invDet * (-planeY * dx + planeX * dy);
+      if (camY > 0.05) {
+        const sy = horizon - (ceilZ - eyeHeight) * (h / camY);
+        if (sy < minYScreen) minYScreen = sy;
+        if (sy > maxYScreen) maxYScreen = sy;
+      }
+    }
+
+    const startY = Math.max(0, Math.floor(minYScreen) - 2);
+    const endY = Math.min(Math.floor(horizon) - 1, Math.ceil(maxYScreen) + 2);
+    if (endY < startY) return;
+
+    for (let y = startY; y <= endY; y++) {
+      const rowAbove = horizon - y;
+      if (rowAbove <= 0) continue;
+      const rowDist = eyeBelow * h / rowAbove;
+      if (rowDist <= 0.05) continue;
+
+      const stepX = rowDist * (rayDirX1 - rayDirX0) / w;
+      const stepY = rowDist * (rayDirY1 - rayDirY0) / w;
+
+      let floorX = posX + rowDist * rayDirX0;
+      let floorY = posY + rowDist * rayDirY0;
+      const rowPixelBase = y * w;
+
+      for (let x = 0; x < w; x++, floorX += stepX, floorY += stepY) {
+        if (floorX < minX || floorX > maxX || floorY < minY || floorY > maxY) continue;
+
+        const pIdx = rowPixelBase + x;
+        if (this.pixelDepthBuffer && rowDist >= this.pixelDepthBuffer[pIdx] + 0.001) continue;
+
+        const shade = Math.max(0.50, Math.min(1.0, 1.0 / (1.0 + rowDist * 0.12))) * 0.94;
+        const r = Math.floor(248 * shade);
+        const g = Math.floor(250 * shade);
+        const b = Math.floor(255 * shade);
+
+        pixels[pIdx] = (255 << 24) | (b << 16) | (g << 8) | r;
+        this.pixelDepthBuffer[pIdx] = rowDist;
+      }
+    }
+  }
+
+  /**
    * Renderiza sprites billboard en primera persona que siempre miran al jugador
    */
   renderSprites(player) {
@@ -2528,7 +3278,7 @@ class RaycasterEngine {
     sprites.sort((a, b) => b.distSq - a.distSq);
 
     const invDet = 1.0 / (planeX * dirY - dirX * planeY);
-    const eyeHeight = this.wallHeightScale / 2; // 1.5
+    const eyeHeight = this.wallHeightScale / 2 + (player.elevation || 0); // 1.5 (+ elevación escalera)
     const centerRayX = Math.floor(w / 2);
 
     for (let i = 0; i < sprites.length; i++) {
@@ -2785,6 +3535,43 @@ class RaycasterEngine {
           ctx.strokeStyle = '#222';
           ctx.lineWidth = 1;
           ctx.stroke();
+        }
+
+        // Escaleras en el minimapa (color blanco con peldaños)
+        let stairsToken = null;
+        if (typeof codes === 'string' && codes.startsWith('STAIRS_')) stairsToken = codes;
+        else if (Array.isArray(codes)) stairsToken = codes.find(c => typeof c === 'string' && c.startsWith('STAIRS_'));
+        if (stairsToken) {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+          ctx.fillRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px + 1, py + 1, cellSize - 2, cellSize - 2);
+          const parts = stairsToken.split('_');
+          const orient = parts[2] || 'N';
+          ctx.beginPath();
+          if (orient === 'N' || orient === 'S') {
+            const h = (cellSize - 2) / 3;
+            ctx.moveTo(px + 1, py + 1 + h);
+            ctx.lineTo(px + cellSize - 1, py + 1 + h);
+            ctx.moveTo(px + 1, py + 1 + h * 2);
+            ctx.lineTo(px + cellSize - 1, py + 1 + h * 2);
+          } else {
+            const w = (cellSize - 2) / 3;
+            ctx.moveTo(px + 1 + w, py + 1);
+            ctx.lineTo(px + 1 + w, py + cellSize - 1);
+            ctx.moveTo(px + 1 + w * 2, py + 1);
+            ctx.lineTo(px + 1 + w * 2, py + cellSize - 1);
+          }
+          ctx.stroke();
+
+          // Rótulo de nivel en minimapa
+          const level = parts[3] || '1';
+          ctx.fillStyle = '#ffffff';
+          ctx.font = `bold ${Math.max(6, Math.floor(cellSize * 0.35))}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`N${level}`, px + cellSize / 2, py + cellSize / 2);
         }
 
         // Paredes y puertas por encima de la mesa

@@ -2027,6 +2027,51 @@ window.addEventListener('DOMContentLoaded', () => {
     // Comprobar umbral de portales / puertas conectadas a otros mapas
     checkPortalThreshold();
 
+    // Actualizar elevación vertical del jugador si pisa una celda con escalera
+    const cx = Math.floor(player.posX);
+    const cy = Math.floor(player.posY);
+    let stairToken = null;
+    const row = engine.map ? engine.map[cy] : null;
+    const cell = row ? row[cx] : null;
+    if (typeof cell === 'string' && cell.startsWith('STAIRS_')) stairToken = cell;
+    else if (Array.isArray(cell)) stairToken = cell.find(c => typeof c === 'string' && c.startsWith('STAIRS_'));
+
+    let targetElevation = 0;
+    if (stairToken) {
+      const parts = stairToken.split('_');
+      const dir = parts[1] || 'UP';
+      const orient = parts[2] || 'N';
+      const level = parseInt(parts[3], 10) || 1;
+      const baseH = (level - 1) * 1.0;
+      const isUp = (dir === 'UP');
+      const fx = player.posX - cx;
+      const fy = player.posY - cy;
+
+      let prog = 0.5;
+      if (orient === 'N') prog = 1.0 - fy;
+      else if (orient === 'S') prog = fy;
+      else if (orient === 'E') prog = fx;
+      else prog = 1.0 - fx;
+
+      prog = Math.max(0, Math.min(0.999, prog));
+      const stepIdx = Math.floor(prog * 3);
+      if (isUp) {
+        // Subir: de 0m a +3m
+        const baseH = (level - 1) * 1.0;
+        const stepFraction = (stepIdx + 1) / 3;
+        targetElevation = baseH + stepFraction * 1.0;
+      } else {
+        // Bajar: bajo el suelo de 0m a -3m (N3: 0 a -1m entrada, N2: -1 a -2m, N1: -2 a -3m fondo)
+        const startZ = - (3 - level) * 1.0;
+        const stepFraction = (stepIdx + 1) / 3;
+        targetElevation = startZ - stepFraction * 1.0;
+      }
+    }
+
+    if (player.elevation === undefined) player.elevation = 0;
+    const lerpRate = Math.min(1.0, dt * 10);
+    player.elevation += (targetElevation - player.elevation) * lerpRate;
+
     // Renderizar escena 3D y minimapa principal
     engine.render(player);
 

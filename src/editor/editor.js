@@ -91,6 +91,9 @@ class LevelEditor {
     this.monitorOrientation = 'F'; // 'F' (Frente), 'R' (Derecha), 'L' (Izquierda), 'B' (Detrás)
     this.monitorPosition = 'c'; // 'b' (fondo), 'c' (centro), 't' (tope/borde frente)
     this.characterOrientation = 'F'; // 'F' (Frente), 'R' (Derecha), 'L' (Izquierda), 'B' (Detrás)
+    this.stairsDirection = 'UP'; // 'UP' (Subir) o 'DOWN' (Bajar)
+    this.stairsOrientation = 'N'; // 'N', 'S', 'E', 'O'
+    this.stairsLevel = 1; // 1 (0m-1m), 2 (1m-2m), 3 (2m-3m)
     this.tableType = 9; // código de celda de mesa activo (9=4patas, 15=sin patas, 16-21=variantes)
     this.isMouseDown = false;
     this.roomStart = null;
@@ -443,7 +446,7 @@ class LevelEditor {
         document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
         e.target.closest('.palette-item').classList.add('active');
         const val = e.target.value;
-        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'character' || val === 'door' || val === 'window' || val === 'table' || val === 'ceiling') ? val : parseInt(val, 10);
+        this.selectedTile = (val === 'player' || val === 'accessories' || val === 'character' || val === 'door' || val === 'window' || val === 'table' || val === 'ceiling' || val === 'stairs') ? val : parseInt(val, 10);
         this.updateToolPanelsVisibility();
         this.render();
         this.saveUIState();
@@ -516,6 +519,50 @@ class LevelEditor {
         this.characterOrientation = btn.dataset.orient || 'F';
         const orientNames = { F: 'Frente', R: 'Mirando Derecha', L: 'Mirando Izquierda', B: 'Por Detrás' };
         this.showToast(`🧑 Personaje: ${orientNames[this.characterOrientation]}`);
+        this.render();
+        this.saveUIState();
+      });
+    });
+
+    // Selector de sentido de la escalera (UP = Subir, DOWN = Bajar)
+    document.querySelectorAll('.stairs-type-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.stairs-type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.stairsDirection = btn.dataset.dir || 'UP';
+        const dirNames = { UP: 'Subir ⬆️ (0m a +3m)', DOWN: 'Bajar ⬇️ (0m a -3m bajo suelo)' };
+        this.updateStairsLevelLabels();
+        this.showToast(`🪜 Escalera: ${dirNames[this.stairsDirection] || this.stairsDirection}`);
+        this.render();
+        this.saveUIState();
+      });
+    });
+
+    // Selector de orientación de la escalera (N, S, E, O)
+    document.querySelectorAll('.stairs-orient-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.stairs-orient-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.stairsOrientation = btn.dataset.orient || 'N';
+        const orientNames = { N: 'Norte [N]', S: 'Sur [S]', E: 'Este [E]', O: 'Oeste [O]' };
+        this.showToast(`🧭 Orientación escalera: ${orientNames[this.stairsOrientation] || this.stairsOrientation}`);
+        this.render();
+        this.saveUIState();
+      });
+    });
+
+    // Selector de nivel de altura de la escalera (1 = 0-1m, 2 = 1-2m, 3 = 2-3m)
+    document.querySelectorAll('.stairs-level-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.stairs-level-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.stairsLevel = parseInt(btn.dataset.level, 10) || 1;
+        const lvlDescriptions = {
+          1: 'Nivel 1 (0m a 1m)',
+          2: 'Nivel 2 (1m a 2m, base sólida)',
+          3: 'Nivel 3 (2m a 3m, base sólida)'
+        };
+        this.showToast(`🪜 Altura escalera: ${lvlDescriptions[this.stairsLevel] || ('Nivel ' + this.stairsLevel)}`);
         this.render();
         this.saveUIState();
       });
@@ -1178,7 +1225,7 @@ class LevelEditor {
           let minDist = Infinity;
           currentSegs.forEach((segRaw, i) => {
             let d = 1;
-            if (typeof segRaw === 'string' && (segRaw === 'MON' || segRaw.startsWith('MON_') || segRaw === 'CHAR' || segRaw.startsWith('CHAR_') || segRaw.startsWith('T'))) {
+            if (typeof segRaw === 'string' && (segRaw === 'MON' || segRaw.startsWith('MON_') || segRaw === 'CHAR' || segRaw.startsWith('CHAR_') || segRaw.startsWith('T') || segRaw.startsWith('STAIRS_'))) {
               d = Math.hypot(lx - 0.5, ly - 0.5);
             } else if (typeof segRaw === 'number' && (segRaw === 9 || (segRaw >= 15 && segRaw <= 21))) {
               d = Math.hypot(lx - 0.5, ly - 0.5);
@@ -1209,7 +1256,7 @@ class LevelEditor {
 
         if (idx !== -1) {
           const removedCode = currentSegs[idx];
-          if (typeof removedCode === 'string' && !removedCode.startsWith('T') && removedCode !== 'MON' && !removedCode.startsWith('MON_') && removedCode !== 'CHAR' && !removedCode.startsWith('CHAR_')) {
+          if (typeof removedCode === 'string' && !removedCode.startsWith('T') && removedCode !== 'MON' && !removedCode.startsWith('MON_') && removedCode !== 'CHAR' && !removedCode.startsWith('CHAR_') && !removedCode.startsWith('STAIRS_')) {
             this.clearSegmentStyle(x, y, removedCode);
             if (removedCode.startsWith('D')) {
               this.clearSegmentStyle(x, y, removedCode + '_lintel');
@@ -1314,6 +1361,25 @@ class LevelEditor {
         }
       } else {
         currentSegs.push(tableCode);
+        changed = true;
+      }
+    } else if (this.selectedTile === 'stairs') {
+      const dir = this.stairsDirection || 'UP';
+      const orient = this.stairsOrientation || 'N';
+      const level = this.stairsLevel || 1;
+      const stairsCode = `STAIRS_${dir}_${orient}_${level}`;
+      const oldIdx = currentSegs.findIndex(s => typeof s === 'string' && s.startsWith('STAIRS_'));
+      const dirNames = { UP: 'Subir ⬆️', DOWN: 'Bajar ⬇️' };
+      const orientNames = { N: 'Norte [N]', S: 'Sur [S]', E: 'Este [E]', O: 'Oeste [O]' };
+      if (oldIdx !== -1) {
+        if (currentSegs[oldIdx] !== stairsCode) {
+          currentSegs[oldIdx] = stairsCode;
+          this.showToast(`🪜 Escalera actualizada (${dirNames[dir]} - ${orientNames[orient]} - N${level})`);
+          changed = true;
+        }
+      } else {
+        currentSegs.push(stairsCode);
+        this.showToast(`🪜 Escalera blanca colocada (${dirNames[dir]} - ${orientNames[orient]} - N${level})`);
         changed = true;
       }
     } else if (this.hoverSubEdge.startsWith('corner_')) {
@@ -1978,6 +2044,162 @@ class LevelEditor {
   }
 
   /**
+   * Dibuja una escalera en la vista 2D del editor con diseño arquitectónico en blanco
+   * @param {CanvasRenderingContext2D} ctx 
+   * @param {number} px Coordenada X del borde superior izquierdo de la celda
+   * @param {number} py Coordenada Y del borde superior izquierdo de la celda
+   * @param {number} cs Tamaño de la celda (cellSize)
+   * @param {{ dir: 'UP'|'DOWN', orient: 'N'|'S'|'E'|'O'|'W' }} stairsData 
+   * @param {boolean} isPreview 
+   */
+  draw2DStairs(ctx, px, py, cs, stairsData, isPreview = false) {
+    ctx.save();
+    if (isPreview) {
+      ctx.globalAlpha = 0.75;
+    }
+
+    const dir = stairsData?.dir || 'UP'; // 'UP' = Subir, 'DOWN' = Bajar
+    const orient = stairsData?.orient || 'N'; // 'N', 'S', 'E', 'O' (o 'W')
+    const level = parseInt(stairsData?.level, 10) || 1; // 1 (0-1m), 2 (1-2m), 3 (2-3m)
+    const isUp = (dir === 'UP');
+    const isNorth = (orient === 'N');
+    const isSouth = (orient === 'S');
+    const isEast = (orient === 'E');
+    const isWest = (orient === 'O' || orient === 'W');
+
+    // 1. Fondo de celda de escalera:
+    // Si es SUBIR: fondo sólido arquitectónico
+    // Si es BAJAR: el suelo DESAPARECE por completo (hueco/foso hacia el nivel inferior)
+    if (isUp) {
+      ctx.fillStyle = '#0f1420';
+      ctx.fillRect(px, py, cs, cs);
+
+      // Si es Nivel 2 o 3, dibujar base sólida existente debajo
+      if (level === 2) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+        ctx.fillRect(px, py, cs, cs);
+      } else if (level === 3) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.fillRect(px, py, cs, cs);
+      }
+
+      // Contorno exterior blanco sólido de la celda
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1.5, cs * 0.04);
+      ctx.strokeRect(px + 1, py + 1, cs - 2, cs - 2);
+    } else {
+      // BAJAR: ¡El suelo desaparece! Foso abisal oscuro
+      ctx.fillStyle = '#020306';
+      ctx.fillRect(px, py, cs, cs);
+
+      // Borde discontinuo/punteado blanco que indica claramente HUECO EN EL FORJADO
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1.5, cs * 0.04);
+      ctx.strokeRect(px + 1, py + 1, cs - 2, cs - 2);
+      ctx.setLineDash([]);
+    }
+
+    // 2. Peldaños en blanco con degradado de elevación (3 peldaños por tramo de nivel)
+    const numSteps = 3;
+
+    for (let i = 0; i < numSteps; i++) {
+      let alpha;
+      if (isUp) {
+        const stepProgress = (i + 1) / numSteps;
+        const baseAlpha = level === 1 ? 0.20 : (level === 2 ? 0.45 : 0.68);
+        alpha = Math.min(1.0, baseAlpha + stepProgress * 0.32);
+      } else {
+        // En bajada: Nivel 3 es el más cercano al suelo (más claro), Nivel 1 es el más profundo (-3m)
+        const baseAlpha = level === 3 ? 0.60 : (level === 2 ? 0.38 : 0.20);
+        const depthRatio = 1.0 - (i / numSteps) * 0.30;
+        alpha = Math.max(0.12, Math.min(0.85, baseAlpha * depthRatio));
+      }
+      ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
+
+      let sx, sy, sw, sh;
+      if (isNorth) {
+        sh = cs / numSteps;
+        sw = cs;
+        sx = px;
+        sy = py + (numSteps - 1 - i) * sh;
+      } else if (isSouth) {
+        sh = cs / numSteps;
+        sw = cs;
+        sx = px;
+        sy = py + i * sh;
+      } else if (isEast) {
+        sw = cs / numSteps;
+        sh = cs;
+        sy = py;
+        sx = px + i * sw;
+      } else {
+        sw = cs / numSteps;
+        sh = cs;
+        sy = py;
+        sx = px + (numSteps - 1 - i) * sw;
+      }
+
+      ctx.fillRect(sx, sy, sw, sh);
+
+      // Sombra y arista de peldaño blanca
+      ctx.strokeStyle = isUp ? 'rgba(0, 0, 0, 0.45)' : 'rgba(0, 0, 0, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(sx, sy, sw, sh);
+
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(1, cs * 0.025);
+      ctx.strokeRect(sx, sy, sw, sh);
+    }
+
+    // 3. Pastilla central con rótulo de sentido, orientación y NIVEL (N1/N2/N3)
+    const cx = px + cs / 2;
+    const cy = py + cs / 2;
+    const pillW = Math.max(34, cs * 0.82);
+    const pillH = Math.max(15, cs * 0.34);
+
+    ctx.fillStyle = 'rgba(10, 14, 22, 0.92)';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, 4);
+    } else {
+      ctx.rect(cx - pillW / 2, cy - pillH / 2, pillW, pillH);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // Texto de sentido, orientación y nivel de altura
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold ${Math.max(8, Math.floor(cs * 0.15))}px 'Rajdhani', sans-serif`;
+    ctx.fillStyle = '#ffffff';
+    const textLabel = isUp ? `▲ SUBE [${orient}] N${level}` : `▼ BAJA [${orient}] N${level}`;
+    ctx.fillText(textLabel, cx, cy);
+
+    // Indicador de nivel con 3 pips/puntos en la esquina superior izquierda
+    const pipR = Math.max(1.5, cs * 0.035);
+    const pipSpacing = pipR * 2.8;
+    const pipStartX = px + 6 + pipR;
+    const pipY = py + 6 + pipR;
+    for (let p = 1; p <= 3; p++) {
+      ctx.beginPath();
+      ctx.arc(pipStartX + (p - 1) * pipSpacing, pipY, pipR, 0, Math.PI * 2);
+      if (p <= level) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    ctx.restore();
+  }
+
+  /**
    * Dibuja toda la cuadrícula, tabiques finos (5x1) en laterales/centro, esquinas y previsualizaciones
    */
   render() {
@@ -2009,26 +2231,42 @@ class LevelEditor {
         const px = x * cs;
         const py = y * cs;
 
-        // Suelo base oscuro
-        ctx.fillStyle = '#11151f';
-        ctx.fillRect(px, py, cs, cs);
-
-        // Líneas sutiles de la cuadrícula
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(px, py, cs, cs);
-
         // Obtener segmentos de la celda
         let cell = this.grid[y][x];
+        const isDownStairCell = (typeof cell === 'string' && cell.startsWith('STAIRS_DOWN')) ||
+                                (Array.isArray(cell) && cell.some(c => typeof c === 'string' && c.startsWith('STAIRS_DOWN')));
+
+        if (isDownStairCell) {
+          // El suelo desaparece: foso abisal oscuro hacia el nivel inferior
+          ctx.fillStyle = '#020306';
+          ctx.fillRect(px, py, cs, cs);
+        } else {
+          // Suelo base oscuro
+          ctx.fillStyle = '#11151f';
+          ctx.fillRect(px, py, cs, cs);
+
+          // Líneas sutiles de la cuadrícula
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px, py, cs, cs);
+        }
         let segs = [];
         let tableCode = null;
         let monitorOrient = null;
         let charOrient = null;
+        let stairsData = null;
 
         if (Array.isArray(cell)) {
           for (let i = 0; i < cell.length; i++) {
             const item = cell[i];
-            if (typeof item === 'string' && item.startsWith('T')) {
+            if (typeof item === 'string' && item.startsWith('STAIRS_')) {
+              const parts = item.split('_');
+              stairsData = {
+                dir: parts[1] || 'UP',
+                orient: parts[2] || 'N',
+                level: parseInt(parts[3], 10) || 1
+              };
+            } else if (typeof item === 'string' && item.startsWith('T')) {
               tableCode = parseInt(item.slice(1), 10);
             } else if (typeof item === 'number' && (item === 9 || (item >= 15 && item <= 21))) {
               tableCode = item;
@@ -2044,6 +2282,13 @@ class LevelEditor {
               segs.push(item);
             }
           }
+        } else if (typeof cell === 'string' && cell.startsWith('STAIRS_')) {
+          const parts = cell.split('_');
+          stairsData = {
+            dir: parts[1] || 'UP',
+            orient: parts[2] || 'N',
+            level: parseInt(parts[3], 10) || 1
+          };
         } else if (cell === 'MON' || cell === 'MON_F') {
           monitorOrient = 'F';
         } else if (typeof cell === 'string' && cell.startsWith('MON_')) {
@@ -2060,6 +2305,11 @@ class LevelEditor {
         else if (cell === 5) segs = ['DW'];
         else if (cell === 9 || (cell >= 15 && cell <= 21)) {
           tableCode = cell;
+        }
+
+        // 0. Dibuja la escalera blanca al fondo si existe en esta casilla
+        if (stairsData) {
+          this.draw2DStairs(ctx, px, py, cs, stairsData, false);
         }
 
         // 1. Dibuja la mesa primero al fondo si existe en esta casilla
@@ -2308,6 +2558,12 @@ class LevelEditor {
           ctx.restore();
         } else if (this.selectedTile === 'character') {
           this.draw2DCharacter(ctx, hpx, hpy, cs, this.characterOrientation || 'F', true);
+        } else if (this.selectedTile === 'stairs') {
+          this.draw2DStairs(ctx, hpx, hpy, cs, {
+            dir: this.stairsDirection || 'UP',
+            orient: this.stairsOrientation || 'N',
+            level: this.stairsLevel || 1
+          }, true);
         } else if (this.selectedTile === 'accessories') {
           if (this.selectedAccessory === 'monitor') {
             const _rawPos = this.monitorPosition || 'c';
@@ -2325,8 +2581,8 @@ class LevelEditor {
           ctx.fillStyle = 'rgba(79, 163, 227, 0.8)';
         }
 
-        if (this.selectedTile === 'character' || (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor') || this.selectedTile === 'player') {
-          // No dibujar bordes de pared para el monitor, personaje o jugador (ya dibujado en preview superior)
+        if (this.selectedTile === 'character' || (this.selectedTile === 'accessories' && this.selectedAccessory === 'monitor') || this.selectedTile === 'player' || this.selectedTile === 'stairs') {
+          // No dibujar bordes de pared para el monitor, personaje, jugador o escaleras (ya dibujado en preview superior)
         } else if (this.selectedTile === 'table') {
           ctx.fillStyle = 'rgba(107, 68, 35, 0.55)';
           ctx.fillRect(hpx + cs * 0.1, hpy + cs * 0.1, cs * 0.8, cs * 0.8);
@@ -2706,6 +2962,7 @@ class LevelEditor {
     const monitorOrientPanel = document.getElementById('monitorOrientationPanel');
     const sectionCharacterPlacement = document.getElementById('sectionCharacterPlacement');
     const sectionCeilingPlacement = document.getElementById('sectionCeilingPlacement');
+    const sectionStairsPlacement = document.getElementById('sectionStairsPlacement');
 
     if (this.currentTool === 'eraser') {
       if (sectionElementPalette) sectionElementPalette.style.display = 'none';
@@ -2714,6 +2971,7 @@ class LevelEditor {
       if (sectionMesaPlacement) sectionMesaPlacement.style.display = 'none';
       if (sectionCharacterPlacement) sectionCharacterPlacement.style.display = 'none';
       if (sectionCeilingPlacement) sectionCeilingPlacement.style.display = 'none';
+      if (sectionStairsPlacement) sectionStairsPlacement.style.display = 'none';
       if (sectionEraserInfo) sectionEraserInfo.style.display = '';
       if (sectionCellInspector) sectionCellInspector.style.display = 'none';
       if (monitorOrientPanel) monitorOrientPanel.style.display = 'none';
@@ -2726,6 +2984,7 @@ class LevelEditor {
       if (sectionMesaPlacement) sectionMesaPlacement.style.display = 'none';
       if (sectionCharacterPlacement) sectionCharacterPlacement.style.display = 'none';
       if (sectionCeilingPlacement) sectionCeilingPlacement.style.display = 'none';
+      if (sectionStairsPlacement) sectionStairsPlacement.style.display = 'none';
       if (sectionEraserInfo) sectionEraserInfo.style.display = 'none';
       this.canvas.style.opacity = '';
       if (sectionCellInspector) {
@@ -2744,6 +3003,7 @@ class LevelEditor {
       const isCharacter = (this.selectedTile === 'character');
       const isMesa = (this.selectedTile === 'table');
       const isCeiling = (this.selectedTile === 'ceiling');
+      const isStairs = (this.selectedTile === 'stairs');
 
       if (sectionCeilingPlacement) {
         sectionCeilingPlacement.style.display = isCeiling ? '' : 'none';
@@ -2777,6 +3037,36 @@ class LevelEditor {
         sectionMesaPlacement.style.display = isMesa ? '' : 'none';
         if (isMesa) sectionMesaPlacement.classList.remove('collapsed');
       }
+      if (sectionStairsPlacement) {
+        sectionStairsPlacement.style.display = isStairs ? '' : 'none';
+        if (isStairs) {
+          sectionStairsPlacement.classList.remove('collapsed');
+          this.updateStairsLevelLabels();
+        }
+      }
+    }
+  }
+
+  /**
+   * Actualiza dinámicamente los rangos de altura de los botones de nivel (Subir: 0 a 3m / Bajar: 0 a -3m bajo suelo)
+   */
+  updateStairsLevelLabels() {
+    const isDown = (this.stairsDirection === 'DOWN');
+    const ranges = isDown
+      ? { 1: '-2m a -3m', 2: '-1m a -2m', 3: '0m a -1m' }
+      : { 1: '0m a 1m', 2: '1m a 2m', 3: '2m a 3m' };
+    document.querySelectorAll('.stairs-level-btn').forEach(btn => {
+      const lvl = parseInt(btn.dataset.level, 10);
+      const sub = btn.querySelector('.stairs-lvl-sub');
+      if (sub && ranges[lvl]) {
+        sub.textContent = ranges[lvl];
+      }
+    });
+    const helpText = document.getElementById('stairsHelpText');
+    if (helpText) {
+      helpText.innerHTML = isDown
+        ? 'Alinea celdas empezando por <strong>Nivel 3</strong> (0 a -1m entrada desde suelo), <strong>Nivel 2</strong> (-1 a -2m) y <strong>Nivel 1</strong> (-2 a -3m fondo) para descender bajo el suelo.'
+        : 'Alinea celdas empezando por <strong>Nivel 1</strong> (0 a 1m entrada desde suelo), <strong>Nivel 2</strong> (1 a 2m) y <strong>Nivel 3</strong> (2 a 3m) para subir del suelo al techo (+3m).';
     }
   }
 
@@ -2816,7 +3106,30 @@ class LevelEditor {
       };
     }
 
-    // 3. Mesa
+    // 3. Escalera (Blanca)
+    if (raw.startsWith('STAIRS_')) {
+      const parts = raw.split('_');
+      const dir = parts[1] || 'UP';
+      const orient = parts[2] || 'N';
+      const level = parseInt(parts[3], 10) || 1;
+      const isDown = (dir === 'DOWN');
+      const dirNames = { UP: 'Subida ⬆️', DOWN: 'Bajada al sótano ⬇️' };
+      const orientNames = { N: 'Norte [N]', S: 'Sur [S]', E: 'Este [E]', O: 'Oeste [O]', W: 'Oeste [O]' };
+      const lvlNames = isDown
+        ? { 1: 'Nivel 1 (-2m a -3m fondo)', 2: 'Nivel 2 (-1m a -2m)', 3: 'Nivel 3 (0m a -1m entrada)' }
+        : { 1: 'Nivel 1 (0m a 1m entrada)', 2: 'Nivel 2 (1m a 2m)', 3: 'Nivel 3 (2m a 3m llegada)' };
+      const targetDepth = isDown ? (level === 3 ? '-1m' : level === 2 ? '-2m' : '-3m') : `+${level}m`;
+      return {
+        type: 'stairs',
+        name: `Escalera (${isDown ? 'Baja a ' + targetDepth : 'Sube a +' + level + 'm'})`,
+        sub: `Sentido: ${dirNames[dir] || dir} • Orientación: ${orientNames[orient] || orient} • Tramo: ${lvlNames[level] || ('Nivel ' + level)}`,
+        iconClass: 'ri-stairs-line',
+        badgeClass: 'icon-stairs',
+        stylePill: `${dir} ${orient} N${level}`
+      };
+    }
+
+    // 4. Mesa
     if (raw.startsWith('T') || (typeof code === 'number' && (code === 9 || (code >= 15 && code <= 21)))) {
       const num = raw.startsWith('T') ? parseInt(raw.substring(1), 10) : code;
       const tableNames = {
@@ -3115,7 +3428,7 @@ class LevelEditor {
     if (idx < 0 || idx >= currentSegs.length) return;
 
     const removedCode = currentSegs[idx];
-    if (typeof removedCode === 'string' && !removedCode.startsWith('T') && !removedCode.startsWith('MON') && !removedCode.startsWith('CHAR')) {
+    if (typeof removedCode === 'string' && !removedCode.startsWith('T') && !removedCode.startsWith('MON') && !removedCode.startsWith('CHAR') && !removedCode.startsWith('STAIRS')) {
       this.clearSegmentStyle(x, y, removedCode);
       if (removedCode.startsWith('D')) {
         this.clearSegmentStyle(x, y, removedCode + '_lintel');
@@ -3207,6 +3520,9 @@ class LevelEditor {
         monitorOrientation: this.monitorOrientation || 'F',
         monitorPosition: this.monitorPosition || 'c',
         characterOrientation: this.characterOrientation || 'F',
+        stairsDirection: this.stairsDirection || 'UP',
+        stairsOrientation: this.stairsOrientation || 'N',
+        stairsLevel: this.stairsLevel || 1,
         placementMode: this.placementMode,
         activeWallTab,
         zoomMode: this.zoomMode,
@@ -3256,14 +3572,14 @@ class LevelEditor {
         });
       }
 
-      // 4. Restaurar elemento seleccionado (Pared, Accesorios, Suelo, Jugador)
+      // 4. Restaurar elemento seleccionado (Pared, Accesorios, Suelo, Jugador, Escaleras)
       if (state.selectedTile !== undefined) {
         const radio = document.querySelector(`input[name="tileSelect"][value="${state.selectedTile}"]`);
         if (radio) {
           radio.checked = true;
           document.querySelectorAll('.palette-item').forEach(p => p.classList.remove('active'));
           radio.closest('.palette-item')?.classList.add('active');
-          this.selectedTile = (state.selectedTile === 'player' || state.selectedTile === 'accessories' || state.selectedTile === 'character' || state.selectedTile === 'table' || state.selectedTile === 'ceiling')
+          this.selectedTile = (state.selectedTile === 'player' || state.selectedTile === 'accessories' || state.selectedTile === 'character' || state.selectedTile === 'table' || state.selectedTile === 'ceiling' || state.selectedTile === 'stairs')
             ? state.selectedTile
             : parseInt(state.selectedTile, 10);
         }
@@ -3332,6 +3648,27 @@ class LevelEditor {
           btn.classList.toggle('active', btn.dataset.orient === this.characterOrientation);
         });
       }
+
+      // 7d. Restaurar sentido y orientación de escaleras
+      if (state.stairsDirection) {
+        this.stairsDirection = state.stairsDirection;
+        document.querySelectorAll('.stairs-type-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.dir === this.stairsDirection);
+        });
+      }
+      if (state.stairsOrientation) {
+        this.stairsOrientation = state.stairsOrientation;
+        document.querySelectorAll('.stairs-orient-btn').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.orient === this.stairsOrientation);
+        });
+      }
+      if (state.stairsLevel) {
+        this.stairsLevel = parseInt(state.stairsLevel, 10) || 1;
+        document.querySelectorAll('.stairs-level-btn').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.dataset.level, 10) === this.stairsLevel);
+        });
+      }
+      this.updateStairsLevelLabels();
 
       // 8. Restaurar Zoom
       if (state.zoomMode) {

@@ -209,6 +209,14 @@
                   <strong>Techo</strong>
                 </div>
               </label>
+
+              <label class="palette-item" title="Escaleras: peldaños para subir o bajar de nivel">
+                <input type="radio" name="tileSelect" value="stairs">
+                <span class="tile-sample stairs-sample"><i class="ri-stairs-line"></i></span>
+                <div class="tile-info">
+                  <strong>Escaleras</strong>
+                </div>
+              </label>
             </div>
           </div>
         </section>
@@ -560,7 +568,88 @@
           </div>
         </section>
 
-        <!-- 8. Inspector de Celda (Solo visible con herramienta Selector) -->
+        <!-- 8. Colocación de Escaleras (Solo visible al seleccionar Escaleras) -->
+        <section class="tool-section" id="sectionStairsPlacement" style="display: none;">
+          <div class="section-title-row">
+            <h2>
+              <span><i class="ri-stairs-line"></i> Colocación de Escaleras</span>
+              <span class="collapse-icon">▾</span>
+            </h2>
+          </div>
+
+          <div class="dimension-controls">
+            <!-- Sentido: Subir o Bajar -->
+            <p class="section-desc">Sentido de la escalera:</p>
+            <div class="stairs-type-grid" id="stairsTypeGrid">
+              <button type="button" class="stairs-type-btn active" data-dir="UP"
+                title="Escalera para SUBIR al siguiente nivel">
+                <i class="ri-arrow-up-circle-line"></i>
+                <span>Subir</span>
+              </button>
+              <button type="button" class="stairs-type-btn" data-dir="DOWN"
+                title="Escalera para BAJAR al nivel inferior">
+                <i class="ri-arrow-down-circle-line"></i>
+                <span>Bajar</span>
+              </button>
+            </div>
+
+            <!-- Orientación: Norte, Sur, Este, Oeste (NSEO) -->
+            <p class="section-desc" style="margin-top: 10px;">Orientación de la escalera (NSEO):</p>
+            <div class="stairs-orient-grid" id="stairsOrientGrid">
+              <button type="button" class="stairs-orient-btn active" data-orient="N"
+                title="Escalera orientada al Norte (▲)">
+                <i class="ri-arrow-up-line"></i>
+                <span>Norte [N]</span>
+              </button>
+              <button type="button" class="stairs-orient-btn" data-orient="S"
+                title="Escalera orientada al Sur (▼)">
+                <i class="ri-arrow-down-line"></i>
+                <span>Sur [S]</span>
+              </button>
+              <button type="button" class="stairs-orient-btn" data-orient="E"
+                title="Escalera orientada al Este (▶)">
+                <i class="ri-arrow-right-line"></i>
+                <span>Este [E]</span>
+              </button>
+              <button type="button" class="stairs-orient-btn" data-orient="O"
+                title="Escalera orientada al Oeste (◀)">
+                <i class="ri-arrow-left-line"></i>
+                <span>Oeste [O]</span>
+              </button>
+            </div>
+
+            <!-- Nivel de Altura / Tramo: Nivel 1, Nivel 2, Nivel 3 -->
+            <p class="section-desc" style="margin-top: 10px;">Nivel de altura (3 tramos):</p>
+            <div class="stairs-level-grid" id="stairsLevelGrid">
+              <button type="button" class="stairs-level-btn active" data-level="1"
+                title="Nivel 1: Tramo inferior (de 0m a 1m de altura)">
+                <span class="stairs-lvl-tag">N1</span>
+                <span class="stairs-lvl-name">Nivel 1</span>
+                <span class="stairs-lvl-sub">0m - 1m</span>
+              </button>
+              <button type="button" class="stairs-level-btn" data-level="2"
+                title="Nivel 2: Tramo intermedio (de 1m a 2m, base sólida 1m)">
+                <span class="stairs-lvl-tag">N2</span>
+                <span class="stairs-lvl-name">Nivel 2</span>
+                <span class="stairs-lvl-sub">1m - 2m</span>
+              </button>
+              <button type="button" class="stairs-level-btn" data-level="3"
+                title="Nivel 3: Tramo superior (de 2m a 3m, base sólida 2m)">
+                <span class="stairs-lvl-tag">N3</span>
+                <span class="stairs-lvl-name">Nivel 3</span>
+                <span class="stairs-lvl-sub">2m - 3m</span>
+              </button>
+            </div>
+
+            <div class="stairs-help-box"
+              style="margin-top: 10px; padding: 8px 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 6px; font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: flex-start; gap: 8px;">
+              <span style="font-size: 1.1rem; color: #ffffff; line-height: 1;"><i class="ri-information-line"></i></span>
+              <span id="stairsHelpText">Alinea celdas con <strong>Nivel 1</strong>, <strong>Nivel 2</strong> y <strong>Nivel 3</strong> en fila para crear una escalera continua.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 9. Inspector de Celda (Solo visible con herramienta Selector) -->
         <section class="tool-section" id="sectionCellInspector" style="display: none;">
           <div class="section-title-row">
             <h2>

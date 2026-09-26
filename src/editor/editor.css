@@ -727,6 +727,175 @@ body {
   font-size: 0.95rem;
 }
 
+.stairs-sample {
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid #ffffff;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.25);
+}
+
+/* Selector de Escaleras: Tipo (Subir/Bajar) y Orientación */
+.stairs-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.stairs-type-btn {
+  background: #151a26;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--text-light);
+  border-radius: 6px;
+  padding: 8px 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  transition: all 0.15s ease;
+}
+
+.stairs-type-btn i {
+  font-size: 1.15rem;
+  color: #ffffff;
+}
+
+.stairs-type-btn:hover {
+  background: #1e293b;
+  border-color: #ffffff;
+  color: #fff;
+}
+
+.stairs-type-btn.active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
+  font-weight: 700;
+}
+
+.stairs-orient-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.stairs-orient-btn {
+  background: #151a26;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-light);
+  border-radius: 6px;
+  padding: 6px 2px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7rem;
+  font-family: var(--font-body);
+  transition: all 0.15s ease;
+}
+
+.stairs-orient-btn i {
+  font-size: 1.05rem;
+  color: #ffffff;
+}
+
+.stairs-orient-btn:hover {
+  background: #1e293b;
+  border-color: #ffffff;
+  color: #fff;
+}
+
+.stairs-orient-btn.active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #ffffff;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.35);
+  font-weight: 700;
+}
+
+.stairs-level-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.stairs-level-btn {
+  background: #151a26;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 8px 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  transition: all 0.18s ease;
+  position: relative;
+}
+
+.stairs-lvl-tag {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  letter-spacing: 0.5px;
+}
+
+.stairs-lvl-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.stairs-lvl-sub {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.stairs-level-btn:hover {
+  background: #1e293b;
+  border-color: #ffffff;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.stairs-level-btn.active {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.4);
+}
+
+.stairs-level-btn.active .stairs-lvl-tag {
+  background: #ffffff;
+  color: #0b0f19;
+  border-color: #ffffff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.6);
+}
+
+.stairs-level-btn.active .stairs-lvl-sub {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.icon-stairs {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
 /* Sección Colocación de Accesorios */
 .section-desc {
   font-size: 0.78rem;
