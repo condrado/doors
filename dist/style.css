@@ -1378,6 +1378,6 @@ kbd i {
 
 
 
-/* Ocultar accesos a editor y hub en juego independiente */
-#btnOpenEditor, #btnOpenHub { display: none !important; }
+/* Ocultar accesos a editor, hub y botones auxiliares en juego independiente */
+#btnOpenEditor, #btnOpenHub, #hudFpsPill, #btnFloatingEditor, #btnMouseLook { display: none !important; }
 .header-info { display: flex; gap: 8px; align-items: center; }

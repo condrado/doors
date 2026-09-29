@@ -253,6 +253,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Mapear peticiones relativas a /assets/ hacia /src/assets/
+  if (reqUrl.startsWith('/assets/')) {
+    reqUrl = '/src' + reqUrl;
+  }
+
   // Compatibilidad hacia atrás y reescritura de rutas para assets organizados bajo /src/assets/textures/
   reqUrl = reqUrl.replace('/src/engine/textures/', '/src/assets/textures/')
                  .replace('/src/assets/texturas/', '/src/assets/textures/')
@@ -272,8 +277,14 @@ const server = http.createServer((req, res) => {
                  .replace('castillo.png', 'castle.png')
                  .replace('blanca.png', 'white.png')
                  .replace('negra.png', 'black.png')
+                 .replace('cristal-c.png', 'crystal-c.png')
                  .replace('cristal.png', 'crystal.png')
-                 .replace('ventana.png', 'window.png');
+                 .replace('ventana.png', 'window.png')
+                 .replace('cesped-1.png', 'grass-1.png')
+                 .replace('cesped-2.png', 'grass-2.png')
+                 .replace('rosa-1.png', 'pink-1.png')
+                 .replace('rosa-2.png', 'pink-2.png')
+                 .replace('rosa.png', 'pink.png');
 
   // Enrutamiento limpio y amigable
   if (reqUrl === '/' || reqUrl === '') {

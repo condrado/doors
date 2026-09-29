@@ -975,6 +975,8 @@ class RaycasterEngine {
    * propio (ver getSegmentStyle() y su uso en generateCellFaces()).
    */
   generateProceduralTextures() {
+    const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+    const baseTexDir = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
     this.textures[1] = {};
     this.textures[10] = {};
     Object.keys(WALL_STYLES).forEach(style => {
@@ -984,8 +986,14 @@ class RaycasterEngine {
 
       // Si el estilo tiene imagen física (pngUrl), cargarla asíncronamente para sustitución limpia
       if (def.pngUrl && typeof Image !== 'undefined') {
+        let wallUrl = def.pngUrl;
+        if (isStandalone && wallUrl.startsWith('/src/')) {
+          wallUrl = wallUrl.replace(/^\/src\//, '');
+        }
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && wallUrl.startsWith('http')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64;
@@ -1005,20 +1013,27 @@ class RaycasterEngine {
           arr.hasTransparency = hasTrans;
           if (def) def.hasTransparency = hasTrans;
           this.textures[1][style] = arr;
+          const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
+          if (alias) this.textures[1][alias] = arr;
         };
-        img.src = def.pngUrl;
+        img.src = wallUrl;
       }
 
       // Cargar también imagen física del canto/jamba
-      const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
-      const baseTexDir = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
       let capUrl = def.capPngUrl || (def.capFile ? (baseTexDir + def.capFile) : (baseTexDir + 'caps/' + style + '.png'));
-      if (capUrl && (capUrl.includes('/src/engine/textures/') || capUrl.includes('/src/assets/texturas/'))) {
-        capUrl = capUrl.replace('/src/engine/textures/', baseTexDir).replace('/src/assets/texturas/', baseTexDir);
+      if (capUrl && (capUrl.includes('/src/engine/textures/') || capUrl.includes('/src/assets/texturas/') || capUrl.includes('/src/assets/textures/'))) {
+        capUrl = capUrl.replace('/src/engine/textures/', baseTexDir)
+                       .replace('/src/assets/texturas/', baseTexDir)
+                       .replace('/src/assets/textures/', baseTexDir);
+      }
+      if (isStandalone && capUrl && capUrl.startsWith('/src/')) {
+        capUrl = capUrl.replace(/^\/src\//, '');
       }
       if (capUrl && typeof Image !== 'undefined') {
         const cImg = new Image();
-        cImg.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && capUrl.startsWith('http')) {
+          cImg.crossOrigin = 'anonymous';
+        }
         cImg.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64;
@@ -1037,6 +1052,8 @@ class RaycasterEngine {
           }
           arr.hasTransparency = hasTrans;
           this.textures[10][style] = arr;
+          const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
+          if (alias) this.textures[10][alias] = arr;
         };
         cImg.src = capUrl;
       }
@@ -1055,8 +1072,14 @@ class RaycasterEngine {
       this.textures[11][style] = def.cap(64, 192);
 
       if (def.pngUrl && typeof Image !== 'undefined') {
+        let doorUrl = def.pngUrl;
+        if (isStandalone && doorUrl.startsWith('/src/')) {
+          doorUrl = doorUrl.replace(/^\/src\//, '');
+        }
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && doorUrl.startsWith('http')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64;
@@ -1075,20 +1098,29 @@ class RaycasterEngine {
           }
           arr.hasTransparency = hasTrans;
           if (def) def.hasTransparency = hasTrans;
+          const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
           [2, 3, 4, 5].forEach(type => {
             this.textures[type][style] = arr;
+            if (alias) this.textures[type][alias] = arr;
           });
         };
-        img.src = def.pngUrl;
+        img.src = doorUrl;
       }
 
       let doorCapUrl = def.capPngUrl || (def.capFile ? (baseTexDir + def.capFile) : (baseTexDir + 'caps/' + style + '.png'));
-      if (doorCapUrl && (doorCapUrl.includes('/src/engine/textures/') || doorCapUrl.includes('/src/assets/texturas/'))) {
-        doorCapUrl = doorCapUrl.replace('/src/engine/textures/', baseTexDir).replace('/src/assets/texturas/', baseTexDir);
+      if (doorCapUrl && (doorCapUrl.includes('/src/engine/textures/') || doorCapUrl.includes('/src/assets/texturas/') || doorCapUrl.includes('/src/assets/textures/'))) {
+        doorCapUrl = doorCapUrl.replace('/src/engine/textures/', baseTexDir)
+                               .replace('/src/assets/texturas/', baseTexDir)
+                               .replace('/src/assets/textures/', baseTexDir);
+      }
+      if (isStandalone && doorCapUrl && doorCapUrl.startsWith('/src/')) {
+        doorCapUrl = doorCapUrl.replace(/^\/src\//, '');
       }
       if (doorCapUrl && typeof Image !== 'undefined') {
         const cImg = new Image();
-        cImg.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && doorCapUrl.startsWith('http')) {
+          cImg.crossOrigin = 'anonymous';
+        }
         cImg.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64;
@@ -1107,6 +1139,8 @@ class RaycasterEngine {
           }
           arr.hasTransparency = hasTrans;
           this.textures[11][style] = arr;
+          const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
+          if (alias) this.textures[11][alias] = arr;
         };
         cImg.src = doorCapUrl;
       }
@@ -1186,8 +1220,13 @@ class RaycasterEngine {
     if (typeof Image !== 'undefined') {
       // Carga mesa-t.png (tapa superior, squash a 64×64)
       const loadMesaTop = (src) => {
+        let topSrc = src;
+        const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+        if (isStandalone && topSrc.startsWith('/src/')) topSrc = topSrc.replace(/^\/src\//, '');
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && topSrc.startsWith('http')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64; off.height = 64;
@@ -1195,18 +1234,24 @@ class RaycasterEngine {
           octx.drawImage(img, 0, 0, 64, 64);
           const arr = new Uint32Array(octx.getImageData(0, 0, 64, 64).data.buffer);
           arr.width = 64; arr.height = 64;
-          this.textures[14]['mesa'] = arr;
-          this.textures[14]['castillo'] = arr;
+          ['mesa', 'castillo', 'castle', 'white', 'blanca'].forEach(k => {
+            this.textures[14][k] = arr;
+          });
         };
-        img.src = src + '?t=' + Date.now();
+        img.src = (typeof location !== 'undefined' && location.protocol === 'file:') ? topSrc : (topSrc + '?t=' + Date.now());
       };
 
       // Carga mesa-l.png (cuerpo completo con 2 patas) y genera variantes
       // recortando las columnas de pata izq (x=0-7) y/o der (x=56-63)
       // en el tercio inferior (y >= H*2/3), donde aparecen las patas.
       const loadMesaLateral = (src) => {
+        let latSrc = src;
+        const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+        if (isStandalone && latSrc.startsWith('/src/')) latSrc = latSrc.replace(/^\/src\//, '');
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && latSrc.startsWith('http')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.onload = () => {
           const H = img.naturalHeight || 192;
           const off = document.createElement('canvas');
@@ -1217,8 +1262,9 @@ class RaycasterEngine {
           base.width = 64; base.height = H;
 
           // Tipo 9: cuerpo completo con las dos patas (sin modificar)
-          this.textures[9]['mesa'] = base;
-          this.textures[9]['castillo'] = base;
+          ['mesa', 'castillo', 'castle', 'white', 'blanca'].forEach(k => {
+            this.textures[9][k] = base;
+          });
 
           const yLeg = Math.floor(H * 2 / 3); // = 128 for 192px
 
@@ -1243,10 +1289,12 @@ class RaycasterEngine {
 
           [this.textures[15], this.textures[22], this.textures[23]].forEach((t, i) => {
             const arr = [noLegs, leftOnly, rightOnly][i];
-            t['mesa'] = arr; t['castillo'] = arr;
+            ['mesa', 'castillo', 'castle', 'white', 'blanca'].forEach(k => {
+              t[k] = arr;
+            });
           });
         };
-        img.src = src + '?t=' + Date.now();
+        img.src = (typeof location !== 'undefined' && location.protocol === 'file:') ? latSrc : (latSrc + '?t=' + Date.now());
       };
 
       const mesaBase = (typeof window !== 'undefined' && window.STANDALONE_PROJECT) ? 'assets/textures/custom/' : '/src/assets/textures/custom/';
@@ -2030,7 +2078,14 @@ class RaycasterEngine {
 
       const resolveTex = (type, style) => {
         const raw = this.textures[type] || this.textures[1];
-        return (raw instanceof Uint32Array) ? raw : (raw[style] || raw.castillo);
+        if (raw instanceof Uint32Array) return raw;
+        if (raw[style]) return raw[style];
+        const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
+        if (alias && raw[alias]) return raw[alias];
+        if (type === 9 || type === 14 || type === 15 || type === 22 || type === 23) {
+          return raw['mesa'] || raw['castillo'] || raw['castle'] || Object.values(raw)[0];
+        }
+        return raw['castillo'] || raw['castle'] || raw['white'] || raw['blanca'] || Object.values(raw)[0];
       };
 
       // Unir todas las capas intermedias que están por delante del fondo opaco

@@ -529,78 +529,96 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Sincronizar también texturas físicas descubiertas en carpetas (ej. cristal-c.png)
   if (typeof fetch === 'function') {
-    fetch('/api/list-textures')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!data) return;
-        let needsRegen = false;
+    const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+    const texBase = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
+    const fetchManifest = () => fetch(texBase + 'textures.json').then(r => r.ok ? r.json() : null).catch(() => null);
 
-        // Limpiar dataUrls obsoletos en customStyles si ahora hay archivos físicos en disco
-        if (activeProject && activeProject.customStyles) {
-          if (data.walls && activeProject.customStyles.walls) {
-            data.walls.forEach(item => {
-              if (activeProject.customStyles.walls[item.name]) {
-                activeProject.customStyles.walls[item.name].pngUrl = item.url;
-                activeProject.customStyles.walls[item.name].capPngUrl = item.capUrl;
-                delete activeProject.customStyles.walls[item.name].capDataUrl;
-                delete activeProject.customStyles.walls[item.name].dataUrl;
-              }
-            });
-          }
-          if (data.doors && activeProject.customStyles.doors) {
-            data.doors.forEach(item => {
-              if (activeProject.customStyles.doors[item.name]) {
-                activeProject.customStyles.doors[item.name].pngUrl = item.url;
-                activeProject.customStyles.doors[item.name].capPngUrl = item.capUrl;
-                delete activeProject.customStyles.doors[item.name].capDataUrl;
-                delete activeProject.customStyles.doors[item.name].dataUrl;
-              }
-            });
-          }
-        }
+    const initialFetch = isStandalone
+      ? fetchManifest()
+      : fetch('/api/list-textures').then(r => r.ok ? r.json() : null).catch(fetchManifest);
 
-        const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
-        const texBase = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
-        if (data.walls && typeof registerWallStyle === 'function') {
-          data.walls.forEach(item => {
-            const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
-            const capFile = item.capFile || ('caps/' + item.name + '.png');
-            const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
-            // Siempre registrar/actualizar con la URL fresca del disco (incluyendo query ?t=)
-            registerWallStyle(item.name, {
-              label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
-              pngUrl: item.url,
-              file: item.file,
-              capFile: capFile,
-              capPngUrl: capUrl,
-              hasTransparency: isTrans,
-              isCustom: true
-            });
-            needsRegen = true;
+    initialFetch.then(data => {
+      if (!data) return;
+      let needsRegen = false;
+
+      const toItemList = (cat) => {
+        if (!cat) return [];
+        if (Array.isArray(cat)) return cat;
+        return Object.entries(cat).map(([name, item]) => ({
+          name,
+          file: item.file,
+          url: item.file ? (texBase + item.file) : null,
+          capFile: item.capFile,
+          capUrl: item.capFile ? (texBase + item.capFile) : null,
+          hasTransparency: item.hasTransparency
+        }));
+      };
+
+      const wallList = toItemList(data.walls);
+      const doorList = toItemList(data.doors);
+
+      // Limpiar dataUrls obsoletos en customStyles si ahora hay archivos físicos en disco
+      if (activeProject && activeProject.customStyles) {
+        if (wallList.length > 0 && activeProject.customStyles.walls) {
+          wallList.forEach(item => {
+            if (activeProject.customStyles.walls[item.name]) {
+              activeProject.customStyles.walls[item.name].pngUrl = item.url;
+              activeProject.customStyles.walls[item.name].capPngUrl = item.capUrl;
+              delete activeProject.customStyles.walls[item.name].capDataUrl;
+              delete activeProject.customStyles.walls[item.name].dataUrl;
+            }
           });
         }
-        if (data.doors && typeof registerDoorStyle === 'function') {
-          data.doors.forEach(item => {
-            const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
-            const capFile = item.capFile || ('caps/' + item.name + '.png');
-            const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
-            registerDoorStyle(item.name, {
-              label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
-              pngUrl: item.url,
-              file: item.file,
-              capFile: capFile,
-              capPngUrl: capUrl,
-              hasTransparency: isTrans,
-              isCustom: true
-            });
-            needsRegen = true;
+        if (doorList.length > 0 && activeProject.customStyles.doors) {
+          doorList.forEach(item => {
+            if (activeProject.customStyles.doors[item.name]) {
+              activeProject.customStyles.doors[item.name].pngUrl = item.url;
+              activeProject.customStyles.doors[item.name].capPngUrl = item.capUrl;
+              delete activeProject.customStyles.doors[item.name].capDataUrl;
+              delete activeProject.customStyles.doors[item.name].dataUrl;
+            }
           });
         }
-        if (needsRegen) {
-          engine.generateProceduralTextures();
-        }
-      })
-      .catch(() => {});
+      }
+
+      if (wallList.length > 0 && typeof registerWallStyle === 'function') {
+        wallList.forEach(item => {
+          const isTrans = (/^(cristal|crystal|glass|trans|reja|enrejado)/i.test(item.name));
+          const capFile = item.capFile || ('caps/' + item.name + '.png');
+          const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
+          registerWallStyle(item.name, {
+            label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
+            pngUrl: item.url,
+            file: item.file,
+            capFile: capFile,
+            capPngUrl: capUrl,
+            hasTransparency: isTrans,
+            isCustom: true
+          });
+          needsRegen = true;
+        });
+      }
+      if (doorList.length > 0 && typeof registerDoorStyle === 'function') {
+        doorList.forEach(item => {
+          const isTrans = (/^(cristal|crystal|glass|trans|reja|enrejado)/i.test(item.name));
+          const capFile = item.capFile || ('caps/' + item.name + '.png');
+          const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
+          registerDoorStyle(item.name, {
+            label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
+            pngUrl: item.url,
+            file: item.file,
+            capFile: capFile,
+            capPngUrl: capUrl,
+            hasTransparency: isTrans,
+            isCustom: true
+          });
+          needsRegen = true;
+        });
+      }
+      if (needsRegen) {
+        engine.generateProceduralTextures();
+      }
+    }).catch(() => {});
   }
 
   if (activeProject && activeProject.maps && Object.keys(activeProject.maps).length > 0) {
@@ -649,21 +667,28 @@ window.addEventListener('DOMContentLoaded', () => {
   const textFullscreen = document.getElementById('textFullscreen');
   const viewportWrapper = document.querySelector('.viewport-wrapper');
 
+  if (btnTogglePanels && typeof window !== 'undefined' && window.STANDALONE_PROJECT) {
+    btnTogglePanels.title = 'Opciones (H)';
+    if (iconTogglePanels) iconTogglePanels.className = 'ri-settings-3-line';
+    if (textTogglePanels) textTogglePanels.textContent = 'Opciones';
+  }
+
   // 1. Mostrar / Ocultar Paneles Superiores e Inferiores
   function togglePanelsVisibility() {
     if (!appContainer) return;
     const isHidden = appContainer.classList.toggle('panels-hidden');
+    const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
     if (btnTogglePanels) {
       if (isHidden) {
         btnTogglePanels.classList.add('panel-toggle-active');
-        btnTogglePanels.title = 'Mostrar Paneles (H)';
-        if (iconTogglePanels) iconTogglePanels.className = 'ri-eye-line';
-        if (textTogglePanels) textTogglePanels.textContent = 'Mostrar Paneles';
+        btnTogglePanels.title = isStandalone ? 'Opciones (H)' : 'Mostrar Paneles (H)';
+        if (iconTogglePanels) iconTogglePanels.className = isStandalone ? 'ri-settings-3-line' : 'ri-eye-line';
+        if (textTogglePanels) textTogglePanels.textContent = isStandalone ? 'Opciones' : 'Mostrar Paneles';
       } else {
         btnTogglePanels.classList.remove('panel-toggle-active');
-        btnTogglePanels.title = 'Ocultar Paneles (H)';
-        if (iconTogglePanels) iconTogglePanels.className = 'ri-eye-off-line';
-        if (textTogglePanels) textTogglePanels.textContent = 'Ocultar Paneles';
+        btnTogglePanels.title = isStandalone ? 'Cerrar Opciones (H)' : 'Ocultar Paneles (H)';
+        if (iconTogglePanels) iconTogglePanels.className = isStandalone ? 'ri-settings-3-line' : 'ri-eye-off-line';
+        if (textTogglePanels) textTogglePanels.textContent = isStandalone ? 'Opciones' : 'Ocultar Paneles';
       }
     }
   }
@@ -679,7 +704,12 @@ window.addEventListener('DOMContentLoaded', () => {
   function requestLock() {
     canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
     if (canvas.requestPointerLock) {
-      canvas.requestPointerLock();
+      try {
+        const p = canvas.requestPointerLock();
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => {});
+        }
+      } catch (err) {}
     }
   }
 

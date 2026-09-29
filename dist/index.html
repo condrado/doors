@@ -65,24 +65,13 @@
 
         <!-- Barra de Botones de Acción Flotantes (Top Right) -->
         <div class="hud-floating-bar" id="hudFloatingBar">
-          <div class="hud-fps-pill" id="hudFpsPill" title="Tasa de refresco (FPS) y tiempo de fotograma (ms)">
-            <i class="ri-dashboard-3-line"></i>
-            <span class="fps-val" id="fpsVal">--</span>
-            <span class="fps-unit">FPS</span>
-            <span class="fps-ms" id="fpsMs">--ms</span>
-          </div>
-          <a href="../editor/index.html" class="hud-action-btn editor-nav-btn" id="btnFloatingEditor" title="Abrir Editor de Mapas">
-            <i class="ri-edit-line"></i>
-            <span>Editor</span>
-          </a>
-          <button class="hud-action-btn panel-toggle-active" id="btnTogglePanels" title="Mostrar Paneles (H)" type="button">
-            <i class="ri-eye-line" id="iconTogglePanels"></i>
-            <span id="textTogglePanels">Mostrar Paneles</span>
+          
+          
+          <button class="hud-action-btn panel-toggle-active" id="btnTogglePanels" title="Opciones (H)" type="button">
+            <i class="ri-settings-3-line" id="iconTogglePanels"></i>
+            <span id="textTogglePanels">Opciones</span>
           </button>
-          <button class="hud-action-btn" id="btnMouseLook" title="Haz clic o Ctrl+M para mirar con el ratón" type="button">
-            <i class="ri-mouse-line" id="iconMouseLook"></i>
-            <span id="textMouseLook">Mirar con el ratón</span>
-          </button>
+          
           <button class="hud-action-btn" id="btnFullscreen" title="Pantalla Completa (F)" type="button">
             <i class="ri-fullscreen-line" id="iconFullscreen"></i>
             <span id="textFullscreen">Pantalla Completa</span>
@@ -212,28 +201,7 @@
   
 
 <!-- Live Reload Automático -->
-<script>
-(() => {
-  let retryCount = 0;
-  function connect() {
-    const es = new EventSource('/__live_reload');
-    es.onmessage = (e) => {
-      if (e.data === 'reload') {
-        console.log('⚡ [LiveReload] Actualización de desarrollo detectada. Recargando...');
-        location.reload();
-      }
-    };
-    es.onerror = () => {
-      es.close();
-      setTimeout(connect, Math.min(2500, 500 * (++retryCount)));
-    };
-    es.onopen = () => {
-      retryCount = 0;
-    };
-  }
-  connect();
-})();
-</script>
+
 
 
 

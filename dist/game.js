@@ -6,7 +6,7 @@ window.STANDALONE_PROJECT = {
   "name": "Garaje 1.0",
   "version": 2,
   "createdAt": 1789937627627,
-  "updatedAt": 1790677002269,
+  "updatedAt": 1790683849679,
   "startingMapId": "map_1",
   "maps": {
     "map_1": {
@@ -14,9 +14,9 @@ window.STANDALONE_PROJECT = {
       "width": 20,
       "height": 50,
       "playerStart": {
-        "x": 16.5,
-        "y": 30.5,
-        "angle": -1.5707963267948966
+        "x": 4.5,
+        "y": 6.5,
+        "angle": 0
       },
       "legend": {
         "0": "Suelo libre / pasillo",
@@ -6093,46 +6093,46 @@ window.STANDALONE_PROJECT = {
         "walls": {
           "cesped-1": {
             "label": "Cesped-1",
-            "pngUrl": "/src/engine/textures/walls/cesped-1.png?t=1789925759846",
-            "file": "walls/cesped-1.png",
-            "capFile": "caps/cesped-1.png",
-            "capPngUrl": "/src/engine/textures/caps/cesped-1.png?t=1789923747005",
+            "pngUrl": "assets/textures/walls/grass-1.png?t=1789925759846",
+            "file": "walls/grass-1.png",
+            "capFile": "caps/grass-1.png",
+            "capPngUrl": "assets/textures/caps/grass-1.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "cesped-2": {
             "label": "Cesped-2",
-            "pngUrl": "/src/engine/textures/walls/cesped-2.png?t=1789925778741",
-            "file": "walls/cesped-2.png",
-            "capFile": "caps/cesped-2.png",
-            "capPngUrl": "/src/engine/textures/caps/cesped-2.png?t=1789923747005",
+            "pngUrl": "assets/textures/walls/grass-2.png?t=1789925778741",
+            "file": "walls/grass-2.png",
+            "capFile": "caps/grass-2.png",
+            "capPngUrl": "assets/textures/caps/grass-2.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "cristal-c": {
             "label": "Cristal-c",
-            "pngUrl": "/src/engine/textures/walls/cristal-c.png?t=1789923350411",
-            "file": "walls/cristal-c.png",
+            "pngUrl": "assets/textures/walls/crystal-c.png?t=1789923350411",
+            "file": "walls/crystal-c.png",
             "isCustom": true,
             "hasTransparency": true,
-            "capFile": "caps/cristal-c.png",
-            "capPngUrl": "/src/engine/textures/caps/cristal-c.png?t=1789923747010"
+            "capFile": "caps/crystal-c.png",
+            "capPngUrl": "assets/textures/caps/crystal-c.png?t=1789923747010"
           },
           "rosa-1": {
             "label": "Rosa-1",
-            "pngUrl": "/src/engine/textures/walls/rosa-1.png?t=1789926723148",
-            "file": "walls/rosa-1.png",
-            "capFile": "caps/rosa-1.png",
-            "capPngUrl": "/src/engine/textures/caps/rosa-1.png?t=1789923747005",
+            "pngUrl": "assets/textures/walls/pink-1.png?t=1789926723148",
+            "file": "walls/pink-1.png",
+            "capFile": "caps/pink-1.png",
+            "capPngUrl": "assets/textures/caps/pink-1.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "rosa-2": {
             "label": "Rosa-2",
-            "pngUrl": "/src/engine/textures/walls/rosa-2.png?t=1789926737539",
-            "file": "walls/rosa-2.png",
-            "capFile": "caps/rosa-2.png",
-            "capPngUrl": "/src/engine/textures/caps/rosa-2.png?t=1789923747005",
+            "pngUrl": "assets/textures/walls/pink-2.png?t=1789926737539",
+            "file": "walls/pink-2.png",
+            "capFile": "caps/pink-2.png",
+            "capPngUrl": "assets/textures/caps/pink-2.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
@@ -6140,62 +6140,62 @@ window.STANDALONE_PROJECT = {
             "label": "Rosa",
             "isCustom": true,
             "hasTransparency": false,
-            "file": "walls/rosa.png",
-            "pngUrl": "/src/engine/textures/walls/rosa.png?t=1789926049687",
-            "capFile": "caps/rosa.png",
-            "capPngUrl": "/src/engine/textures/caps/rosa.png?t=1789923747005"
+            "file": "walls/pink.png",
+            "pngUrl": "assets/textures/walls/pink.png?t=1789926049687",
+            "capFile": "caps/pink.png",
+            "capPngUrl": "assets/textures/caps/pink.png?t=1789923747005"
           },
           "crystal-c": {
             "label": "Crystal-c",
-            "pngUrl": "/src/assets/textures/walls/crystal-c.png?t=1789923350411",
+            "pngUrl": "assets/textures/walls/crystal-c.png?t=1789923350411",
             "file": "walls/crystal-c.png",
             "capFile": "caps/crystal-c.png",
-            "capPngUrl": "/src/assets/textures/caps/crystal-c.png?t=1789923747010",
+            "capPngUrl": "assets/textures/caps/crystal-c.png?t=1789923747010",
             "hasTransparency": false,
             "isCustom": true
           },
           "grass-1": {
             "label": "Grass-1",
-            "pngUrl": "/src/assets/textures/walls/grass-1.png?t=1789925759846",
+            "pngUrl": "assets/textures/walls/grass-1.png?t=1790683790608",
             "file": "walls/grass-1.png",
             "capFile": "caps/grass-1.png",
-            "capPngUrl": "/src/assets/textures/caps/grass-1.png?t=1789923747005",
+            "capPngUrl": "assets/textures/caps/grass-1.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "grass-2": {
             "label": "Grass-2",
-            "pngUrl": "/src/assets/textures/walls/grass-2.png?t=1789925778741",
+            "pngUrl": "assets/textures/walls/grass-2.png?t=1790683814242",
             "file": "walls/grass-2.png",
             "capFile": "caps/grass-2.png",
-            "capPngUrl": "/src/assets/textures/caps/grass-2.png?t=1789923747005",
+            "capPngUrl": "assets/textures/caps/grass-2.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "pink-1": {
             "label": "Pink-1",
-            "pngUrl": "/src/assets/textures/walls/pink-1.png?t=1789926723148",
+            "pngUrl": "assets/textures/walls/pink-1.png?t=1789926723148",
             "file": "walls/pink-1.png",
             "capFile": "caps/pink-1.png",
-            "capPngUrl": "/src/assets/textures/caps/pink-1.png?t=1789923747005",
+            "capPngUrl": "assets/textures/caps/pink-1.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "pink-2": {
             "label": "Pink-2",
-            "pngUrl": "/src/assets/textures/walls/pink-2.png?t=1789926737539",
+            "pngUrl": "assets/textures/walls/pink-2.png?t=1789926737539",
             "file": "walls/pink-2.png",
             "capFile": "caps/pink-2.png",
-            "capPngUrl": "/src/assets/textures/caps/pink-2.png?t=1789923747005",
+            "capPngUrl": "assets/textures/caps/pink-2.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "pink": {
             "label": "Pink",
-            "pngUrl": "/src/assets/textures/walls/pink.png?t=1789926049687",
+            "pngUrl": "assets/textures/walls/pink.png?t=1789926049687",
             "file": "walls/pink.png",
             "capFile": "caps/pink.png",
-            "capPngUrl": "/src/assets/textures/caps/pink.png?t=1789923747005",
+            "capPngUrl": "assets/textures/caps/pink.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           }
@@ -8294,46 +8294,46 @@ window.STANDALONE_PROJECT = {
         "walls": {
           "cesped-1": {
             "label": "Cesped-1",
-            "pngUrl": "/src/engine/textures/walls/cesped-1.png?t=1789925759846",
-            "file": "walls/cesped-1.png",
-            "capFile": "caps/cesped-1.png",
-            "capPngUrl": "/src/engine/textures/caps/cesped-1.png?t=1789923747005",
+            "pngUrl": "assets/textures/walls/grass-1.png?t=1789925759846",
+            "file": "walls/grass-1.png",
+            "capFile": "caps/grass-1.png",
+            "capPngUrl": "assets/textures/caps/grass-1.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "cesped-2": {
             "label": "Cesped-2",
-            "pngUrl": "/src/engine/textures/walls/cesped-2.png?t=1789925778741",
-            "file": "walls/cesped-2.png",
-            "capFile": "caps/cesped-2.png",
-            "capPngUrl": "/src/engine/textures/caps/cesped-2.png?t=1789923747005",
+            "pngUrl": "assets/textures/walls/grass-2.png?t=1789925778741",
+            "file": "walls/grass-2.png",
+            "capFile": "caps/grass-2.png",
+            "capPngUrl": "assets/textures/caps/grass-2.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "cristal-c": {
             "label": "Cristal-c",
-            "pngUrl": "/src/engine/textures/walls/cristal-c.png?t=1789923350411",
-            "file": "walls/cristal-c.png",
+            "pngUrl": "assets/textures/walls/crystal-c.png?t=1789923350411",
+            "file": "walls/crystal-c.png",
             "isCustom": true,
             "hasTransparency": true,
-            "capFile": "caps/cristal-c.png",
-            "capPngUrl": "/src/engine/textures/caps/cristal-c.png?t=1789923747010"
+            "capFile": "caps/crystal-c.png",
+            "capPngUrl": "assets/textures/caps/crystal-c.png?t=1789923747010"
           },
           "rosa-1": {
             "label": "Rosa-1",
-            "pngUrl": "/src/engine/textures/walls/rosa-1.png?t=1789926723148",
-            "file": "walls/rosa-1.png",
-            "capFile": "caps/rosa-1.png",
-            "capPngUrl": "/src/engine/textures/caps/rosa-1.png?t=1789923747005",
+            "pngUrl": "assets/textures/walls/pink-1.png?t=1789926723148",
+            "file": "walls/pink-1.png",
+            "capFile": "caps/pink-1.png",
+            "capPngUrl": "assets/textures/caps/pink-1.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
           "rosa-2": {
             "label": "Rosa-2",
-            "pngUrl": "/src/engine/textures/walls/rosa-2.png?t=1789926737539",
-            "file": "walls/rosa-2.png",
-            "capFile": "caps/rosa-2.png",
-            "capPngUrl": "/src/engine/textures/caps/rosa-2.png?t=1789923747005",
+            "pngUrl": "assets/textures/walls/pink-2.png?t=1789926737539",
+            "file": "walls/pink-2.png",
+            "capFile": "caps/pink-2.png",
+            "capPngUrl": "assets/textures/caps/pink-2.png?t=1789923747005",
             "hasTransparency": false,
             "isCustom": true
           },
@@ -8341,10 +8341,10 @@ window.STANDALONE_PROJECT = {
             "label": "Rosa",
             "isCustom": true,
             "hasTransparency": false,
-            "file": "walls/rosa.png",
-            "pngUrl": "/src/engine/textures/walls/rosa.png?t=1789926049687",
-            "capFile": "caps/rosa.png",
-            "capPngUrl": "/src/engine/textures/caps/rosa.png?t=1789923747005"
+            "file": "walls/pink.png",
+            "pngUrl": "assets/textures/walls/pink.png?t=1789926049687",
+            "capFile": "caps/pink.png",
+            "capPngUrl": "assets/textures/caps/pink.png?t=1789923747005"
           }
         },
         "doors": {}
@@ -8360,46 +8360,46 @@ window.STANDALONE_PROJECT = {
     "walls": {
       "cesped-1": {
         "label": "Cesped-1",
-        "pngUrl": "/src/engine/textures/walls/cesped-1.png?t=1789925759846",
-        "file": "walls/cesped-1.png",
-        "capFile": "caps/cesped-1.png",
-        "capPngUrl": "/src/engine/textures/caps/cesped-1.png?t=1789923747005",
+        "pngUrl": "assets/textures/walls/grass-1.png?t=1789925759846",
+        "file": "walls/grass-1.png",
+        "capFile": "caps/grass-1.png",
+        "capPngUrl": "assets/textures/caps/grass-1.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       },
       "cesped-2": {
         "label": "Cesped-2",
-        "pngUrl": "/src/engine/textures/walls/cesped-2.png?t=1789925778741",
-        "file": "walls/cesped-2.png",
-        "capFile": "caps/cesped-2.png",
-        "capPngUrl": "/src/engine/textures/caps/cesped-2.png?t=1789923747005",
+        "pngUrl": "assets/textures/walls/grass-2.png?t=1789925778741",
+        "file": "walls/grass-2.png",
+        "capFile": "caps/grass-2.png",
+        "capPngUrl": "assets/textures/caps/grass-2.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       },
       "cristal-c": {
         "label": "Cristal-c",
-        "pngUrl": "/src/engine/textures/walls/cristal-c.png?t=1789923350411",
-        "file": "walls/cristal-c.png",
+        "pngUrl": "assets/textures/walls/crystal-c.png?t=1789923350411",
+        "file": "walls/crystal-c.png",
         "isCustom": true,
         "hasTransparency": true,
-        "capFile": "caps/cristal-c.png",
-        "capPngUrl": "/src/engine/textures/caps/cristal-c.png?t=1789923747010"
+        "capFile": "caps/crystal-c.png",
+        "capPngUrl": "assets/textures/caps/crystal-c.png?t=1789923747010"
       },
       "rosa-1": {
         "label": "Rosa-1",
-        "pngUrl": "/src/engine/textures/walls/rosa-1.png?t=1789926723148",
-        "file": "walls/rosa-1.png",
-        "capFile": "caps/rosa-1.png",
-        "capPngUrl": "/src/engine/textures/caps/rosa-1.png?t=1789923747005",
+        "pngUrl": "assets/textures/walls/pink-1.png?t=1789926723148",
+        "file": "walls/pink-1.png",
+        "capFile": "caps/pink-1.png",
+        "capPngUrl": "assets/textures/caps/pink-1.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       },
       "rosa-2": {
         "label": "Rosa-2",
-        "pngUrl": "/src/engine/textures/walls/rosa-2.png?t=1789926737539",
-        "file": "walls/rosa-2.png",
-        "capFile": "caps/rosa-2.png",
-        "capPngUrl": "/src/engine/textures/caps/rosa-2.png?t=1789923747005",
+        "pngUrl": "assets/textures/walls/pink-2.png?t=1789926737539",
+        "file": "walls/pink-2.png",
+        "capFile": "caps/pink-2.png",
+        "capPngUrl": "assets/textures/caps/pink-2.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       },
@@ -8407,62 +8407,62 @@ window.STANDALONE_PROJECT = {
         "label": "Rosa",
         "isCustom": true,
         "hasTransparency": false,
-        "file": "walls/rosa.png",
-        "pngUrl": "/src/engine/textures/walls/rosa.png?t=1789926049687",
-        "capFile": "caps/rosa.png",
-        "capPngUrl": "/src/engine/textures/caps/rosa.png?t=1789923747005"
+        "file": "walls/pink.png",
+        "pngUrl": "assets/textures/walls/pink.png?t=1789926049687",
+        "capFile": "caps/pink.png",
+        "capPngUrl": "assets/textures/caps/pink.png?t=1789923747005"
       },
       "crystal-c": {
         "label": "Crystal-c",
-        "pngUrl": "/src/assets/textures/walls/crystal-c.png?t=1789923350411",
+        "pngUrl": "assets/textures/walls/crystal-c.png?t=1789923350411",
         "file": "walls/crystal-c.png",
         "capFile": "caps/crystal-c.png",
-        "capPngUrl": "/src/assets/textures/caps/crystal-c.png?t=1789923747010",
+        "capPngUrl": "assets/textures/caps/crystal-c.png?t=1789923747010",
         "hasTransparency": false,
         "isCustom": true
       },
       "grass-1": {
         "label": "Grass-1",
-        "pngUrl": "/src/assets/textures/walls/grass-1.png?t=1789925759846",
+        "pngUrl": "assets/textures/walls/grass-1.png?t=1790683790608",
         "file": "walls/grass-1.png",
         "capFile": "caps/grass-1.png",
-        "capPngUrl": "/src/assets/textures/caps/grass-1.png?t=1789923747005",
+        "capPngUrl": "assets/textures/caps/grass-1.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       },
       "grass-2": {
         "label": "Grass-2",
-        "pngUrl": "/src/assets/textures/walls/grass-2.png?t=1789925778741",
+        "pngUrl": "assets/textures/walls/grass-2.png?t=1790683814242",
         "file": "walls/grass-2.png",
         "capFile": "caps/grass-2.png",
-        "capPngUrl": "/src/assets/textures/caps/grass-2.png?t=1789923747005",
+        "capPngUrl": "assets/textures/caps/grass-2.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       },
       "pink-1": {
         "label": "Pink-1",
-        "pngUrl": "/src/assets/textures/walls/pink-1.png?t=1789926723148",
+        "pngUrl": "assets/textures/walls/pink-1.png?t=1789926723148",
         "file": "walls/pink-1.png",
         "capFile": "caps/pink-1.png",
-        "capPngUrl": "/src/assets/textures/caps/pink-1.png?t=1789923747005",
+        "capPngUrl": "assets/textures/caps/pink-1.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       },
       "pink-2": {
         "label": "Pink-2",
-        "pngUrl": "/src/assets/textures/walls/pink-2.png?t=1789926737539",
+        "pngUrl": "assets/textures/walls/pink-2.png?t=1789926737539",
         "file": "walls/pink-2.png",
         "capFile": "caps/pink-2.png",
-        "capPngUrl": "/src/assets/textures/caps/pink-2.png?t=1789923747005",
+        "capPngUrl": "assets/textures/caps/pink-2.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       },
       "pink": {
         "label": "Pink",
-        "pngUrl": "/src/assets/textures/walls/pink.png?t=1789926049687",
+        "pngUrl": "assets/textures/walls/pink.png?t=1789926049687",
         "file": "walls/pink.png",
         "capFile": "caps/pink.png",
-        "capPngUrl": "/src/assets/textures/caps/pink.png?t=1789923747005",
+        "capPngUrl": "assets/textures/caps/pink.png?t=1789923747005",
         "hasTransparency": false,
         "isCustom": true
       }
@@ -9071,7 +9071,9 @@ function dataUrlToPixels(dataUrl, targetW = 64, targetH = 192, onLoadedCallback 
   }
 
   const img = new Image();
-  img.crossOrigin = 'anonymous';
+  if (typeof location !== 'undefined' && location.protocol !== 'file:' && dataUrl.startsWith('http')) {
+    img.crossOrigin = 'anonymous';
+  }
   img.onload = () => {
     ctx.clearRect(0, 0, targetW, targetH);
     ctx.drawImage(img, 0, 0, targetW, targetH);
@@ -9271,6 +9273,20 @@ CEILING_STYLES['blanca'] = CEILING_STYLES['white'];
 CEILING_STYLES['castillo'] = CEILING_STYLES['castle'];
 CEILING_STYLES['luz'] = CEILING_STYLES['light'];
 
+const STYLE_KEY_ALIASES = {
+  'cesped-1': 'grass-1', 'grass-1': 'cesped-1',
+  'cesped-2': 'grass-2', 'grass-2': 'cesped-2',
+  'rosa-1': 'pink-1', 'pink-1': 'rosa-1',
+  'rosa-2': 'pink-2', 'pink-2': 'rosa-2',
+  'rosa': 'pink', 'pink': 'rosa',
+  'castillo': 'castle', 'castle': 'castillo',
+  'blanca': 'white', 'white': 'blanca',
+  'negra': 'black', 'black': 'negra',
+  'cristal': 'crystal', 'crystal': 'cristal',
+  'cristal-c': 'crystal-c', 'crystal-c': 'cristal-c',
+  'ventana': 'window', 'window': 'ventana'
+};
+
 /**
  * Carga e inicializa WALL_STYLES y DOOR_STYLES a partir de un objeto manifest (e.g. textures.json)
  */
@@ -9278,7 +9294,19 @@ function loadStylesFromManifest(manifest) {
   if (!manifest) return;
   const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
   const defaultBaseDir = isStandalone ? 'assets/textures/' : 'assets/textures/';
-  const baseDir = manifest.baseDir || defaultBaseDir;
+  let baseDir = isStandalone ? 'assets/textures/' : (manifest.baseDir || defaultBaseDir);
+  if (isStandalone && baseDir.startsWith('/src/')) {
+    baseDir = baseDir.replace(/^\/src\//, '');
+  }
+
+  const resolveManifestUrl = (filePath) => {
+    if (!filePath) return null;
+    let url = baseDir + filePath;
+    if (isStandalone && url.startsWith('/src/')) {
+      url = url.replace(/^\/src\//, '');
+    }
+    return url;
+  };
 
   if (manifest.walls) {
     Object.entries(manifest.walls).forEach(([key, item]) => {
@@ -9290,9 +9318,9 @@ function loadStylesFromManifest(manifest) {
       WALL_STYLES[key] = {
         label: item.label || key,
         file: item.file,
-        pngUrl: item.file ? (baseDir + item.file) : null,
+        pngUrl: resolveManifestUrl(item.file),
         capFile: capFile,
-        capPngUrl: baseDir + capFile,
+        capPngUrl: resolveManifestUrl(capFile),
         wall: proc.wall || createStoneWallPixels,
         cap: proc.cap || createStoneCapPixels,
         hasTransparency: isTrans,
@@ -9311,9 +9339,9 @@ function loadStylesFromManifest(manifest) {
       DOOR_STYLES[key] = {
         label: item.label || key,
         file: item.file,
-        pngUrl: item.file ? (baseDir + item.file) : null,
+        pngUrl: resolveManifestUrl(item.file),
         capFile: capFile,
-        capPngUrl: baseDir + capFile,
+        capPngUrl: resolveManifestUrl(capFile),
         door: proc.door || createWoodDoorPixels,
         cap: proc.cap || createStoneCapPixels,
         hasTransparency: isTrans,
@@ -9333,11 +9361,21 @@ const DEFAULT_MANIFEST_FALLBACK = {
     black: { label: 'Black', file: 'walls/black.png', capFile: 'caps/black.png', hasTransparency: false },
     crystal: { label: 'Crystal', file: 'walls/crystal.png', capFile: 'caps/crystal.png', hasTransparency: true },
     'crystal-c': { label: 'Crystal C', file: 'walls/crystal-c.png', capFile: 'caps/crystal-c.png', hasTransparency: true },
+    'grass-1': { label: 'Grass 1', file: 'walls/grass-1.png', capFile: 'caps/grass-1.png', hasTransparency: false },
+    'grass-2': { label: 'Grass 2', file: 'walls/grass-2.png', capFile: 'caps/grass-2.png', hasTransparency: false },
+    pink: { label: 'Pink', file: 'walls/pink.png', capFile: 'caps/pink.png', hasTransparency: false },
+    'pink-1': { label: 'Pink 1', file: 'walls/pink-1.png', capFile: 'caps/pink-1.png', hasTransparency: false },
+    'pink-2': { label: 'Pink 2', file: 'walls/pink-2.png', capFile: 'caps/pink-2.png', hasTransparency: false },
     castillo: { label: 'Castillo', file: 'walls/castle.png', capFile: 'caps/castle.png', hasTransparency: false },
     blanca: { label: 'Blanca', file: 'walls/white.png', capFile: 'caps/white.png', hasTransparency: false },
     negra: { label: 'Negra', file: 'walls/black.png', capFile: 'caps/black.png', hasTransparency: false },
     cristal: { label: 'Cristal', file: 'walls/crystal.png', capFile: 'caps/crystal.png', hasTransparency: true },
-    'cristal-c': { label: 'Cristal C', file: 'walls/crystal-c.png', capFile: 'caps/crystal-c.png', hasTransparency: true }
+    'cristal-c': { label: 'Cristal C', file: 'walls/crystal-c.png', capFile: 'caps/crystal-c.png', hasTransparency: true },
+    'cesped-1': { label: 'Cesped 1', file: 'walls/grass-1.png', capFile: 'caps/grass-1.png', hasTransparency: false },
+    'cesped-2': { label: 'Cesped 2', file: 'walls/grass-2.png', capFile: 'caps/grass-2.png', hasTransparency: false },
+    rosa: { label: 'Rosa', file: 'walls/pink.png', capFile: 'caps/pink.png', hasTransparency: false },
+    'rosa-1': { label: 'Rosa 1', file: 'walls/pink-1.png', capFile: 'caps/pink-1.png', hasTransparency: false },
+    'rosa-2': { label: 'Rosa 2', file: 'walls/pink-2.png', capFile: 'caps/pink-2.png', hasTransparency: false }
   },
   doors: {
     castle: { label: 'Castle', file: 'doors/castle.png', capFile: 'caps/castle.png', hasTransparency: false },
@@ -9375,15 +9413,34 @@ function resolveTexturePath(fileOrUrl, subfolder, key) {
   if (!fileOrUrl) return key ? (baseDir + subfolder + '/' + key + '.png') : null;
   let str = String(fileOrUrl);
   if (str.startsWith('data:')) return str;
-  str = str.replace('/src/engine/textures/', baseDir)
-           .replace('src/engine/textures/', baseDir)
-           .replace('assets/texturas/', baseDir)
-           .replace('src/assets/texturas/', baseDir)
-           .replace('assets/texturas/', baseDir);
-  if (!str.startsWith('/') && !str.startsWith('http') && !str.startsWith('assets/')) {
-    str = baseDir + str;
+  if (str.startsWith('http://') || str.startsWith('https://')) return str;
+
+  // Eliminar cualquier prefijo conocido previo para normalizar la ruta relativa
+  str = str.replace(/^\/?(src\/)?(engine|assets)\/(texturas|textures)\//, '');
+
+  // Traducción transparente de nombres de archivo españoles a ingleses
+  str = str.replace(/cesped-1\./g, 'grass-1.')
+           .replace(/cesped-2\./g, 'grass-2.')
+           .replace(/rosa-1\./g, 'pink-1.')
+           .replace(/rosa-2\./g, 'pink-2.')
+           .replace(/rosa\./g, 'pink.')
+           .replace(/castillo\./g, 'castle.')
+           .replace(/blanca\./g, 'white.')
+           .replace(/negra\./g, 'black.')
+           .replace(/cristal-c\./g, 'crystal-c.')
+           .replace(/cristal\./g, 'crystal.')
+           .replace(/ventana\./g, 'window.')
+           .replace(/personaje-andar\./g, 'character-walk.')
+           .replace(/personaje-correr\./g, 'character-run.')
+           .replace(/personaje-/g, 'character-');
+
+  // Asegurar que si solo vino el nombre de archivo sin subcarpeta se le asigne la subcarpeta
+  str = str.replace(/^\/+/, '');
+  if (!str.includes('/') && subfolder) {
+    str = subfolder + '/' + str;
   }
-  return str;
+
+  return baseDir + str;
 }
 
 /**
@@ -9401,10 +9458,15 @@ function registerWallStyle(key, styleDef) {
   const rawCap = styleDef.capPngUrl || (styleDef.capFile ? (baseDir + styleDef.capFile) : null) || styleDef.capDataUrl || (baseDir + 'caps/' + key + '.png');
   const capUrl = resolveTexturePath(rawCap, 'caps', key);
 
+  const aliasKey = STYLE_KEY_ALIASES[key] || null;
+
   const onWallLoaded = (pixels) => {
     cachedWallPixels = pixels;
     if (WALL_STYLES[key]) {
       WALL_STYLES[key].hasTransparency = pixels.hasTransparency;
+    }
+    if (aliasKey && WALL_STYLES[aliasKey]) {
+      WALL_STYLES[aliasKey].hasTransparency = pixels.hasTransparency;
     }
     if (styleDef) {
       styleDef.hasTransparency = pixels.hasTransparency;
@@ -9412,6 +9474,7 @@ function registerWallStyle(key, styleDef) {
     if (typeof window !== 'undefined' && window.activeRaycasterEngine && window.activeRaycasterEngine.textures) {
       if (window.activeRaycasterEngine.textures[1]) {
         window.activeRaycasterEngine.textures[1][key] = pixels;
+        if (aliasKey) window.activeRaycasterEngine.textures[1][aliasKey] = pixels;
       }
     }
   };
@@ -9421,6 +9484,7 @@ function registerWallStyle(key, styleDef) {
     if (typeof window !== 'undefined' && window.activeRaycasterEngine && window.activeRaycasterEngine.textures) {
       if (window.activeRaycasterEngine.textures[10]) {
         window.activeRaycasterEngine.textures[10][key] = pixels;
+        if (aliasKey) window.activeRaycasterEngine.textures[10][aliasKey] = pixels;
       }
     }
   };
@@ -9434,9 +9498,9 @@ function registerWallStyle(key, styleDef) {
 
   const initialTrans = (styleDef.hasTransparency !== undefined)
     ? styleDef.hasTransparency
-    : (/^(cristal|glass|trans|reja|enrejado)/i.test(key));
+    : (/^(cristal|crystal|glass|trans|reja|enrejado)/i.test(key));
 
-  WALL_STYLES[key] = {
+  const wallStyleObj = {
     label: styleDef.label || key,
     isCustom: true,
     dataUrl: styleDef.dataUrl || null,
@@ -9460,6 +9524,11 @@ function registerWallStyle(key, styleDef) {
       return createCapFromWallImage(wallUrl, w, h);
     }
   };
+
+  WALL_STYLES[key] = wallStyleObj;
+  if (aliasKey) {
+    WALL_STYLES[aliasKey] = wallStyleObj;
+  }
 }
 
 /**
@@ -9476,11 +9545,15 @@ function registerDoorStyle(key, styleDef) {
   const doorUrl = resolveTexturePath(rawDoor, 'doors', key);
   const rawCap = styleDef.capPngUrl || (styleDef.capFile ? (baseDir + styleDef.capFile) : null) || styleDef.capDataUrl || (baseDir + 'caps/' + key + '.png');
   const capUrl = resolveTexturePath(rawCap, 'caps', key);
+  const aliasKey = STYLE_KEY_ALIASES[key] || null;
 
   const onDoorLoaded = (pixels) => {
     cachedDoorPixels = pixels;
     if (DOOR_STYLES[key]) {
       DOOR_STYLES[key].hasTransparency = pixels.hasTransparency;
+    }
+    if (aliasKey && DOOR_STYLES[aliasKey]) {
+      DOOR_STYLES[aliasKey].hasTransparency = pixels.hasTransparency;
     }
     if (styleDef) {
       styleDef.hasTransparency = pixels.hasTransparency;
@@ -9489,6 +9562,7 @@ function registerDoorStyle(key, styleDef) {
       [2, 3, 4, 5].forEach(type => {
         if (window.activeRaycasterEngine.textures[type]) {
           window.activeRaycasterEngine.textures[type][key] = pixels;
+          if (aliasKey) window.activeRaycasterEngine.textures[type][aliasKey] = pixels;
         }
       });
     }
@@ -9499,6 +9573,7 @@ function registerDoorStyle(key, styleDef) {
     if (typeof window !== 'undefined' && window.activeRaycasterEngine && window.activeRaycasterEngine.textures) {
       if (window.activeRaycasterEngine.textures[11]) {
         window.activeRaycasterEngine.textures[11][key] = pixels;
+        if (aliasKey) window.activeRaycasterEngine.textures[11][aliasKey] = pixels;
       }
     }
   };
@@ -9512,9 +9587,9 @@ function registerDoorStyle(key, styleDef) {
 
   const initialTrans = (styleDef.hasTransparency !== undefined)
     ? styleDef.hasTransparency
-    : (/^(cristal|glass|trans|reja|enrejado)/i.test(key));
+    : (/^(cristal|crystal|glass|trans|reja|enrejado)/i.test(key));
 
-  DOOR_STYLES[key] = {
+  const doorStyleObj = {
     label: styleDef.label || key,
     isCustom: true,
     dataUrl: styleDef.dataUrl || null,
@@ -9538,6 +9613,11 @@ function registerDoorStyle(key, styleDef) {
       return createWhiteCapPixels(w, h);
     }
   };
+
+  DOOR_STYLES[key] = doorStyleObj;
+  if (aliasKey) {
+    DOOR_STYLES[aliasKey] = doorStyleObj;
+  }
 }
 
 /**
@@ -10882,6 +10962,8 @@ class RaycasterEngine {
    * propio (ver getSegmentStyle() y su uso en generateCellFaces()).
    */
   generateProceduralTextures() {
+    const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+    const baseTexDir = isStandalone ? 'assets/textures/' : 'assets/textures/';
     this.textures[1] = {};
     this.textures[10] = {};
     Object.keys(WALL_STYLES).forEach(style => {
@@ -10891,8 +10973,14 @@ class RaycasterEngine {
 
       // Si el estilo tiene imagen física (pngUrl), cargarla asíncronamente para sustitución limpia
       if (def.pngUrl && typeof Image !== 'undefined') {
+        let wallUrl = def.pngUrl;
+        if (isStandalone && wallUrl.startsWith('/src/')) {
+          wallUrl = wallUrl.replace(/^\/src\//, '');
+        }
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && wallUrl.startsWith('http')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64;
@@ -10912,20 +11000,27 @@ class RaycasterEngine {
           arr.hasTransparency = hasTrans;
           if (def) def.hasTransparency = hasTrans;
           this.textures[1][style] = arr;
+          const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
+          if (alias) this.textures[1][alias] = arr;
         };
-        img.src = def.pngUrl;
+        img.src = wallUrl;
       }
 
       // Cargar también imagen física del canto/jamba
-      const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
-      const baseTexDir = isStandalone ? 'assets/textures/' : 'assets/textures/';
       let capUrl = def.capPngUrl || (def.capFile ? (baseTexDir + def.capFile) : (baseTexDir + 'caps/' + style + '.png'));
-      if (capUrl && (capUrl.includes('/src/engine/textures/') || capUrl.includes('assets/texturas/'))) {
-        capUrl = capUrl.replace('/src/engine/textures/', baseTexDir).replace('assets/texturas/', baseTexDir);
+      if (capUrl && (capUrl.includes('assets/textures/') || capUrl.includes('assets/textures/') || capUrl.includes('assets/textures/'))) {
+        capUrl = capUrl.replace('assets/textures/', baseTexDir)
+                       .replace('assets/textures/', baseTexDir)
+                       .replace('assets/textures/', baseTexDir);
+      }
+      if (isStandalone && capUrl && capUrl.startsWith('/src/')) {
+        capUrl = capUrl.replace(/^\/src\//, '');
       }
       if (capUrl && typeof Image !== 'undefined') {
         const cImg = new Image();
-        cImg.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && capUrl.startsWith('http')) {
+          cImg.crossOrigin = 'anonymous';
+        }
         cImg.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64;
@@ -10944,6 +11039,8 @@ class RaycasterEngine {
           }
           arr.hasTransparency = hasTrans;
           this.textures[10][style] = arr;
+          const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
+          if (alias) this.textures[10][alias] = arr;
         };
         cImg.src = capUrl;
       }
@@ -10962,8 +11059,14 @@ class RaycasterEngine {
       this.textures[11][style] = def.cap(64, 192);
 
       if (def.pngUrl && typeof Image !== 'undefined') {
+        let doorUrl = def.pngUrl;
+        if (isStandalone && doorUrl.startsWith('/src/')) {
+          doorUrl = doorUrl.replace(/^\/src\//, '');
+        }
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && doorUrl.startsWith('http')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64;
@@ -10982,20 +11085,29 @@ class RaycasterEngine {
           }
           arr.hasTransparency = hasTrans;
           if (def) def.hasTransparency = hasTrans;
+          const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
           [2, 3, 4, 5].forEach(type => {
             this.textures[type][style] = arr;
+            if (alias) this.textures[type][alias] = arr;
           });
         };
-        img.src = def.pngUrl;
+        img.src = doorUrl;
       }
 
       let doorCapUrl = def.capPngUrl || (def.capFile ? (baseTexDir + def.capFile) : (baseTexDir + 'caps/' + style + '.png'));
-      if (doorCapUrl && (doorCapUrl.includes('/src/engine/textures/') || doorCapUrl.includes('assets/texturas/'))) {
-        doorCapUrl = doorCapUrl.replace('/src/engine/textures/', baseTexDir).replace('assets/texturas/', baseTexDir);
+      if (doorCapUrl && (doorCapUrl.includes('assets/textures/') || doorCapUrl.includes('assets/textures/') || doorCapUrl.includes('assets/textures/'))) {
+        doorCapUrl = doorCapUrl.replace('assets/textures/', baseTexDir)
+                               .replace('assets/textures/', baseTexDir)
+                               .replace('assets/textures/', baseTexDir);
+      }
+      if (isStandalone && doorCapUrl && doorCapUrl.startsWith('/src/')) {
+        doorCapUrl = doorCapUrl.replace(/^\/src\//, '');
       }
       if (doorCapUrl && typeof Image !== 'undefined') {
         const cImg = new Image();
-        cImg.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && doorCapUrl.startsWith('http')) {
+          cImg.crossOrigin = 'anonymous';
+        }
         cImg.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64;
@@ -11014,6 +11126,8 @@ class RaycasterEngine {
           }
           arr.hasTransparency = hasTrans;
           this.textures[11][style] = arr;
+          const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
+          if (alias) this.textures[11][alias] = arr;
         };
         cImg.src = doorCapUrl;
       }
@@ -11093,8 +11207,13 @@ class RaycasterEngine {
     if (typeof Image !== 'undefined') {
       // Carga mesa-t.png (tapa superior, squash a 64×64)
       const loadMesaTop = (src) => {
+        let topSrc = src;
+        const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+        if (isStandalone && topSrc.startsWith('/src/')) topSrc = topSrc.replace(/^\/src\//, '');
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && topSrc.startsWith('http')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.onload = () => {
           const off = document.createElement('canvas');
           off.width = 64; off.height = 64;
@@ -11102,18 +11221,24 @@ class RaycasterEngine {
           octx.drawImage(img, 0, 0, 64, 64);
           const arr = new Uint32Array(octx.getImageData(0, 0, 64, 64).data.buffer);
           arr.width = 64; arr.height = 64;
-          this.textures[14]['mesa'] = arr;
-          this.textures[14]['castillo'] = arr;
+          ['mesa', 'castillo', 'castle', 'white', 'blanca'].forEach(k => {
+            this.textures[14][k] = arr;
+          });
         };
-        img.src = src + '?t=' + Date.now();
+        img.src = (typeof location !== 'undefined' && location.protocol === 'file:') ? topSrc : (topSrc + '?t=' + Date.now());
       };
 
       // Carga mesa-l.png (cuerpo completo con 2 patas) y genera variantes
       // recortando las columnas de pata izq (x=0-7) y/o der (x=56-63)
       // en el tercio inferior (y >= H*2/3), donde aparecen las patas.
       const loadMesaLateral = (src) => {
+        let latSrc = src;
+        const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+        if (isStandalone && latSrc.startsWith('/src/')) latSrc = latSrc.replace(/^\/src\//, '');
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (typeof location !== 'undefined' && location.protocol !== 'file:' && latSrc.startsWith('http')) {
+          img.crossOrigin = 'anonymous';
+        }
         img.onload = () => {
           const H = img.naturalHeight || 192;
           const off = document.createElement('canvas');
@@ -11124,8 +11249,9 @@ class RaycasterEngine {
           base.width = 64; base.height = H;
 
           // Tipo 9: cuerpo completo con las dos patas (sin modificar)
-          this.textures[9]['mesa'] = base;
-          this.textures[9]['castillo'] = base;
+          ['mesa', 'castillo', 'castle', 'white', 'blanca'].forEach(k => {
+            this.textures[9][k] = base;
+          });
 
           const yLeg = Math.floor(H * 2 / 3); // = 128 for 192px
 
@@ -11150,10 +11276,12 @@ class RaycasterEngine {
 
           [this.textures[15], this.textures[22], this.textures[23]].forEach((t, i) => {
             const arr = [noLegs, leftOnly, rightOnly][i];
-            t['mesa'] = arr; t['castillo'] = arr;
+            ['mesa', 'castillo', 'castle', 'white', 'blanca'].forEach(k => {
+              t[k] = arr;
+            });
           });
         };
-        img.src = src + '?t=' + Date.now();
+        img.src = (typeof location !== 'undefined' && location.protocol === 'file:') ? latSrc : (latSrc + '?t=' + Date.now());
       };
 
       const mesaBase = (typeof window !== 'undefined' && window.STANDALONE_PROJECT) ? 'assets/textures/custom/' : 'assets/textures/custom/';
@@ -11937,7 +12065,14 @@ class RaycasterEngine {
 
       const resolveTex = (type, style) => {
         const raw = this.textures[type] || this.textures[1];
-        return (raw instanceof Uint32Array) ? raw : (raw[style] || raw.castillo);
+        if (raw instanceof Uint32Array) return raw;
+        if (raw[style]) return raw[style];
+        const alias = (typeof STYLE_KEY_ALIASES !== 'undefined') ? STYLE_KEY_ALIASES[style] : null;
+        if (alias && raw[alias]) return raw[alias];
+        if (type === 9 || type === 14 || type === 15 || type === 22 || type === 23) {
+          return raw['mesa'] || raw['castillo'] || raw['castle'] || Object.values(raw)[0];
+        }
+        return raw['castillo'] || raw['castle'] || raw['white'] || raw['blanca'] || Object.values(raw)[0];
       };
 
       // Unir todas las capas intermedias que están por delante del fondo opaco
@@ -14318,78 +14453,96 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Sincronizar también texturas físicas descubiertas en carpetas (ej. cristal-c.png)
   if (typeof fetch === 'function') {
-    fetch('/api/list-textures')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!data) return;
-        let needsRegen = false;
+    const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+    const texBase = isStandalone ? 'assets/textures/' : 'assets/textures/';
+    const fetchManifest = () => fetch(texBase + 'textures.json').then(r => r.ok ? r.json() : null).catch(() => null);
 
-        // Limpiar dataUrls obsoletos en customStyles si ahora hay archivos físicos en disco
-        if (activeProject && activeProject.customStyles) {
-          if (data.walls && activeProject.customStyles.walls) {
-            data.walls.forEach(item => {
-              if (activeProject.customStyles.walls[item.name]) {
-                activeProject.customStyles.walls[item.name].pngUrl = item.url;
-                activeProject.customStyles.walls[item.name].capPngUrl = item.capUrl;
-                delete activeProject.customStyles.walls[item.name].capDataUrl;
-                delete activeProject.customStyles.walls[item.name].dataUrl;
-              }
-            });
-          }
-          if (data.doors && activeProject.customStyles.doors) {
-            data.doors.forEach(item => {
-              if (activeProject.customStyles.doors[item.name]) {
-                activeProject.customStyles.doors[item.name].pngUrl = item.url;
-                activeProject.customStyles.doors[item.name].capPngUrl = item.capUrl;
-                delete activeProject.customStyles.doors[item.name].capDataUrl;
-                delete activeProject.customStyles.doors[item.name].dataUrl;
-              }
-            });
-          }
-        }
+    const initialFetch = isStandalone
+      ? fetchManifest()
+      : fetch('/api/list-textures').then(r => r.ok ? r.json() : null).catch(fetchManifest);
 
-        const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
-        const texBase = isStandalone ? 'assets/textures/' : 'assets/textures/';
-        if (data.walls && typeof registerWallStyle === 'function') {
-          data.walls.forEach(item => {
-            const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
-            const capFile = item.capFile || ('caps/' + item.name + '.png');
-            const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
-            // Siempre registrar/actualizar con la URL fresca del disco (incluyendo query ?t=)
-            registerWallStyle(item.name, {
-              label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
-              pngUrl: item.url,
-              file: item.file,
-              capFile: capFile,
-              capPngUrl: capUrl,
-              hasTransparency: isTrans,
-              isCustom: true
-            });
-            needsRegen = true;
+    initialFetch.then(data => {
+      if (!data) return;
+      let needsRegen = false;
+
+      const toItemList = (cat) => {
+        if (!cat) return [];
+        if (Array.isArray(cat)) return cat;
+        return Object.entries(cat).map(([name, item]) => ({
+          name,
+          file: item.file,
+          url: item.file ? (texBase + item.file) : null,
+          capFile: item.capFile,
+          capUrl: item.capFile ? (texBase + item.capFile) : null,
+          hasTransparency: item.hasTransparency
+        }));
+      };
+
+      const wallList = toItemList(data.walls);
+      const doorList = toItemList(data.doors);
+
+      // Limpiar dataUrls obsoletos en customStyles si ahora hay archivos físicos en disco
+      if (activeProject && activeProject.customStyles) {
+        if (wallList.length > 0 && activeProject.customStyles.walls) {
+          wallList.forEach(item => {
+            if (activeProject.customStyles.walls[item.name]) {
+              activeProject.customStyles.walls[item.name].pngUrl = item.url;
+              activeProject.customStyles.walls[item.name].capPngUrl = item.capUrl;
+              delete activeProject.customStyles.walls[item.name].capDataUrl;
+              delete activeProject.customStyles.walls[item.name].dataUrl;
+            }
           });
         }
-        if (data.doors && typeof registerDoorStyle === 'function') {
-          data.doors.forEach(item => {
-            const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
-            const capFile = item.capFile || ('caps/' + item.name + '.png');
-            const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
-            registerDoorStyle(item.name, {
-              label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
-              pngUrl: item.url,
-              file: item.file,
-              capFile: capFile,
-              capPngUrl: capUrl,
-              hasTransparency: isTrans,
-              isCustom: true
-            });
-            needsRegen = true;
+        if (doorList.length > 0 && activeProject.customStyles.doors) {
+          doorList.forEach(item => {
+            if (activeProject.customStyles.doors[item.name]) {
+              activeProject.customStyles.doors[item.name].pngUrl = item.url;
+              activeProject.customStyles.doors[item.name].capPngUrl = item.capUrl;
+              delete activeProject.customStyles.doors[item.name].capDataUrl;
+              delete activeProject.customStyles.doors[item.name].dataUrl;
+            }
           });
         }
-        if (needsRegen) {
-          engine.generateProceduralTextures();
-        }
-      })
-      .catch(() => {});
+      }
+
+      if (wallList.length > 0 && typeof registerWallStyle === 'function') {
+        wallList.forEach(item => {
+          const isTrans = (/^(cristal|crystal|glass|trans|reja|enrejado)/i.test(item.name));
+          const capFile = item.capFile || ('caps/' + item.name + '.png');
+          const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
+          registerWallStyle(item.name, {
+            label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
+            pngUrl: item.url,
+            file: item.file,
+            capFile: capFile,
+            capPngUrl: capUrl,
+            hasTransparency: isTrans,
+            isCustom: true
+          });
+          needsRegen = true;
+        });
+      }
+      if (doorList.length > 0 && typeof registerDoorStyle === 'function') {
+        doorList.forEach(item => {
+          const isTrans = (/^(cristal|crystal|glass|trans|reja|enrejado)/i.test(item.name));
+          const capFile = item.capFile || ('caps/' + item.name + '.png');
+          const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
+          registerDoorStyle(item.name, {
+            label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
+            pngUrl: item.url,
+            file: item.file,
+            capFile: capFile,
+            capPngUrl: capUrl,
+            hasTransparency: isTrans,
+            isCustom: true
+          });
+          needsRegen = true;
+        });
+      }
+      if (needsRegen) {
+        engine.generateProceduralTextures();
+      }
+    }).catch(() => {});
   }
 
   if (activeProject && activeProject.maps && Object.keys(activeProject.maps).length > 0) {
@@ -14438,21 +14591,28 @@ window.addEventListener('DOMContentLoaded', () => {
   const textFullscreen = document.getElementById('textFullscreen');
   const viewportWrapper = document.querySelector('.viewport-wrapper');
 
+  if (btnTogglePanels && typeof window !== 'undefined' && window.STANDALONE_PROJECT) {
+    btnTogglePanels.title = 'Opciones (H)';
+    if (iconTogglePanels) iconTogglePanels.className = 'ri-settings-3-line';
+    if (textTogglePanels) textTogglePanels.textContent = 'Opciones';
+  }
+
   // 1. Mostrar / Ocultar Paneles Superiores e Inferiores
   function togglePanelsVisibility() {
     if (!appContainer) return;
     const isHidden = appContainer.classList.toggle('panels-hidden');
+    const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
     if (btnTogglePanels) {
       if (isHidden) {
         btnTogglePanels.classList.add('panel-toggle-active');
-        btnTogglePanels.title = 'Mostrar Paneles (H)';
-        if (iconTogglePanels) iconTogglePanels.className = 'ri-eye-line';
-        if (textTogglePanels) textTogglePanels.textContent = 'Mostrar Paneles';
+        btnTogglePanels.title = isStandalone ? 'Opciones (H)' : 'Mostrar Paneles (H)';
+        if (iconTogglePanels) iconTogglePanels.className = isStandalone ? 'ri-settings-3-line' : 'ri-eye-line';
+        if (textTogglePanels) textTogglePanels.textContent = isStandalone ? 'Opciones' : 'Mostrar Paneles';
       } else {
         btnTogglePanels.classList.remove('panel-toggle-active');
-        btnTogglePanels.title = 'Ocultar Paneles (H)';
-        if (iconTogglePanels) iconTogglePanels.className = 'ri-eye-off-line';
-        if (textTogglePanels) textTogglePanels.textContent = 'Ocultar Paneles';
+        btnTogglePanels.title = isStandalone ? 'Cerrar Opciones (H)' : 'Ocultar Paneles (H)';
+        if (iconTogglePanels) iconTogglePanels.className = isStandalone ? 'ri-settings-3-line' : 'ri-eye-off-line';
+        if (textTogglePanels) textTogglePanels.textContent = isStandalone ? 'Opciones' : 'Ocultar Paneles';
       }
     }
   }
@@ -14468,7 +14628,12 @@ window.addEventListener('DOMContentLoaded', () => {
   function requestLock() {
     canvas.requestPointerLock = canvas.requestPointerLock || canvas.mozRequestPointerLock;
     if (canvas.requestPointerLock) {
-      canvas.requestPointerLock();
+      try {
+        const p = canvas.requestPointerLock();
+        if (p && typeof p.catch === 'function') {
+          p.catch(() => {});
+        }
+      } catch (err) {}
     }
   }
 

@@ -6082,17 +6082,43 @@ class LevelEditor {
       const demoHtml = await demoHtmlRes.text();
 
       // Adaptar rutas absolutas /src/assets/ a rutas relativas assets/
-      texturesJs = texturesJs.replace(/\/src\/assets\//g, 'assets/');
-      raycasterJs = raycasterJs.replace(/\/src\/assets\//g, 'assets/');
-      gameJs = gameJs.replace(/\/src\/assets\//g, 'assets/');
+      texturesJs = texturesJs
+        .replace(/\/src\/assets\/textures\//g, 'assets/textures/')
+        .replace(/\/src\/assets\/texturas\//g, 'assets/textures/')
+        .replace(/\/src\/engine\/textures\//g, 'assets/textures/')
+        .replace(/\/src\/assets\//g, 'assets/');
+      raycasterJs = raycasterJs
+        .replace(/\/src\/assets\/textures\//g, 'assets/textures/')
+        .replace(/\/src\/assets\/texturas\//g, 'assets/textures/')
+        .replace(/\/src\/engine\/textures\//g, 'assets/textures/')
+        .replace(/\/src\/assets\//g, 'assets/');
+      gameJs = gameJs
+        .replace(/\/src\/assets\/textures\//g, 'assets/textures/')
+        .replace(/\/src\/assets\/texturas\//g, 'assets/textures/')
+        .replace(/\/src\/engine\/textures\//g, 'assets/textures/')
+        .replace(/\/src\/assets\//g, 'assets/');
 
       const bodyMatch = demoHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
       let bodyContent = bodyMatch ? bodyMatch[1] : '';
 
-      // Quitar etiquetas script existentes en demo/index.html
-      bodyContent = bodyContent.replace(/<script\s+src="[^"]+"><\/script>/gi, '');
+      // Quitar etiquetas script (tanto externas como inline como LiveReload) en demo/index.html
+      bodyContent = bodyContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
       // Cambiar rutas de assets en el HTML a relativas
       bodyContent = bodyContent.replace(/\/src\/assets\//g, 'assets/');
+
+      // Eliminar botones no deseados en el juego exportado: hudFpsPill, btnFloatingEditor y btnMouseLook
+      bodyContent = bodyContent.replace(/<div[^>]*id="hudFpsPill"[^>]*>[\s\S]*?<\/div>/gi, '');
+      bodyContent = bodyContent.replace(/<a[^>]*id="btnFloatingEditor"[^>]*>[\s\S]*?<\/a>/gi, '');
+      bodyContent = bodyContent.replace(/<button[^>]*id="btnMouseLook"[^>]*>[\s\S]*?<\/button>/gi, '');
+
+      // Cambiar iconTogglePanels por "Opciones" como en los juegos estándar
+      bodyContent = bodyContent.replace(
+        /<button[^>]*id="btnTogglePanels"[^>]*>[\s\S]*?<\/button>/gi,
+        `<button class="hud-action-btn panel-toggle-active" id="btnTogglePanels" title="Opciones (H)" type="button">
+            <i class="ri-settings-3-line" id="iconTogglePanels"></i>
+            <span id="textTogglePanels">Opciones</span>
+          </button>`
+      );
 
       // CSS desacoplado en style.css
       const standaloneCss = `/* ============================================================
@@ -6100,8 +6126,8 @@ class LevelEditor {
    ============================================================ */
 ${styleCss}
 
-/* Ocultar accesos a editor y hub en juego independiente */
-#btnOpenEditor, #btnOpenHub { display: none !important; }
+/* Ocultar accesos a editor, hub y botones auxiliares en juego independiente */
+#btnOpenEditor, #btnOpenHub, #hudFpsPill, #btnFloatingEditor, #btnMouseLook { display: none !important; }
 .header-info { display: flex; gap: 8px; align-items: center; }
 `;
 
@@ -6126,11 +6152,36 @@ ${bodyContent}
 </body>
 </html>`;
 
+      // Sanitizar rutas y nombres de textura heredados dentro del proyecto exportado
+      let sanitizedProjectJson = JSON.stringify(projectToExport, null, 2);
+      sanitizedProjectJson = sanitizedProjectJson
+        .replace(/\/src\/engine\/textures\//g, 'assets/textures/')
+        .replace(/\/src\/assets\/texturas\//g, 'assets/textures/')
+        .replace(/\/src\/assets\/textures\//g, 'assets/textures/')
+        .replace(/src\/engine\/textures\//g, 'assets/textures/')
+        .replace(/src\/assets\/texturas\//g, 'assets/textures/')
+        .replace(/src\/assets\/textures\//g, 'assets/textures/')
+        .replace(/assets\/texturas\//g, 'assets/textures/')
+        .replace(/personaje-andar\.png/g, 'character-walk.png')
+        .replace(/personaje-correr\.png/g, 'character-run.png')
+        .replace(/personaje-/g, 'character-')
+        .replace(/castillo\.png/g, 'castle.png')
+        .replace(/blanca\.png/g, 'white.png')
+        .replace(/negra\.png/g, 'black.png')
+        .replace(/cristal-c\.png/g, 'crystal-c.png')
+        .replace(/cristal\.png/g, 'crystal.png')
+        .replace(/ventana\.png/g, 'window.png')
+        .replace(/cesped-1\.png/g, 'grass-1.png')
+        .replace(/cesped-2\.png/g, 'grass-2.png')
+        .replace(/rosa-1\.png/g, 'pink-1.png')
+        .replace(/rosa-2\.png/g, 'pink-2.png')
+        .replace(/rosa\.png/g, 'pink.png');
+
       // JS desacoplado en game.js
       const standaloneJs = `// ============================================================
 // PROYECTO AUTÓNOMO: ${projectName}
 // ============================================================
-window.STANDALONE_PROJECT = ${JSON.stringify(projectToExport, null, 2)};
+window.STANDALONE_PROJECT = ${sanitizedProjectJson};
 
 // ============================================================
 // 1. MOTOR PROCEDURAL DE TEXTURAS (src/engine/textures.js)

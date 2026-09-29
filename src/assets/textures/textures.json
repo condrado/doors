@@ -29,6 +29,31 @@
       "capFile": "caps/crystal-c.png",
       "hasTransparency": true
     },
+    "grass-1": {
+      "label": "Grass 1",
+      "file": "walls/grass-1.png",
+      "capFile": "caps/grass-1.png"
+    },
+    "grass-2": {
+      "label": "Grass 2",
+      "file": "walls/grass-2.png",
+      "capFile": "caps/grass-2.png"
+    },
+    "pink": {
+      "label": "Pink",
+      "file": "walls/pink.png",
+      "capFile": "caps/pink.png"
+    },
+    "pink-1": {
+      "label": "Pink 1",
+      "file": "walls/pink-1.png",
+      "capFile": "caps/pink-1.png"
+    },
+    "pink-2": {
+      "label": "Pink 2",
+      "file": "walls/pink-2.png",
+      "capFile": "caps/pink-2.png"
+    },
     "castillo": {
       "label": "Castillo",
       "file": "walls/castle.png",
@@ -55,6 +80,31 @@
       "file": "walls/crystal-c.png",
       "capFile": "caps/crystal-c.png",
       "hasTransparency": true
+    },
+    "cesped-1": {
+      "label": "Cesped 1",
+      "file": "walls/grass-1.png",
+      "capFile": "caps/grass-1.png"
+    },
+    "cesped-2": {
+      "label": "Cesped 2",
+      "file": "walls/grass-2.png",
+      "capFile": "caps/grass-2.png"
+    },
+    "rosa": {
+      "label": "Rosa",
+      "file": "walls/pink.png",
+      "capFile": "caps/pink.png"
+    },
+    "rosa-1": {
+      "label": "Rosa 1",
+      "file": "walls/pink-1.png",
+      "capFile": "caps/pink-1.png"
+    },
+    "rosa-2": {
+      "label": "Rosa 2",
+      "file": "walls/pink-2.png",
+      "capFile": "caps/pink-2.png"
     }
   },
   "doors": {
