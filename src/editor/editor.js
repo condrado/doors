@@ -4130,13 +4130,13 @@ class LevelEditor {
       if (!this.currentProject.customStyles.walls) this.currentProject.customStyles.walls = {};
       if (!this.currentProject.customStyles.doors) this.currentProject.customStyles.doors = {};
 
-      const defaultBasics = ['castillo', 'blanca', 'negra', 'cristal'];
+      const defaultBasics = ['castillo', 'blanca', 'negra', 'cristal', 'castle', 'white', 'black', 'crystal'];
 
       if (data.walls && Array.isArray(data.walls)) {
         data.walls.forEach(item => {
           const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
           const capFile = item.capFile || ('caps/' + item.name + '.png');
-          const capUrl = item.capUrl || ('/src/engine/textures/caps/' + item.name + '.png');
+          const capUrl = item.capUrl || ('/src/assets/textures/caps/' + item.name + '.png');
           
           registerWallStyle(item.name, {
             label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
@@ -4171,7 +4171,7 @@ class LevelEditor {
         data.doors.forEach(item => {
           const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
           const capFile = item.capFile || ('caps/' + item.name + '.png');
-          const capUrl = item.capUrl || ('/src/engine/textures/caps/' + item.name + '.png');
+          const capUrl = item.capUrl || ('/src/assets/textures/caps/' + item.name + '.png');
           
           registerDoorStyle(item.name, {
             label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
@@ -4398,7 +4398,7 @@ class LevelEditor {
       .replace(/[^a-z0-9]+/g, '_')
       .replace(/^_+|_+$/g, '') || ('custom_' + Date.now());
     const styleKey = cleanSlug;
-    const relativeDiskPath = `src/engine/textures/${targetFolder}/${styleKey}.png`;
+    const relativeDiskPath = `src/assets/textures/${targetFolder}/${styleKey}.png`;
 
     // Inicializar almacén de estilos personalizados en el proyecto si no existiera
     if (!this.currentProject.customStyles) {
@@ -4430,7 +4430,7 @@ class LevelEditor {
       file: `${targetFolder}/${styleKey}.png`,
       pngUrl: '/' + relativeDiskPath + '?t=' + tNow,
       capFile: `caps/${styleKey}.png`,
-      capPngUrl: `/src/engine/textures/caps/${styleKey}.png?t=${tNow}`
+      capPngUrl: `/src/assets/textures/caps/${styleKey}.png?t=${tNow}`
     };
 
     if (isDoor) {
@@ -5501,7 +5501,7 @@ class LevelEditor {
           </div>
           <div class="project-card-actions">
             ${!isActive ? `<button class="btn-subtle primary-btn btn-switch-proj" data-project-id="${id}" title="Abrir y editar este proyecto"><i class="ri-folder-open-line"></i> Abrir</button>` : ''}
-            <button class="btn-subtle btn-generate-game-proj" data-project-id="${id}" title="Generar archivo HTML autónomo para jugar a '${p.name || 'este proyecto'}'">
+            <button class="btn-subtle btn-generate-game-proj" data-project-id="${id}" title="Exportar juego con HTML, CSS, JS y Assets separados para '${p.name || 'este proyecto'}'">
               <i class="ri-rocket-2-line"></i> Generar Juego
             </button>
             <button class="btn-icon-chip btn-rename-proj" data-project-id="${id}" title="Renombrar proyecto"><i class="ri-edit-line"></i></button>
@@ -6056,86 +6056,146 @@ class LevelEditor {
 
     const projectName = projectToExport.name || 'Laberinto 3D';
     const safeProjectName = projectName.replace(/[^a-zA-Z0-9_\-]/g, '_');
-    this.showToast(`⏳ Empaquetando juego de "${projectName}"...`);
+    this.showToast(`⏳ Preparando exportación desacoplada de "${projectName}"...`);
 
     try {
-      const [styleRes, texturesRes, raycasterRes, gameRes, demoHtmlRes] = await Promise.all([
+      if (typeof JSZip === 'undefined') {
+        throw new Error('La librería JSZip no se encuentra disponible.');
+      }
+
+      const zip = new JSZip();
+
+      // 1. Obtener archivos base de código y lista de assets
+      const [styleRes, texturesRes, raycasterRes, gameRes, demoHtmlRes, assetsListRes] = await Promise.all([
         fetch('../demo/style.css'),
         fetch('../engine/textures.js'),
         fetch('../engine/raycaster.js'),
         fetch('../demo/game.js'),
-        fetch('../demo/index.html')
+        fetch('../demo/index.html'),
+        fetch('/api/list-all-assets').catch(() => null)
       ]);
 
       const styleCss = await styleRes.text();
-      const texturesJs = await texturesRes.text();
-      const raycasterJs = await raycasterRes.text();
-      const gameJs = await gameRes.text();
+      let texturesJs = await texturesRes.text();
+      let raycasterJs = await raycasterRes.text();
+      let gameJs = await gameRes.text();
       const demoHtml = await demoHtmlRes.text();
+
+      // Adaptar rutas absolutas /src/assets/ a rutas relativas assets/
+      texturesJs = texturesJs.replace(/\/src\/assets\//g, 'assets/');
+      raycasterJs = raycasterJs.replace(/\/src\/assets\//g, 'assets/');
+      gameJs = gameJs.replace(/\/src\/assets\//g, 'assets/');
 
       const bodyMatch = demoHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
       let bodyContent = bodyMatch ? bodyMatch[1] : '';
 
+      // Quitar etiquetas script existentes en demo/index.html
       bodyContent = bodyContent.replace(/<script\s+src="[^"]+"><\/script>/gi, '');
+      // Cambiar rutas de assets en el HTML a relativas
+      bodyContent = bodyContent.replace(/\/src\/assets\//g, 'assets/');
 
-      const customCss = `
-        /* Ocultar accesos a editor y hub en juego independiente */
-        #btnOpenEditor, #btnOpenHub { display: none !important; }
-        .header-info { display: flex; gap: 8px; align-items: center; }
-      `;
+      // CSS desacoplado en style.css
+      const standaloneCss = `/* ============================================================
+   ESTILOS DEL JUEGO: ${projectName}
+   ============================================================ */
+${styleCss}
 
+/* Ocultar accesos a editor y hub en juego independiente */
+#btnOpenEditor, #btnOpenHub { display: none !important; }
+.header-info { display: flex; gap: 8px; align-items: center; }
+`;
+
+      // HTML desacoplado en index.html
       const standaloneHtml = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${projectName} - Juego 3D Autónomo</title>
+  <title>${projectName} - Laberinto 3D</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css">
-  <style>
-${styleCss}
-${customCss}
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 ${bodyContent}
 
-  <!-- DATOS DEL PROYECTO INCLUIDOS DE FORMA AUTÓNOMA -->
-  <script>
-    window.STANDALONE_PROJECT = ${JSON.stringify(projectToExport, null, 2)};
-  </script>
-
-  <!-- MOTOR PROCEDURAL DE TEXTURAS -->
-  <script>
-${texturesJs}
-  </script>
-
-  <!-- MOTOR RAYCASTER 2.5D -->
-  <script>
-${raycasterJs}
-  </script>
-
-  <!-- LÓGICA DE JUEGO & TRANSICIONES DE MAPAS -->
-  <script>
-${gameJs}
-  </script>
+  <!-- LÓGICA Y MOTORES DEL JUEGO -->
+  <script src="game.js"></script>
 </body>
 </html>`;
 
-      const blob = new Blob([standaloneHtml], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
+      // JS desacoplado en game.js
+      const standaloneJs = `// ============================================================
+// PROYECTO AUTÓNOMO: ${projectName}
+// ============================================================
+window.STANDALONE_PROJECT = ${JSON.stringify(projectToExport, null, 2)};
+
+// ============================================================
+// 1. MOTOR PROCEDURAL DE TEXTURAS (src/engine/textures.js)
+// ============================================================
+${texturesJs}
+
+// ============================================================
+// 2. MOTOR RAYCASTER 2.5D (src/engine/raycaster.js)
+// ============================================================
+${raycasterJs}
+
+// ============================================================
+// 3. LÓGICA DE JUEGO (src/demo/game.js)
+// ============================================================
+${gameJs}
+`;
+
+      // Agregar los archivos desacoplados al ZIP
+      zip.file('index.html', standaloneHtml);
+      zip.file('style.css', standaloneCss);
+      zip.file('game.js', standaloneJs);
+
+      // 2. Descargar y agregar todos los assets (personajes, accesorios, texturas) al ZIP
+      let assetList = [];
+      if (assetsListRes && assetsListRes.ok) {
+        try {
+          assetList = await assetsListRes.json();
+        } catch {}
+      }
+
+      if (Array.isArray(assetList) && assetList.length > 0) {
+        this.showToast(`⏳ Empaquetando ${assetList.length} assets (personajes, accesorios y texturas)...`);
+        
+        await Promise.all(assetList.map(async (asset) => {
+          try {
+            const res = await fetch(asset.url);
+            if (res.ok) {
+              const blob = await res.blob();
+              zip.file(asset.exportPath, blob);
+            }
+          } catch (err) {
+            console.warn(`No se pudo incluir asset "${asset.exportPath}":`, err);
+          }
+        }));
+      }
+
+      // 3. Generar archivo ZIP comprimido y disparar descarga
+      this.showToast(`📦 Generando archivo ZIP...`);
+      const zipBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+
+      const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${safeProjectName}_Juego.html`;
+      a.download = `${safeProjectName}_Juego.zip`;
       a.click();
       URL.revokeObjectURL(url);
 
-      this.showToast(`🎮 ¡Juego "${projectName}" generado! Listo para jugar.`);
+      this.showToast(`🎮 ¡Juego "${projectName}" generado con éxito! (HTML, CSS, JS y Assets separados)`);
     } catch (err) {
       console.error('Error generando juego autónomo:', err);
-      alert('Error al generar el archivo autónomo: ' + err.message);
+      alert('Error al generar el archivo del juego: ' + err.message);
     }
   }
 

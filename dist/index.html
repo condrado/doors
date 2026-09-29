@@ -1,20 +1,17 @@
 <!DOCTYPE html>
 <html lang="es">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Laberinto 3D - Prototipo Primera Persona</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚪</text></svg>">
-  <link rel="stylesheet" href="/src/demo/style.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css">
+  <title>Garaje 1.0 - Laberinto 3D</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap"
-    rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css">
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
+
   <div class="app-container panels-hidden">
     <header class="game-header">
       <div class="title-wrap">
@@ -107,7 +104,7 @@
           <!-- Izquierda: cara del personaje -->
           <div class="bar-section bar-section--left">
             <img id="barFaceImg" class="bar-face-img"
-              src="/src/assets/textures/characters/character-f.png"
+              src="assets/textures/characters/character-f.png"
               alt="Personaje" draggable="false">
           </div>
 
@@ -121,7 +118,7 @@
           <!-- Derecha: indicador andar/correr -->
           <div class="bar-section bar-section--right">
             <div class="bar-stance" id="barStance" title="Alternar Correr / Andar (Shift)">
-              <img id="barStanceImg" class="bar-stance-img" src="/src/assets/textures/characters/character-walk.png" alt="Estado" draggable="false">
+              <img id="barStanceImg" class="bar-stance-img" src="assets/textures/characters/character-walk.png" alt="Estado" draggable="false">
               <div class="bar-stance-info">
                 <span id="barStanceText" class="bar-stance-label">ANDAR</span>
                 <kbd class="bar-stance-key">SHIFT</kbd>
@@ -210,9 +207,37 @@
     </footer>
   </div>
 
-  <script src="/src/engine/textures.js"></script>
-  <script src="/src/engine/raycaster.js"></script>
-  <script src="/src/demo/game.js"></script>
-</body>
+  
+  
+  
 
+<!-- Live Reload Automático -->
+<script>
+(() => {
+  let retryCount = 0;
+  function connect() {
+    const es = new EventSource('/__live_reload');
+    es.onmessage = (e) => {
+      if (e.data === 'reload') {
+        console.log('⚡ [LiveReload] Actualización de desarrollo detectada. Recargando...');
+        location.reload();
+      }
+    };
+    es.onerror = () => {
+      es.close();
+      setTimeout(connect, Math.min(2500, 500 * (++retryCount)));
+    };
+    es.onopen = () => {
+      retryCount = 0;
+    };
+  }
+  connect();
+})();
+</script>
+
+
+
+  <!-- LÓGICA Y MOTORES DEL JUEGO -->
+  <script src="game.js"></script>
+</body>
 </html>

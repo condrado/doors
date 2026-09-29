@@ -721,12 +721,14 @@ function createLightCeilingPixels(w = 64, h = 64) {
   ctx.fillRect(0, 0, w, h);
   // Halo de luz central
   const cx = w / 2, cy = h / 2;
-  const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, w * 0.48);
-  grad.addColorStop(0, 'rgba(255, 250, 200, 1)');
-  grad.addColorStop(0.35, 'rgba(255, 245, 180, 0.7)');
-  grad.addColorStop(1, 'rgba(200, 195, 170, 0)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
+  if (typeof ctx.createRadialGradient === 'function') {
+    const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, w * 0.48);
+    grad.addColorStop(0, 'rgba(255, 250, 200, 1)');
+    grad.addColorStop(0.35, 'rgba(255, 245, 180, 0.7)');
+    grad.addColorStop(1, 'rgba(200, 195, 170, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  }
   // Carcasa de la lámpara (rectángulo central)
   const lw = w * 0.38, lh = h * 0.22;
   const lx = cx - lw / 2, ly = cy - lh / 2;
@@ -734,7 +736,7 @@ function createLightCeilingPixels(w = 64, h = 64) {
   ctx.fillRect(lx, ly, lw, lh);
   ctx.strokeStyle = '#a09070';
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(lx, ly, lw, lh);
+  if (typeof ctx.strokeRect === 'function') ctx.strokeRect(lx, ly, lw, lh);
   // Cristal interior brillante
   ctx.fillStyle = 'rgba(255, 255, 210, 0.95)';
   ctx.fillRect(lx + 3, ly + 3, lw - 6, lh - 6);
@@ -756,18 +758,29 @@ const CEILING_STYLES = {};
 // Mapeo de generadores procedurales de respaldo (para visualización offline o generadores matemáticos)
 const PROCEDURAL_GENERATORS = {
   walls: {
+    castle: { wall: createStoneWallPixels, cap: createStoneCapPixels },
+    white: { wall: createWhiteWallPixels, cap: createWhiteCapPixels },
+    black: { wall: createBlackCapPixels, cap: createBlackCapPixels },
+    crystal: { wall: createCrystalWallPixels, cap: createCrystalCapPixels },
     castillo: { wall: createStoneWallPixels, cap: createStoneCapPixels },
     blanca: { wall: createWhiteWallPixels, cap: createWhiteCapPixels },
     negra: { wall: createBlackCapPixels, cap: createBlackCapPixels },
     cristal: { wall: createCrystalWallPixels, cap: createCrystalCapPixels }
   },
   doors: {
+    castle: { door: createWoodDoorPixels, cap: createStoneCapPixels },
+    white: { door: createWhiteDoorPixels, cap: createWhiteCapPixels },
+    black: { door: createBlackDoorPixels, cap: createBlackCapPixels },
+    crystal: { door: createCrystalDoorPixels, cap: createCrystalCapPixels },
     castillo: { door: createWoodDoorPixels, cap: createStoneCapPixels },
     blanca: { door: createWhiteDoorPixels, cap: createWhiteCapPixels },
     negra: { door: createBlackDoorPixels, cap: createBlackCapPixels },
     cristal: { door: createCrystalDoorPixels, cap: createCrystalCapPixels }
   },
   ceilings: {
+    white: { ceiling: createWhiteCeilingPixels },
+    castle: { ceiling: createStoneCeilingPixels },
+    light: { ceiling: createLightCeilingPixels },
     blanca: { ceiling: createWhiteCeilingPixels },
     castillo: { ceiling: createStoneCeilingPixels },
     luz: { ceiling: createLightCeilingPixels }
@@ -775,23 +788,28 @@ const PROCEDURAL_GENERATORS = {
 };
 
 // Inicializar estilos de techo procedurales por defecto
-CEILING_STYLES['blanca'] = { label: 'Blanca', pixels: createWhiteCeilingPixels(), gen: createWhiteCeilingPixels };
-CEILING_STYLES['castillo'] = { label: 'Castillo', pixels: createStoneCeilingPixels(), gen: createStoneCeilingPixels };
-CEILING_STYLES['luz'] = { label: 'Con luz', pixels: createLightCeilingPixels(), gen: createLightCeilingPixels };
+CEILING_STYLES['white'] = { label: 'White', pixels: createWhiteCeilingPixels(), gen: createWhiteCeilingPixels };
+CEILING_STYLES['castle'] = { label: 'Castle', pixels: createStoneCeilingPixels(), gen: createStoneCeilingPixels };
+CEILING_STYLES['light'] = { label: 'With Light', pixels: createLightCeilingPixels(), gen: createLightCeilingPixels };
+CEILING_STYLES['blanca'] = CEILING_STYLES['white'];
+CEILING_STYLES['castillo'] = CEILING_STYLES['castle'];
+CEILING_STYLES['luz'] = CEILING_STYLES['light'];
 
 /**
  * Carga e inicializa WALL_STYLES y DOOR_STYLES a partir de un objeto manifest (e.g. textures.json)
  */
 function loadStylesFromManifest(manifest) {
   if (!manifest) return;
-  const baseDir = manifest.baseDir || '/src/engine/textures/';
+  const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+  const defaultBaseDir = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
+  const baseDir = manifest.baseDir || defaultBaseDir;
 
   if (manifest.walls) {
     Object.entries(manifest.walls).forEach(([key, item]) => {
       const proc = PROCEDURAL_GENERATORS.walls[key] || {};
       const isTrans = (item.hasTransparency !== undefined)
         ? item.hasTransparency
-        : (/^(cristal|glass|trans|reja|enrejado)/i.test(key));
+        : (/^(crystal|cristal|glass|trans|reja|enrejado)/i.test(key));
       const capFile = item.capFile || ('caps/' + key + '.png');
       WALL_STYLES[key] = {
         label: item.label || key,
@@ -812,7 +830,7 @@ function loadStylesFromManifest(manifest) {
       const proc = PROCEDURAL_GENERATORS.doors[key] || {};
       const isTrans = (item.hasTransparency !== undefined)
         ? item.hasTransparency
-        : (/^(cristal|glass|trans|reja|enrejado)/i.test(key));
+        : (/^(crystal|cristal|glass|trans|reja|enrejado)/i.test(key));
       const capFile = item.capFile || ('caps/' + key + '.png');
       DOOR_STYLES[key] = {
         label: item.label || key,
@@ -832,22 +850,32 @@ function loadStylesFromManifest(manifest) {
 // Manifest de respaldo para garantizar disponibilidad inmediata síncrona
 const DEFAULT_MANIFEST_FALLBACK = {
   version: 1,
-  baseDir: '/src/engine/textures/',
+  baseDir: (typeof window !== 'undefined' && window.STANDALONE_PROJECT) ? 'assets/textures/' : '/src/assets/textures/',
   walls: {
-    castillo: { label: 'Castillo', file: 'walls/castillo.png', capFile: 'caps/castillo.png', hasTransparency: false },
-    blanca: { label: 'Blanca', file: 'walls/blanca.png', capFile: 'caps/blanca.png', hasTransparency: false },
-    negra: { label: 'Negra', file: 'walls/negra.png', capFile: 'caps/negra.png', hasTransparency: false },
-    cristal: { label: 'Cristal', file: 'walls/cristal.png', capFile: 'caps/cristal.png', hasTransparency: true },
-    'cristal-c': { label: 'Cristal C', file: 'walls/cristal-c.png', capFile: 'caps/cristal-c.png', hasTransparency: true }
+    castle: { label: 'Castle', file: 'walls/castle.png', capFile: 'caps/castle.png', hasTransparency: false },
+    white: { label: 'White', file: 'walls/white.png', capFile: 'caps/white.png', hasTransparency: false },
+    black: { label: 'Black', file: 'walls/black.png', capFile: 'caps/black.png', hasTransparency: false },
+    crystal: { label: 'Crystal', file: 'walls/crystal.png', capFile: 'caps/crystal.png', hasTransparency: true },
+    'crystal-c': { label: 'Crystal C', file: 'walls/crystal-c.png', capFile: 'caps/crystal-c.png', hasTransparency: true },
+    castillo: { label: 'Castillo', file: 'walls/castle.png', capFile: 'caps/castle.png', hasTransparency: false },
+    blanca: { label: 'Blanca', file: 'walls/white.png', capFile: 'caps/white.png', hasTransparency: false },
+    negra: { label: 'Negra', file: 'walls/black.png', capFile: 'caps/black.png', hasTransparency: false },
+    cristal: { label: 'Cristal', file: 'walls/crystal.png', capFile: 'caps/crystal.png', hasTransparency: true },
+    'cristal-c': { label: 'Cristal C', file: 'walls/crystal-c.png', capFile: 'caps/crystal-c.png', hasTransparency: true }
   },
   doors: {
-    castillo: { label: 'Castillo', file: 'doors/castillo.png', capFile: 'caps/castillo.png', hasTransparency: false },
-    blanca: { label: 'Blanca', file: 'doors/blanca.png', capFile: 'caps/blanca.png', hasTransparency: false },
-    negra: { label: 'Negra', file: 'doors/negra.png', capFile: 'caps/negra.png', hasTransparency: false },
-    cristal: { label: 'Cristal', file: 'doors/cristal.png', capFile: 'caps/cristal.png', hasTransparency: true }
+    castle: { label: 'Castle', file: 'doors/castle.png', capFile: 'caps/castle.png', hasTransparency: false },
+    white: { label: 'White', file: 'doors/white.png', capFile: 'caps/white.png', hasTransparency: false },
+    black: { label: 'Black', file: 'doors/black.png', capFile: 'caps/black.png', hasTransparency: false },
+    crystal: { label: 'Crystal', file: 'doors/crystal.png', capFile: 'caps/crystal.png', hasTransparency: true },
+    castillo: { label: 'Castillo', file: 'doors/castle.png', capFile: 'caps/castle.png', hasTransparency: false },
+    blanca: { label: 'Blanca', file: 'doors/white.png', capFile: 'caps/white.png', hasTransparency: false },
+    negra: { label: 'Negra', file: 'doors/black.png', capFile: 'caps/black.png', hasTransparency: false },
+    cristal: { label: 'Cristal', file: 'doors/crystal.png', capFile: 'caps/crystal.png', hasTransparency: true }
   },
   windows: {
-    ventana: { label: 'Ventana', file: 'windows/ventana.png' }
+    window: { label: 'Window', file: 'windows/window.png' },
+    ventana: { label: 'Ventana', file: 'windows/window.png' }
   }
 };
 
@@ -856,12 +884,30 @@ loadStylesFromManifest(DEFAULT_MANIFEST_FALLBACK);
 
 // En navegador, sincronizar dinámicamente con el archivo textures.json
 if (typeof window !== 'undefined' && typeof fetch === 'function') {
-  fetch('/src/engine/textures/textures.json')
+  const jsonUrl = (window.STANDALONE_PROJECT ? 'assets/textures/' : '/src/assets/textures/') + 'textures.json';
+  fetch(jsonUrl)
     .then(r => r.ok ? r.json() : null)
     .then(manifest => {
       if (manifest) loadStylesFromManifest(manifest);
     })
     .catch(() => {});
+}
+
+function resolveTexturePath(fileOrUrl, subfolder, key) {
+  const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+  const baseDir = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
+  if (!fileOrUrl) return key ? (baseDir + subfolder + '/' + key + '.png') : null;
+  let str = String(fileOrUrl);
+  if (str.startsWith('data:')) return str;
+  str = str.replace('/src/engine/textures/', baseDir)
+           .replace('src/engine/textures/', baseDir)
+           .replace('/src/assets/texturas/', baseDir)
+           .replace('src/assets/texturas/', baseDir)
+           .replace('assets/texturas/', baseDir);
+  if (!str.startsWith('/') && !str.startsWith('http') && !str.startsWith('assets/')) {
+    str = baseDir + str;
+  }
+  return str;
 }
 
 /**
@@ -870,9 +916,14 @@ if (typeof window !== 'undefined' && typeof fetch === 'function') {
 function registerWallStyle(key, styleDef) {
   let cachedWallPixels = null;
   let cachedCapPixels = null;
+  const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+  const baseDir = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
+
   // Priorizar archivo físico en disco sobre dataUrl inline para permitir edición directa de PNGs
-  const wallUrl = styleDef.pngUrl || (styleDef.file ? ('/src/engine/textures/' + styleDef.file) : null) || styleDef.dataUrl;
-  const capUrl = styleDef.capPngUrl || (styleDef.capFile ? ('/src/engine/textures/' + styleDef.capFile) : null) || styleDef.capDataUrl || ('/src/engine/textures/caps/' + key + '.png');
+  const rawWall = styleDef.pngUrl || (styleDef.file ? (baseDir + styleDef.file) : null) || styleDef.dataUrl;
+  const wallUrl = resolveTexturePath(rawWall, 'walls', key);
+  const rawCap = styleDef.capPngUrl || (styleDef.capFile ? (baseDir + styleDef.capFile) : null) || styleDef.capDataUrl || (baseDir + 'caps/' + key + '.png');
+  const capUrl = resolveTexturePath(rawCap, 'caps', key);
 
   const onWallLoaded = (pixels) => {
     cachedWallPixels = pixels;
@@ -916,7 +967,7 @@ function registerWallStyle(key, styleDef) {
     capDataUrl: styleDef.capDataUrl || null,
     pngUrl: wallUrl,
     capPngUrl: capUrl,
-    file: styleDef.file || (wallUrl && wallUrl.startsWith('/src/engine/textures/') ? wallUrl.replace('/src/engine/textures/', '').split('?')[0] : null),
+    file: styleDef.file || (wallUrl && wallUrl.includes('/walls/') ? 'walls/' + wallUrl.split('/walls/')[1].split('?')[0] : null),
     capFile: styleDef.capFile || ('caps/' + key + '.png'),
     hasTransparency: initialTrans,
     wall: (w = 64, h = 192) => {
@@ -941,9 +992,14 @@ function registerWallStyle(key, styleDef) {
 function registerDoorStyle(key, styleDef) {
   let cachedDoorPixels = null;
   let cachedCapPixels = null;
+  const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+  const baseDir = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
+
   // Priorizar archivo físico en disco sobre dataUrl inline
-  const doorUrl = styleDef.pngUrl || (styleDef.file ? ('/src/engine/textures/' + styleDef.file) : null) || styleDef.dataUrl;
-  const capUrl = styleDef.capPngUrl || (styleDef.capFile ? ('/src/engine/textures/' + styleDef.capFile) : null) || styleDef.capDataUrl || ('/src/engine/textures/caps/' + key + '.png');
+  const rawDoor = styleDef.pngUrl || (styleDef.file ? (baseDir + styleDef.file) : null) || styleDef.dataUrl;
+  const doorUrl = resolveTexturePath(rawDoor, 'doors', key);
+  const rawCap = styleDef.capPngUrl || (styleDef.capFile ? (baseDir + styleDef.capFile) : null) || styleDef.capDataUrl || (baseDir + 'caps/' + key + '.png');
+  const capUrl = resolveTexturePath(rawCap, 'caps', key);
 
   const onDoorLoaded = (pixels) => {
     cachedDoorPixels = pixels;
@@ -989,7 +1045,7 @@ function registerDoorStyle(key, styleDef) {
     capDataUrl: styleDef.capDataUrl || null,
     pngUrl: doorUrl,
     capPngUrl: capUrl,
-    file: styleDef.file || (doorUrl && doorUrl.startsWith('/src/engine/textures/') ? doorUrl.replace('/src/engine/textures/', '').split('?')[0] : null),
+    file: styleDef.file || (doorUrl && doorUrl.includes('/doors/') ? 'doors/' + doorUrl.split('/doors/')[1].split('?')[0] : null),
     capFile: styleDef.capFile || ('caps/' + key + '.png'),
     hasTransparency: initialTrans,
     door: (w = 64, h = 128) => {
@@ -1057,26 +1113,28 @@ function exportBaseTexturesAsPngDataUrls() {
     return canvas.toDataURL('image/png');
   }
 
-  // Paredes (64x192)
-  result['src/engine/textures/walls/castillo.png'] = pixelsToPngDataUrl(createStoneWallPixels(64, 192), 64, 192);
-  result['src/engine/textures/walls/blanca.png'] = pixelsToPngDataUrl(createWhiteWallPixels(64, 192), 64, 192);
-  result['src/engine/textures/walls/negra.png'] = pixelsToPngDataUrl(createBlackCapPixels(64, 192), 64, 192);
-  result['src/engine/textures/walls/cristal.png'] = pixelsToPngDataUrl(createCrystalWallPixels(64, 192), 64, 192);
+  const p = 'src/assets/textures/';
 
-  // Puertas (64x128)
-  result['src/engine/textures/doors/castillo.png'] = pixelsToPngDataUrl(createWoodDoorPixels(64, 128), 64, 128);
-  result['src/engine/textures/doors/blanca.png'] = pixelsToPngDataUrl(createWhiteDoorPixels(64, 128), 64, 128);
-  result['src/engine/textures/doors/negra.png'] = pixelsToPngDataUrl(createBlackDoorPixels(64, 128), 64, 128);
-  result['src/engine/textures/doors/cristal.png'] = pixelsToPngDataUrl(createCrystalDoorPixels(64, 128), 64, 128);
+  // Walls (64x192)
+  result[p + 'walls/castle.png'] = pixelsToPngDataUrl(createStoneWallPixels(64, 192), 64, 192);
+  result[p + 'walls/white.png'] = pixelsToPngDataUrl(createWhiteWallPixels(64, 192), 64, 192);
+  result[p + 'walls/black.png'] = pixelsToPngDataUrl(createBlackCapPixels(64, 192), 64, 192);
+  result[p + 'walls/crystal.png'] = pixelsToPngDataUrl(createCrystalWallPixels(64, 192), 64, 192);
 
-  // Ventana (64x192)
-  result['src/engine/textures/windows/ventana.png'] = pixelsToPngDataUrl(createWindowPixels(64, 192), 64, 192);
+  // Doors (64x128)
+  result[p + 'doors/castle.png'] = pixelsToPngDataUrl(createWoodDoorPixels(64, 128), 64, 128);
+  result[p + 'doors/white.png'] = pixelsToPngDataUrl(createWhiteDoorPixels(64, 128), 64, 128);
+  result[p + 'doors/black.png'] = pixelsToPngDataUrl(createBlackDoorPixels(64, 128), 64, 128);
+  result[p + 'doors/crystal.png'] = pixelsToPngDataUrl(createCrystalDoorPixels(64, 128), 64, 128);
 
-  // Cantos / Jambas (64x192)
-  result['src/engine/textures/caps/castillo.png'] = pixelsToPngDataUrl(createStoneCapPixels(64, 192), 64, 192);
-  result['src/engine/textures/caps/blanca.png'] = pixelsToPngDataUrl(createWhiteCapPixels(64, 192), 64, 192);
-  result['src/engine/textures/caps/negra.png'] = pixelsToPngDataUrl(createBlackCapPixels(64, 192), 64, 192);
-  result['src/engine/textures/caps/cristal.png'] = pixelsToPngDataUrl(createCrystalCapPixels(64, 192), 64, 192);
+  // Window (64x192)
+  result[p + 'windows/window.png'] = pixelsToPngDataUrl(createWindowPixels(64, 192), 64, 192);
+
+  // Caps / Jambs (64x192)
+  result[p + 'caps/castle.png'] = pixelsToPngDataUrl(createStoneCapPixels(64, 192), 64, 192);
+  result[p + 'caps/white.png'] = pixelsToPngDataUrl(createWhiteCapPixels(64, 192), 64, 192);
+  result[p + 'caps/black.png'] = pixelsToPngDataUrl(createBlackCapPixels(64, 192), 64, 192);
+  result[p + 'caps/crystal.png'] = pixelsToPngDataUrl(createCrystalCapPixels(64, 192), 64, 192);
 
   return result;
 }
@@ -1268,6 +1326,9 @@ function getCharacterPixels(variant = 'front') {
 
 // Carga asíncrona de los sprites PNG en alta resolución
 if (typeof Image !== 'undefined') {
+  const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+  const assetsRoot = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
+
   const loadSprite = (fileName, key) => {
     const img = new Image();
     img.onload = () => {
@@ -1284,7 +1345,7 @@ if (typeof Image !== 'undefined') {
         if (key === 'front') window.raycaster.textures.monitor = arr;
       }
     };
-    img.src = '/src/assets/' + fileName;
+    img.src = assetsRoot + 'accessories/' + fileName;
   };
 
   loadSprite('monitor_front.png', 'front');
@@ -1308,7 +1369,7 @@ if (typeof Image !== 'undefined') {
         if (key === 'front') window.raycaster.textures.character = arr;
       }
     };
-    img.src = '/src/assets/' + fileName;
+    img.src = assetsRoot + 'characters/' + fileName;
   };
 
   loadCharSprite('char_front.png', 'front');

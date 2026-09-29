@@ -389,13 +389,15 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // Indicador en la barra inferior
     if (barStance) {
+      const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+      const pBase = isStandalone ? 'assets/textures/characters/' : '/src/assets/textures/characters/';
       if (isRunning) {
         barStance.classList.add('sprinting');
-        if (barStanceImg)  barStanceImg.src = '/src/assets/personaje-correr.png';
+        if (barStanceImg)  barStanceImg.src = pBase + 'character-run.png';
         if (barStanceText) barStanceText.textContent = 'CORRER';
       } else {
         barStance.classList.remove('sprinting');
-        if (barStanceImg)  barStanceImg.src = '/src/assets/personaje-andar.png';
+        if (barStanceImg)  barStanceImg.src = pBase + 'character-walk.png';
         if (barStanceText) barStanceText.textContent = 'ANDAR';
       }
     }
@@ -557,11 +559,13 @@ window.addEventListener('DOMContentLoaded', () => {
           }
         }
 
+        const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+        const texBase = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
         if (data.walls && typeof registerWallStyle === 'function') {
           data.walls.forEach(item => {
             const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
             const capFile = item.capFile || ('caps/' + item.name + '.png');
-            const capUrl = item.capUrl || ('/src/engine/textures/caps/' + item.name + '.png');
+            const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
             // Siempre registrar/actualizar con la URL fresca del disco (incluyendo query ?t=)
             registerWallStyle(item.name, {
               label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
@@ -579,7 +583,7 @@ window.addEventListener('DOMContentLoaded', () => {
           data.doors.forEach(item => {
             const isTrans = (/^(cristal|glass|trans|reja|enrejado)/i.test(item.name));
             const capFile = item.capFile || ('caps/' + item.name + '.png');
-            const capUrl = item.capUrl || ('/src/engine/textures/caps/' + item.name + '.png');
+            const capUrl = item.capUrl || (texBase + 'caps/' + item.name + '.png');
             registerDoorStyle(item.name, {
               label: item.name.charAt(0).toUpperCase() + item.name.slice(1).replace(/_/g, ' '),
               pngUrl: item.url,
@@ -2052,10 +2056,11 @@ window.addEventListener('DOMContentLoaded', () => {
   // BUCLE PRINCIPAL (GAME LOOP)
   // ==========================================
   // ── Cara del personaje en la barra inferior ──────────────────────────────
+  const pBase = (typeof window !== 'undefined' && window.STANDALONE_PROJECT) ? 'assets/textures/characters/' : '/src/assets/textures/characters/';
   const FACE_IMGS = {
-    f: '/src/assets/personaje-f.png',
-    l: '/src/assets/personaje-l.png',
-    r: '/src/assets/personaje-r.png',
+    f: pBase + 'character-f.png',
+    l: pBase + 'character-l.png',
+    r: pBase + 'character-r.png',
   };
   // Tiempo que el personaje mantiene la mirada lateral antes de volver al frente (ms)
   const FACE_SIDE_HOLD_MS = 300;

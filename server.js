@@ -54,6 +54,8 @@ try {
       normalized.includes('.git') ||
       normalized.includes('node_modules') ||
       normalized.includes('scratch') ||
+      normalized.includes('src/assets/textures') ||
+      normalized.includes('src/assets/texturas') ||
       normalized.includes('src/engine/textures') ||
       normalized.endsWith('.tmp')
     ) {
@@ -130,7 +132,11 @@ const server = http.createServer((req, res) => {
         }
 
         // Prevenir directory traversal
-        const normalized = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
+        let normalized = path.normalize(relativePath).replace(/^(\.\.[\/\\])+/, '');
+        // Migración transparente de rutas antiguas a src/assets/textures
+        normalized = normalized.replace('src' + path.sep + 'engine' + path.sep + 'textures', 'src' + path.sep + 'assets' + path.sep + 'textures')
+                               .replace('src' + path.sep + 'assets' + path.sep + 'texturas', 'src' + path.sep + 'assets' + path.sep + 'textures');
+
         const targetPath = path.join(__dirname, normalized);
         fs.mkdirSync(path.dirname(targetPath), { recursive: true });
 
@@ -152,7 +158,7 @@ const server = http.createServer((req, res) => {
   // Endpoint API para listar texturas físicas presentes en carpetas
   if (req.method === 'GET' && reqUrl === '/api/list-textures') {
     try {
-      const baseDir = path.join(__dirname, 'src', 'engine', 'textures');
+      const baseDir = path.join(__dirname, 'src', 'assets', 'textures');
       const categories = ['walls', 'doors', 'windows', 'caps'];
       const result = { walls: [], doors: [], windows: [], caps: [] };
 
@@ -184,9 +190,9 @@ const server = http.createServer((req, res) => {
               result[cat].push({
                 name,
                 file: `${cat}/${file}`,
-                url: `/src/engine/textures/${cat}/${file}?t=${catMtime}`,
+                url: `/src/assets/textures/${cat}/${file}?t=${catMtime}`,
                 capFile: hasCap ? `caps/${file}` : null,
-                capUrl: hasCap ? `/src/engine/textures/caps/${file}?t=${capMtime}` : null,
+                capUrl: hasCap ? `/src/assets/textures/caps/${file}?t=${capMtime}` : null,
                 hasCap,
                 mtime: catMtime,
                 capMtime: hasCap ? capMtime : null
@@ -207,6 +213,67 @@ const server = http.createServer((req, res) => {
     }
     return;
   }
+
+  // Endpoint API para listar TODOS los assets del juego para exportación autónoma
+  if (req.method === 'GET' && reqUrl === '/api/list-all-assets') {
+    try {
+      const rootAssetsDir = path.join(__dirname, 'src', 'assets');
+      const allFiles = [];
+
+      function scanDir(dir) {
+        if (!fs.existsSync(dir)) return;
+        const entries = fs.readdirSync(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            scanDir(fullPath);
+          } else if (entry.isFile()) {
+            if (/\.(png|jpg|jpeg|webp|json|txt)$/i.test(entry.name) && !entry.name.endsWith('.bak')) {
+              const relFromAssets = path.relative(rootAssetsDir, fullPath).replace(/\\/g, '/');
+              allFiles.push({
+                exportPath: `assets/${relFromAssets}`,
+                url: `/src/assets/${relFromAssets}`
+              });
+            }
+          }
+        }
+      }
+
+      scanDir(rootAssetsDir);
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate'
+      });
+      res.end(JSON.stringify(allFiles));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=UTF-8' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // Compatibilidad hacia atrás y reescritura de rutas para assets organizados bajo /src/assets/textures/
+  reqUrl = reqUrl.replace('/src/engine/textures/', '/src/assets/textures/')
+                 .replace('/src/assets/texturas/', '/src/assets/textures/')
+                 .replace('/src/assets/personajes/', '/src/assets/textures/characters/')
+                 .replace('/src/assets/accesorios/', '/src/assets/textures/accessories/');
+
+  if (/^\/src\/assets\/(char_|personaje-)/.test(reqUrl)) {
+    reqUrl = reqUrl.replace('/src/assets/', '/src/assets/textures/characters/');
+  } else if (/^\/src\/assets\/monitor/.test(reqUrl)) {
+    reqUrl = reqUrl.replace('/src/assets/', '/src/assets/textures/accessories/');
+  }
+
+  // Reescritura de nombres de archivo españoles a ingleses
+  reqUrl = reqUrl.replace('personaje-andar.png', 'character-walk.png')
+                 .replace('personaje-correr.png', 'character-run.png')
+                 .replace(/personaje-/g, 'character-')
+                 .replace('castillo.png', 'castle.png')
+                 .replace('blanca.png', 'white.png')
+                 .replace('negra.png', 'black.png')
+                 .replace('cristal.png', 'crystal.png')
+                 .replace('ventana.png', 'window.png');
 
   // Enrutamiento limpio y amigable
   if (reqUrl === '/' || reqUrl === '') {

@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "baseDir": "/src/assets/textures/",
+  "walls": {
+    "castle": {
+      "label": "Castle",
+      "file": "walls/castle.png",
+      "capFile": "caps/castle.png"
+    },
+    "white": {
+      "label": "White",
+      "file": "walls/white.png",
+      "capFile": "caps/white.png"
+    },
+    "black": {
+      "label": "Black",
+      "file": "walls/black.png",
+      "capFile": "caps/black.png"
+    },
+    "crystal": {
+      "label": "Crystal",
+      "file": "walls/crystal.png",
+      "capFile": "caps/crystal.png",
+      "hasTransparency": true
+    },
+    "crystal-c": {
+      "label": "Crystal C",
+      "file": "walls/crystal-c.png",
+      "capFile": "caps/crystal-c.png",
+      "hasTransparency": true
+    },
+    "castillo": {
+      "label": "Castillo",
+      "file": "walls/castle.png",
+      "capFile": "caps/castle.png"
+    },
+    "blanca": {
+      "label": "Blanca",
+      "file": "walls/white.png",
+      "capFile": "caps/white.png"
+    },
+    "negra": {
+      "label": "Negra",
+      "file": "walls/black.png",
+      "capFile": "caps/black.png"
+    },
+    "cristal": {
+      "label": "Cristal",
+      "file": "walls/crystal.png",
+      "capFile": "caps/crystal.png",
+      "hasTransparency": true
+    },
+    "cristal-c": {
+      "label": "Cristal C",
+      "file": "walls/crystal-c.png",
+      "capFile": "caps/crystal-c.png",
+      "hasTransparency": true
+    }
+  },
+  "doors": {
+    "castle": {
+      "label": "Castle",
+      "file": "doors/castle.png",
+      "capFile": "caps/castle.png"
+    },
+    "white": {
+      "label": "White",
+      "file": "doors/white.png",
+      "capFile": "caps/white.png"
+    },
+    "black": {
+      "label": "Black",
+      "file": "doors/black.png",
+      "capFile": "caps/black.png"
+    },
+    "crystal": {
+      "label": "Crystal",
+      "file": "doors/crystal.png",
+      "capFile": "caps/crystal.png",
+      "hasTransparency": true
+    },
+    "castillo": {
+      "label": "Castillo",
+      "file": "doors/castle.png",
+      "capFile": "caps/castle.png"
+    },
+    "blanca": {
+      "label": "Blanca",
+      "file": "doors/white.png",
+      "capFile": "caps/white.png"
+    },
+    "negra": {
+      "label": "Negra",
+      "file": "doors/black.png",
+      "capFile": "caps/black.png"
+    },
+    "cristal": {
+      "label": "Cristal",
+      "file": "doors/crystal.png",
+      "capFile": "caps/crystal.png",
+      "hasTransparency": true
+    }
+  },
+  "windows": {
+    "window": {
+      "label": "Window",
+      "file": "windows/window.png"
+    },
+    "ventana": {
+      "label": "Ventana",
+      "file": "windows/window.png"
+    }
+  }
+}

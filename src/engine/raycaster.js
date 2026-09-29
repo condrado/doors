@@ -1009,8 +1009,13 @@ class RaycasterEngine {
         img.src = def.pngUrl;
       }
 
-      // Cargar también imagen física del canto/jamba (capPngUrl o /src/engine/textures/caps/${style}.png)
-      const capUrl = def.capPngUrl || (def.capFile ? ('/src/engine/textures/' + def.capFile) : ('/src/engine/textures/caps/' + style + '.png'));
+      // Cargar también imagen física del canto/jamba
+      const isStandalone = typeof window !== 'undefined' && !!window.STANDALONE_PROJECT;
+      const baseTexDir = isStandalone ? 'assets/textures/' : '/src/assets/textures/';
+      let capUrl = def.capPngUrl || (def.capFile ? (baseTexDir + def.capFile) : (baseTexDir + 'caps/' + style + '.png'));
+      if (capUrl && (capUrl.includes('/src/engine/textures/') || capUrl.includes('/src/assets/texturas/'))) {
+        capUrl = capUrl.replace('/src/engine/textures/', baseTexDir).replace('/src/assets/texturas/', baseTexDir);
+      }
       if (capUrl && typeof Image !== 'undefined') {
         const cImg = new Image();
         cImg.crossOrigin = 'anonymous';
@@ -1077,7 +1082,10 @@ class RaycasterEngine {
         img.src = def.pngUrl;
       }
 
-      const doorCapUrl = def.capPngUrl || (def.capFile ? ('/src/engine/textures/' + def.capFile) : ('/src/engine/textures/caps/' + style + '.png'));
+      let doorCapUrl = def.capPngUrl || (def.capFile ? (baseTexDir + def.capFile) : (baseTexDir + 'caps/' + style + '.png'));
+      if (doorCapUrl && (doorCapUrl.includes('/src/engine/textures/') || doorCapUrl.includes('/src/assets/texturas/'))) {
+        doorCapUrl = doorCapUrl.replace('/src/engine/textures/', baseTexDir).replace('/src/assets/texturas/', baseTexDir);
+      }
       if (doorCapUrl && typeof Image !== 'undefined') {
         const cImg = new Image();
         cImg.crossOrigin = 'anonymous';
@@ -1153,21 +1161,26 @@ class RaycasterEngine {
       ctx.strokeStyle = '#8b5a2b'; ctx.lineWidth = 1;
       for (let y = 0; y < height; y += 8)
         for (let x = 0; x < width; x += 8)
-          ctx.strokeRect(x, y, 8, 8);
+          if (typeof ctx.strokeRect === 'function') ctx.strokeRect(x, y, 8, 8);
       const arr = new Uint32Array(ctx.getImageData(0, 0, width, height).data.buffer);
       arr.width = width; arr.height = height;
       return arr;
     };
 
     this.textures[9]['mesa']    = makeMesaPixels(64, 64, 'both');
-    this.textures[9]['castillo']= this.textures[1]['castillo'] || makeMesaPixels(64, 64, 'both');
+    this.textures[9]['castle']  = this.textures[1]['castle'] || this.textures[1]['castillo'] || makeMesaPixels(64, 64, 'both');
+    this.textures[9]['castillo']= this.textures[9]['castle'];
     this.textures[14]['mesa']   = makeMesaTopPixels(64, 64);
+    this.textures[14]['castle'] = this.textures[14]['mesa'];
     this.textures[14]['castillo']= this.textures[14]['mesa'];
     this.textures[15]['mesa']   = makeMesaPixels(64, 64, 'none');
+    this.textures[15]['castle'] = this.textures[15]['mesa'];
     this.textures[15]['castillo']= this.textures[15]['mesa'];
     this.textures[22]['mesa']   = makeMesaPixels(64, 64, 'left');
+    this.textures[22]['castle'] = this.textures[22]['mesa'];
     this.textures[22]['castillo']= this.textures[22]['mesa'];
     this.textures[23]['mesa']   = makeMesaPixels(64, 64, 'right');
+    this.textures[23]['castle'] = this.textures[23]['mesa'];
     this.textures[23]['castillo']= this.textures[23]['mesa'];
 
     if (typeof Image !== 'undefined') {
@@ -1236,8 +1249,9 @@ class RaycasterEngine {
         img.src = src + '?t=' + Date.now();
       };
 
-      loadMesaLateral('/src/engine/textures/custom/mesa-l.png');
-      loadMesaTop('/src/engine/textures/custom/mesa-t.png');
+      const mesaBase = (typeof window !== 'undefined' && window.STANDALONE_PROJECT) ? 'assets/textures/custom/' : '/src/assets/textures/custom/';
+      loadMesaLateral(mesaBase + 'mesa-l.png');
+      loadMesaTop(mesaBase + 'mesa-t.png');
     }
   }
 
@@ -1323,16 +1337,16 @@ class RaycasterEngine {
     if (typeof window === 'undefined' || !window.ENABLE_STATIC_TEXTURE_FILES) {
       return Promise.resolve();
     }
-    const base = '/src/engine/textures/';
+    const base = (typeof window !== 'undefined' && window.STANDALONE_PROJECT) ? 'assets/textures/' : '/src/assets/textures/';
     const files = {
-      1: 'walls/castillo.png',
-      2: 'doors/castillo.png',
-      3: 'doors/castillo.png',
-      4: 'doors/castillo.png',
-      5: 'doors/castillo.png',
-      6: 'windows/ventana.png',
-      10: 'caps/castillo.png',
-      11: 'caps/castillo.png'
+      1: 'walls/castle.png',
+      2: 'doors/castle.png',
+      3: 'doors/castle.png',
+      4: 'doors/castle.png',
+      5: 'doors/castle.png',
+      6: 'windows/window.png',
+      10: 'caps/castle.png',
+      11: 'caps/castle.png'
     };
     return Promise.all(
       Object.entries(files).map(([type, file]) => this.loadTextureImage(Number(type), base + file))

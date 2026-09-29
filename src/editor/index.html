@@ -899,7 +899,7 @@
             <div class="pane-section-header">
               <h4><i class="ri-folders-line"></i> Tus Proyectos Guardados</h4>
               <p>Cada proyecto es independiente. Pulsa en <strong>Generar Juego</strong> en el proyecto que quieras
-                empaquetar en un archivo <code>.html</code> listo para jugar con doble clic.</p>
+                empaquetar con HTML, CSS, JS y Assets separados, listo para jugar y editar cómodamente.</p>
             </div>
 
             <div class="project-list" id="projectListContainer"></div>
@@ -989,6 +989,12 @@
     </div>
   </div>
 
+  <script src="/node_modules/jszip/dist/jszip.min.js"></script>
+  <script>
+    if (!window.JSZip) {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"><\\/script>');
+    }
+  </script>
   <script src="/src/engine/textures.js"></script>
   <script src="/src/editor/editor.js"></script>
 </body>
